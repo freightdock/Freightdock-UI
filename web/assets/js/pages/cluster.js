@@ -1,7 +1,8 @@
 // The cluster ("Cluster" 1): its managers (which leads, and on which node), its workers (every node) with their health
 // as the managers agree on it and which manager hears each, each opening its own page, and the latest events, all asked of the manager again every few seconds. An administrator
 // sends a node a command (a ping, or a container run, stopped or removed), removes a node, or makes a join token to add
-// one ("Cluster" 2).
+// one ("Cluster" 2). Under the workers the floating addresses, each with the worker holding it; an administrator adds
+// or removes one.
 
 import { h, mount, ago, when, shortId } from '../dom.js';
 import { get, post, put, del } from '../api.js';
@@ -26,19 +27,19 @@ const sec = (ms) => Math.floor((ms || 0) / 1000);
 
 export function theClusterPage({ el, signal }) {
   const head = h('div');
-  const managers = h('div'), nodes = h('div'), events = h('div');
-  el.append(head, managers, nodes, events);
+  const managers = h('div'), nodes = h('div'), floats = h('div'), events = h('div');
+  el.append(head, managers, nodes, floats, events);
 
   const reload = loadInto(managers, {
     signal,
     load: async (s) => {
-      const [c, n, e] = await Promise.all([get('/api/cluster', { signal: s }), get('/api/cluster/nodes', { signal: s }).catch(() => null), get('/api/cluster/events', { signal: s }).catch(() => null)]);
-      return { c, n, e };
+      const [c, n, e, f] = await Promise.all([get('/api/cluster', { signal: s }), get('/api/cluster/nodes', { signal: s }).catch(() => null), get('/api/cluster/events', { signal: s }).catch(() => null), get('/api/cluster/floating', { signal: s }).catch(() => null)]);
+      return { c, n, e, f };
     },
-    draw: ({ c, n, e }) => {
+    draw: ({ c, n, e, f }) => {
       if (!c.connected) {
         mount(head, pageHeader(t('nav.the_cluster'), t('pages.cluster.sub')));
-        mount(nodes); mount(events);
+        mount(nodes); mount(floats); mount(events);
         return emptyState(t('pages.cluster.not_connected'), t('pages.cluster.not_connected_text'));
       }
       const cl = c.cluster || {};
@@ -46,6 +47,9 @@ export function theClusterPage({ el, signal }) {
         button({ size: 'sm', onClick: () => joinToken('worker') }, t('pages.cluster.add_node')),
         button({ size: 'sm', onClick: () => joinToken('manager') }, t('pages.cluster.add_manager'))) : null));
       mount(nodes, card({ title: t('pages.cluster.workers'), body: n ? nodeTable(n, cl.raft || [], reload) : emptyState(t('pages.cluster.no_answer'), '') }));
+      mount(floats, card({ title: t('pages.cluster.floating'), sub: t('pages.cluster.floating_sub'),
+        actions: isAdmin() ? button({ size: 'sm', onClick: () => floatingDialog(reload) }, t('pages.cluster.floating_add')) : null,
+        body: f ? floatingTable(f, n || [], reload) : emptyState(t('pages.cluster.no_answer'), '') }));
       mount(events, card({ title: t('pages.cluster.events'), body: e ? eventTable(e) : emptyState(t('pages.cluster.no_answer'), '') }));
       return card({ title: t('pages.cluster.managers'), body: managerTable(cl.raft || [], n || []) });
     },
@@ -142,7 +146,7 @@ function nodeTable(list, raft, reload) {
   });
 }
 
-const EVENT_TONES = { connected: 'good', enrolled: 'good', disconnected: 'warning', removed: 'critical', command_expired: 'warning', health: 'info', manager_joined: 'good', recovery: 'warning' };
+const EVENT_TONES = { connected: 'good', enrolled: 'good', disconnected: 'warning', removed: 'critical', command_expired: 'warning', health: 'info', manager_joined: 'good', recovery: 'warning', floating: 'info' };
 function eventTable(list) {
   const rows = list.slice(-50).reverse();
   return table({
@@ -248,6 +252,48 @@ async function removeNode(n, reload) {
   const name = nodeName(n);
   if (!(await confirm({ title: t('pages.cluster.remove_title', { name }), body: t('pages.cluster.remove_body') }))) return;
   try { await del(`/api/cluster/nodes/${encodeURIComponent(n.id)}`); toast({ text: t('pages.cluster.removed', { name }), tone: 'good' }); reload(); } catch (e) { toast({ text: e.message, tone: 'critical' }); }
+}
+
+/** The floating addresses with their holders by name. */
+function floatingTable(list, nodes, reload) {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const holder = (x) => {
+    if (!x.holder) return status({ tone: 'warning' }, t('pages.cluster.floating_waiting'));
+    const n = byId.get(x.holder);
+    return h('a', { href: `/cluster/nodes/${encodeURIComponent(x.holder)}` }, n ? nodeName(n) : shortId(x.holder));
+  };
+  return table({
+    rows: list, empty: [t('pages.cluster.floating_none'), t('pages.cluster.floating_none_text')], label: t('pages.cluster.floating'),
+    columns: [
+      { label: t('pages.cluster.floating_address'), cell: (x) => h('span', { class: 'mono' }, x.address), sort: (x) => x.address.split('.').map((p) => p.padStart(3, '0')).join('.') },
+      { label: t('pages.cluster.floating_holder'), cell: holder, sort: (x) => (x.holder && byId.get(x.holder) ? nodeName(byId.get(x.holder)) : '') },
+      { label: t('pages.cluster.floating_since'), cell: (x) => (x.since ? h('span', { class: 'nowrap', title: when(sec(x.since)) }, ago(sec(x.since))) : '') },
+      ...(isAdmin() ? [{ label: '', nosort: true, cell: (x) => h('div', { class: 'row row--end' }, button({ size: 'sm', variant: 'danger', onClick: () => removeFloating(x.address, reload) }, t('common.remove'))) }] : []),
+    ],
+  });
+}
+
+function floatingDialog(reload) {
+  const f = formField({ id: 'cl-floating', label: t('pages.cluster.floating_address'), placeholder: '192.0.2.10', inputMode: 'decimal', help: t('pages.cluster.floating_add_help') });
+  const go = button({ variant: 'primary', type: 'submit' }, t('pages.cluster.floating_add'));
+  const form = h('form', { class: 'stack', novalidate: true }, f.el, h('div', { class: 'row row--end' }, go));
+  const m = openModal({ title: t('pages.cluster.floating_add'), body: form, initialFocus: f.input });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const address = f.input.value.trim();
+    go.disabled = true;
+    try {
+      await post('/api/cluster/floating', { address });
+      m.close();
+      toast({ text: t('pages.cluster.floating_added', { address }), tone: 'good' });
+      reload();
+    } catch (x) { go.disabled = false; f.setError(x.message); }
+  });
+}
+
+async function removeFloating(address, reload) {
+  if (!(await confirm({ title: t('pages.cluster.floating_remove_title', { address }), body: t('pages.cluster.floating_remove_body') }))) return;
+  try { await del(`/api/cluster/floating/${encodeURIComponent(address)}`); toast({ text: t('pages.cluster.floating_removed', { address }), tone: 'good' }); reload(); } catch (e) { toast({ text: e.message, tone: 'critical' }); }
 }
 
 /** A join token, shown once with what to set on the new node. */

@@ -172,6 +172,8 @@ pub fn router() -> Router<App> {
         .route("/api/cluster/stacks", get(stacks).post(deploy_stack))
         .route("/api/cluster/stacks/{name}", get(stack).delete(remove_stack))
         .route("/api/cluster/stacks/{name}/{action}", post(stack_action))
+        .route("/api/cluster/floating", get(floating).post(add_floating))
+        .route("/api/cluster/floating/{address}", axum::routing::delete(remove_floating))
 }
 
 fn cluster(app: &App) -> ApiResult<&Cluster> {
@@ -321,6 +323,31 @@ async fn set_labels(State(app): State<App>, a: Authed, Path(id): Path<String>, J
     Ok(Json(v))
 }
 
+/// The floating addresses (G10.3) and each one's holder.
+async fn floating(State(app): State<App>, _a: Authed) -> ApiResult<Json<Value>> {
+    Ok(Json(cluster(&app)?.call(reqwest::Method::GET, "/v1/floating", None).await?.1))
+}
+
+#[derive(Deserialize)]
+struct FloatingBody {
+    address: String,
+}
+
+async fn add_floating(State(app): State<App>, a: Authed, Json(b): Json<FloatingBody>) -> ApiResult<StatusCode> {
+    let address = b.address.trim().to_string();
+    let (s, _) = cluster(&app)?.call(reqwest::Method::POST, "/v1/floating", Some(json!({ "address": address }))).await?;
+    audit::record(&app.db, Some(&a.session.user), a.ip, audit::entry("cluster.floating.add", address)).await;
+    Ok(s)
+}
+
+async fn remove_floating(State(app): State<App>, a: Authed, Path(address): Path<String>) -> ApiResult<StatusCode> {
+    // Only an IPv4 address goes into the manager's path.
+    let Ok(ip) = address.parse::<std::net::Ipv4Addr>() else { return Err(ApiError::not_found("floating address")) };
+    cluster(&app)?.call(reqwest::Method::DELETE, &format!("/v1/floating/{ip}"), None).await?;
+    audit::record(&app.db, Some(&a.session.user), a.ip, audit::entry("cluster.floating.remove", ip.to_string())).await;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 async fn command_status(State(app): State<App>, _a: Authed, Path(id): Path<String>) -> ApiResult<Json<Value>> {
     id_or_404(&id, "command")?;
     Ok(Json(cluster(&app)?.call(reqwest::Method::GET, &format!("/v1/commands/{id}"), None).await?.1))
@@ -456,6 +483,9 @@ mod tests {
                     "POST /v1/stacks/web/restart" => (StatusCode::OK, json!({ "restarting": 1, "busy": 0 }).to_string()),
                     "DELETE /v1/stacks/web" => (StatusCode::NO_CONTENT, String::new()),
                     "GET /v1/nodes/6f1c7c2e-0000-4000-8000-000000000001" => (StatusCode::OK, json!({ "id": "6f1c7c2e-0000-4000-8000-000000000001", "hostname": "docker", "containers": [] }).to_string()),
+                    "GET /v1/floating" => (StatusCode::OK, json!([{ "address": "192.0.2.10", "holder": "6f1c7c2e-0000-4000-8000-000000000001", "since": 1 }]).to_string()),
+                    "POST /v1/floating" => (StatusCode::CREATED, String::new()),
+                    "DELETE /v1/floating/192.0.2.10" => (StatusCode::NO_CONTENT, String::new()),
                     "GET /v1/nodes/broken" => (StatusCode::SERVICE_UNAVAILABLE, "the cluster cannot take changes now".to_string()),
                     _ => (StatusCode::NOT_FOUND, "unknown".to_string()),
                 }
@@ -547,6 +577,22 @@ mod tests {
         let c = app.cluster.get().unwrap();
         let e = c.call(reqwest::Method::GET, "/v1/nodes/broken", None).await.unwrap_err();
         assert_eq!(e.status, StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[tokio::test]
+    async fn floating_addresses_are_read_by_anybody_and_changed_by_an_administrator_into_the_log() {
+        let (app, asked, _d) = connected("t0k3n").await;
+        let (cookie, csrf) = signed_in(&app).await;
+        let (s, _, b) = call(&app, get("/api/cluster/floating", &cookie)).await;
+        assert_eq!((s, b[0]["address"].clone()), (StatusCode::OK, json!("192.0.2.10")));
+        let add = post("/api/cluster/floating").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).body(json_body(json!({ "address": "192.0.2.10" }))).unwrap();
+        assert_eq!(call(&app, add).await.0, StatusCode::CREATED);
+        let del = |a: &str| Request::delete(format!("/api/cluster/floating/{a}")).header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).body(Body::empty()).unwrap();
+        assert_eq!(call(&app, del("192.0.2.10")).await.0, StatusCode::NO_CONTENT);
+        assert_eq!(call(&app, del("..%2Fnodes")).await.0, StatusCode::NOT_FOUND, "only an address goes into the manager's path");
+        let log: Vec<(String, String)> = app.db.call(|c| Ok(c.prepare("SELECT action, target FROM audit WHERE action LIKE 'cluster.floating.%' ORDER BY id")?.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<Result<_, _>>()?)).await.unwrap();
+        assert_eq!(log, vec![("cluster.floating.add".to_string(), "192.0.2.10".to_string()), ("cluster.floating.remove".to_string(), "192.0.2.10".to_string())]);
+        assert!(!asked.lock().unwrap().iter().any(|l| l.contains("nodes") && l.starts_with("DELETE")));
     }
 
     #[tokio::test]

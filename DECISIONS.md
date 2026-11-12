@@ -1340,4 +1340,9 @@ pointer to what replaced it.
     the id digits only), 64 characters on one line, empty takes it away, kept in `manager_names` and written to the
     activity log (`cluster.manager.rename`). Each manager has a page (`/cluster/managers/{id}`): its address, raft id,
     role, whether it is heard, the worker on its host if any and the workers whose stream it holds.
-
+15. Floating addresses (G10.3) are the managers': Freightdock lists them with each one's holder by name, from
+    `GET /api/cluster/floating` (anybody signed in), and an Administrator adds one (`POST /api/cluster/floating`,
+    `{address}`) or removes one (`DELETE /api/cluster/floating/{address}`, the path an IPv4 address only, else 404),
+    both written to the activity log (`cluster.floating.add`, `cluster.floating.remove`). What makes an address good
+    and which worker holds it is the managers' to decide, so Freightdock checks nothing more and passes their refusal
+    on as it is. The card sits on the Cluster page under the workers.

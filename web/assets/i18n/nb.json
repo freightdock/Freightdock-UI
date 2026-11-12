@@ -785,7 +785,8 @@
         "stack_restarted": "Stabel startet på nytt",
         "labels": "Etiketter",
         "fencing": "Fencing",
-        "recovery": "Gjenoppretting"
+        "recovery": "Gjenoppretting",
+        "floating": "Flytende adresse"
       },
       "ping": "Ping",
       "run": "Kjør",
@@ -835,7 +836,21 @@
       "manager": "Manager",
       "online": "Pålogget",
       "online_yes": "pålogget",
-      "online_no": "ikke hørt"
+      "online_no": "ikke hørt",
+      "floating": "Flytende adresser",
+      "floating_sub": "Adresser i ditt lokalnett som én arbeider holder om gangen. Alle publiserte porter svarer på dem; en adresse flyttes til en annen arbeider når den som holder den er fencet.",
+      "floating_address": "Adresse",
+      "floating_holder": "Holdes av",
+      "floating_since": "Siden",
+      "floating_waiting": "Venter på en frisk arbeider",
+      "floating_none": "Ingen flytende adresser",
+      "floating_none_text": "Alle publiserte porter svarer på hver arbeiders egen adresse. Legg til en adresse i lokalnettet for å ha en som blir stående når en arbeider svikter.",
+      "floating_add": "Legg til adresse",
+      "floating_add_help": "En ledig IPv4-adresse i arbeidernes lokalnett, utenfor klyngens eget interne adresseområde.",
+      "floating_added": "{address} lagt til",
+      "floating_remove_title": "Fjerne {address}?",
+      "floating_remove_body": "Den som holder den slipper den, og ingenting svarer på den lenger.",
+      "floating_removed": "{address} fjernet"
     },
     "cluster_stacks": {
       "title": "Klyngestabler",

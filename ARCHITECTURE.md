@@ -188,7 +188,8 @@ redrawn.
 
 The landing page is the dashboard (`/dashboard`, `pages/dashboard.js`, "Cluster" 13; `/` and the old `/home` go there),
 and beside it the cluster (`/cluster`): its managers, nodes with their labels
-and state, recoveries, events and the commands sent, and for an administrator the join tokens and a node's commands.
+and state, the floating addresses with their holders, recoveries, events and the commands sent, and for an
+administrator the join tokens, a node's commands and adding or removing a floating address ("Cluster" 15).
 `/cluster/stacks` lists the cluster's Compose stacks with their workloads, and an administrator writes, deploys,
 starts, stops and removes them in the code editor. `cluster.js` asks `/api/cluster` whether the managers answer, at
 most once a minute, and the shell makes its menus again when that changes.

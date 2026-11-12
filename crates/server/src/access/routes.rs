@@ -96,6 +96,9 @@ pub const RULES: &[(&str, &str, Rule)] = &[
     ("GET", "/api/cluster/stacks/{name}", Session),
     ("DELETE", "/api/cluster/stacks/{name}", Admin),
     ("POST", "/api/cluster/stacks/{name}/{action}", Admin),
+    ("GET", "/api/cluster/floating", Session),
+    ("POST", "/api/cluster/floating", Admin),
+    ("DELETE", "/api/cluster/floating/{address}", Admin),
     // The CA that signed the web server's certificate: a certificate, public, fetched before anybody trusts it.
     ("GET", "/api/tls/ca.pem", Public),
 ];
