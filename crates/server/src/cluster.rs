@@ -38,12 +38,36 @@ pub struct Endpoint {
     http: reqwest::Client,
 }
 
+/// A token or a certificate: in a file (read when needed), or itself in the environment, as the managers start the
+/// UI they run (G8.5). A value is never shown in a log.
+#[derive(Clone, PartialEq)]
+pub enum Given {
+    File(PathBuf),
+    Value(String),
+}
+
+impl std::fmt::Debug for Given {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Given::File(p) => write!(f, "File({})", p.display()),
+            Given::Value(_) => f.write_str("Value(..)"),
+        }
+    }
+}
+
+impl From<PathBuf> for Given {
+    fn from(p: PathBuf) -> Self {
+        Given::File(p)
+    }
+}
+
 /// Where the managers are and how Freightdock signs in to them.
 pub struct Cluster {
     /// The managers' APIs as given, comma separated.
     pub api: String,
-    /// The admin token (`<manager data>/admin.token`) or an API token, read at each call, so a new one is taken at once.
-    pub token_file: PathBuf,
+    /// The admin token (`<manager data>/admin.token`) or an API token; a file is read at each call, so a new one is
+    /// taken at once.
+    pub token: Given,
     pub endpoints: Vec<Endpoint>,
     /// The endpoint that answered last, tried first.
     current: AtomicUsize,
@@ -66,25 +90,33 @@ fn endpoint(given: &str, ca: Option<&reqwest::Certificate>) -> anyhow::Result<En
 }
 
 impl Cluster {
-    pub fn new(api: &str, token_file: PathBuf, ca_file: Option<PathBuf>) -> anyhow::Result<Self> {
-        let ca = match &ca_file {
-            Some(f) => Some(reqwest::Certificate::from_pem(&std::fs::read(f).map_err(|e| anyhow::anyhow!("FREIGHTDOCK_CLUSTER_CA_FILE {}: {e}", f.display()))?)?),
+    pub fn new(api: &str, token: impl Into<Given>, ca: Option<Given>) -> anyhow::Result<Self> {
+        let token = token.into();
+        let ca = match &ca {
+            Some(Given::File(f)) => Some(reqwest::Certificate::from_pem(&std::fs::read(f).map_err(|e| anyhow::anyhow!("FREIGHTDOCK_CLUSTER_CA_FILE {}: {e}", f.display()))?)?),
+            Some(Given::Value(pem)) => {
+                anyhow::ensure!(pem.contains("-----BEGIN CERTIFICATE-----"), "FREIGHTDOCK_CLUSTER_CA is the cluster CA's certificate (PEM)");
+                Some(reqwest::Certificate::from_pem(pem.as_bytes())?)
+            }
             None => None,
         };
         let endpoints = api.split(',').map(|a| a.trim().trim_end_matches('/')).filter(|a| !a.is_empty()).map(|a| endpoint(a, ca.as_ref())).collect::<anyhow::Result<Vec<_>>>()?;
         anyhow::ensure!(!endpoints.is_empty(), "FREIGHTDOCK_CLUSTER_API names no manager");
         let api = endpoints.iter().map(|e| e.given.as_str()).collect::<Vec<_>>().join(",");
-        Ok(Cluster { api, token_file, endpoints, current: AtomicUsize::new(0) })
+        Ok(Cluster { api, token, endpoints, current: AtomicUsize::new(0) })
     }
 
     /// One call to a manager: the one that answered last, else the next. Only a connection that could not be made
     /// goes on to the next, so a change is never sent twice. Its answer comes back as it is; its refusals as the same
     /// status with its sentence.
     pub(crate) async fn call(&self, method: reqwest::Method, path: &str, body: Option<Value>) -> ApiResult<(StatusCode, Value)> {
-        let token = tokio::fs::read_to_string(&self.token_file).await.map_err(|e| {
-            tracing::warn!("the cluster manager's token in {}: {e}", self.token_file.display());
-            ApiError::new(StatusCode::SERVICE_UNAVAILABLE, "Freightdock cannot read the manager's token")
-        })?;
+        let token = match &self.token {
+            Given::Value(t) => t.clone(),
+            Given::File(f) => tokio::fs::read_to_string(f).await.map_err(|e| {
+                tracing::warn!("the cluster manager's token in {}: {e}", f.display());
+                ApiError::new(StatusCode::SERVICE_UNAVAILABLE, "Freightdock cannot read the manager's token")
+            })?,
+        };
         let n = self.endpoints.len();
         let first = self.current.load(Ordering::Relaxed) % n;
         let mut answered = None;
@@ -513,19 +545,19 @@ mod tests {
 
     #[test]
     fn the_address_is_http() {
-        assert!(Cluster::new("http://127.0.0.1:7451/", "/x".into(), None).unwrap().api == "http://127.0.0.1:7451");
-        assert!(Cluster::new("127.0.0.1:7451", "/x".into(), None).is_err());
+        assert!(Cluster::new("http://127.0.0.1:7451/", PathBuf::from("/x"), None).unwrap().api == "http://127.0.0.1:7451");
+        assert!(Cluster::new("127.0.0.1:7451", PathBuf::from("/x"), None).is_err());
     }
 
     #[test]
     fn over_https_the_cluster_ca_is_needed_and_the_only_one_trusted() {
-        assert!(Cluster::new("https://127.0.0.1:7452", "/x".into(), None).is_err(), "no CA: nothing to check the managers against");
+        assert!(Cluster::new("https://127.0.0.1:7452", PathBuf::from("/x"), None).is_err(), "no CA: nothing to check the managers against");
         let dir = tempfile::tempdir().unwrap();
         let ca = dir.path().join("ca.pem");
-        assert!(Cluster::new("https://127.0.0.1:7452", "/x".into(), Some(ca.clone())).is_err(), "a CA file that is not there");
+        assert!(Cluster::new("https://127.0.0.1:7452", PathBuf::from("/x"), Some(Given::File(ca.clone()))).is_err(), "a CA file that is not there");
         let pem = rcgen::generate_simple_self_signed(vec!["x".to_string()]).unwrap().cert.pem();
         std::fs::write(&ca, pem).unwrap();
-        let c = Cluster::new("https://127.0.0.1:7452, https://localhost:7452", "/x".into(), Some(ca)).unwrap();
+        let c = Cluster::new("https://127.0.0.1:7452, https://localhost:7452", PathBuf::from("/x"), Some(Given::File(ca))).unwrap();
         assert_eq!(c.endpoints.iter().map(|e| e.base.as_str()).collect::<Vec<_>>(), vec!["https://manager.freightdock.internal:7452"; 2], "checked for the managers' name, whatever address reaches them");
     }
 
@@ -537,6 +569,17 @@ mod tests {
         std::fs::write(&file, "t0k3n").unwrap();
         let e = Cluster::new(&api, file, None).unwrap().call(reqwest::Method::POST, "/v1/stacks/web/stop", None).await.unwrap_err();
         assert_eq!((e.status, e.message.as_str()), (StatusCode::CONFLICT, "the cluster says no"));
+    }
+
+    #[tokio::test]
+    async fn the_token_and_the_ca_can_be_given_as_they_are_rather_than_in_files() {
+        let (api, _) = fake_manager().await;
+        let c = Cluster::new(&api, Given::Value("t0k3n\n".into()), None).unwrap();
+        assert_eq!(c.call(reqwest::Method::GET, "/v1/cluster", None).await.unwrap().0, StatusCode::OK, "the managers hand the UI its token so");
+        let pem = rcgen::generate_simple_self_signed(vec!["x".to_string()]).unwrap().cert.pem();
+        assert!(Cluster::new("https://127.0.0.1:7452", Given::Value("t".into()), Some(Given::Value(pem))).is_ok());
+        assert!(Cluster::new("https://127.0.0.1:7452", Given::Value("t".into()), Some(Given::Value("not a PEM".into()))).is_err());
+        assert!(!format!("{:?}", Given::Value("t0k3n".into())).contains("t0k3n"), "never in a log");
     }
 
     #[tokio::test]

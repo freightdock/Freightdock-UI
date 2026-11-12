@@ -52,12 +52,14 @@ All database work goes through `Db::call`, which runs a closure on a blocking th
 applied in order, recorded in `PRAGMA user_version`; a database newer than the binary is refused, not touched.
 
 In a cluster the database is the managers' ("Cluster" 9, `replica.rs`). Before it is opened, `replica::load` takes
-their snapshot (the database file and `secret.key`) and replays the changes after it; with none there, the local
+their snapshot (the database file, `secret.key`, and the CA of Freightdock's own certificate, `tls/ca.pem` and
+`ca.key`, so a UI the managers moved keeps the CA a browser trusted, "Cluster" 11) and replays the changes after it; with none there, the local
 database becomes the first. Triggers on every replicated table (all but `replica::LOCAL_TABLES`) write each row change,
 key and new values as JSON, into `_replog`; a `Db::call` that wrote (`total_changes` moved) then sends what `_replog`
 holds to the managers as change `head + 1` and returns only once they took it. They take only the next number: a
 Freightdock that loses (another wrote) is stale, its write fails, and it stops to be started again and load. Every 200
-changes, and when a migration changes the schema, a snapshot replaces the changes. A change that could not be sent
+changes, when a migration changes the schema, and when theirs lacks the CA there is here, a snapshot replaces the
+changes. `main` makes the certificate before replication starts, so the first snapshot carries its CA. A change that could not be sent
 stays in `_replog` and goes with the next write, or within 2 s.
 
 ## 4. Sign-in and sessions
@@ -231,8 +233,8 @@ product. The cluster's stacks are the managers' (§13); the import from Portaine
 ## 13. The cluster
 
 `cluster.rs` makes Freightdock the UI of a Freightdock cluster ("Cluster" 1). `Cluster` (in `AppState::cluster`, set at
-start when `FREIGHTDOCK_CLUSTER_API` is) is one or more managers' API addresses and the file with the bearer token,
-read at each call; a reqwest client per manager, 15 s, no redirects. Over HTTPS (port 7452, an API token) the client
+start when `FREIGHTDOCK_CLUSTER_API` is) is one or more managers' API addresses and the bearer token, a file read at
+each call or the value itself (`Given`, what the managers hand the UI they run, "Cluster" 11); a reqwest client per manager, 15 s, no redirects. Over HTTPS (port 7452, an API token) the client
 trusts only the cluster CA in `FREIGHTDOCK_CLUSTER_CA_FILE` and checks the certificate for the managers' fixed name,
 which it resolves to the address given; a call starts at the manager that answered last and goes on to the next only
 when the connection could not be made, so a change is never sent twice ("Cluster" 8). The routes under `/api/cluster` each make one call to the

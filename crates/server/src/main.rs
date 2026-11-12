@@ -29,6 +29,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use axum::routing::get;
+use cluster::Given;
 
 /// What the environment says, with Freightdock's defaults.
 #[derive(Debug, Clone, PartialEq)]
@@ -41,9 +42,9 @@ struct Config {
     tls_names: Option<String>,
     /// `FREIGHTDOCK_SETUP_TOKEN`: the first run's setup token, given rather than made (automated installs, `qa/`).
     setup_token: Option<String>,
-    /// `FREIGHTDOCK_CLUSTER_API`, `FREIGHTDOCK_CLUSTER_TOKEN_FILE` and `FREIGHTDOCK_CLUSTER_CA_FILE`: the managers whose
-    /// cluster this Freightdock shows, the token it signs in with and the cluster CA (over HTTPS).
-    cluster: Option<(String, PathBuf, Option<PathBuf>)>,
+    /// `FREIGHTDOCK_CLUSTER_API`, `FREIGHTDOCK_CLUSTER_TOKEN` (or `_FILE`) and `FREIGHTDOCK_CLUSTER_CA` (or `_FILE`):
+    /// the managers whose cluster this Freightdock shows, the token it signs in with and the cluster CA (over HTTPS).
+    cluster: Option<(String, Given, Option<Given>)>,
 }
 
 impl Config {
@@ -69,8 +70,13 @@ impl Config {
             anyhow::bail!("FREIGHTDOCK_SETUP_TOKEN is at least 16 characters: it is all that stands between the first visitor and the first administrator");
         }
         let cluster = get("FREIGHTDOCK_CLUSTER_API").map(|a| a.trim().to_string()).filter(|a| !a.is_empty()).map(|api| {
-            let token = get("FREIGHTDOCK_CLUSTER_TOKEN_FILE").filter(|t| !t.trim().is_empty()).unwrap_or_else(|| "/var/lib/freightdock-manager/admin.token".into());
-            (api, PathBuf::from(token.trim()), get("FREIGHTDOCK_CLUSTER_CA_FILE").map(|c| c.trim().to_string()).filter(|c| !c.is_empty()).map(PathBuf::from))
+            let given = |name: &str| get(name).map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
+            let token = match given("FREIGHTDOCK_CLUSTER_TOKEN") {
+                Some(t) => Given::Value(t),
+                None => Given::File(given("FREIGHTDOCK_CLUSTER_TOKEN_FILE").unwrap_or_else(|| "/var/lib/freightdock-manager/admin.token".into()).into()),
+            };
+            let ca = given("FREIGHTDOCK_CLUSTER_CA").map(Given::Value).or_else(|| given("FREIGHTDOCK_CLUSTER_CA_FILE").map(|f| Given::File(f.into())));
+            (api, token, ca)
         });
         Ok(Config { data_dir, bind, tls, tls_names, setup_token, cluster })
     }
@@ -183,6 +189,15 @@ async fn run(config: Config) -> Result<()> {
     // The key that seals secrets: the managers' (loaded above) in a cluster, and sent with every snapshot.
     let sealer = secret::Sealer::open_or_make(&config.data_dir.join("secret.key"))?;
     let mut db = db::Db::open(&config.data_dir.join("freightdock.db"))?;
+    // Before the first snapshot, which carries the certificate's CA to a Freightdock on another node.
+    let (acceptor, tls_ca) = match &config.tls {
+        Some(files) => {
+            let names = tls::names(config.bind.ip(), tls::hostname().as_deref(), &tls::interfaces(), config.tls_names.as_deref())?;
+            let ca = tls::prepare(files, &config.data_dir.join("tls"), &names)?;
+            (Some(tls::acceptor(&files.cert, &files.key)?), ca)
+        }
+        None => (None, None),
+    };
     if let (Some(c), Some(l)) = (&cluster, loaded) {
         let r = db.replicate(c.clone(), config.data_dir.clone(), l).await.context("replicating the database through the managers")?;
         let db = db.clone();
@@ -199,14 +214,6 @@ async fn run(config: Config) -> Result<()> {
             }
         });
     }
-    let (acceptor, tls_ca) = match &config.tls {
-        Some(files) => {
-            let names = tls::names(config.bind.ip(), tls::hostname().as_deref(), &tls::interfaces(), config.tls_names.as_deref())?;
-            let ca = tls::prepare(files, &config.data_dir.join("tls"), &names)?;
-            (Some(tls::acceptor(&files.cert, &files.key)?), ca)
-        }
-        None => (None, None),
-    };
     let app = state::AppState::new(db, acceptor.is_some(), sealer);
     let _ = app.data_dir.set(config.data_dir.clone());
     if let Some(ca) = tls_ca {
@@ -436,10 +443,14 @@ mod tests {
     fn a_cluster_is_an_address_and_its_manager_s_token() {
         assert_eq!(Config::from(env(&[])).unwrap().cluster, None, "no cluster: the single-host Freightdock");
         let c = Config::from(env(&[("FREIGHTDOCK_CLUSTER_API", "http://127.0.0.1:7451")])).unwrap();
-        assert_eq!(c.cluster, Some(("http://127.0.0.1:7451".into(), PathBuf::from("/var/lib/freightdock-manager/admin.token"), None)));
+        assert_eq!(c.cluster, Some(("http://127.0.0.1:7451".into(), Given::File("/var/lib/freightdock-manager/admin.token".into()), None)));
         let c = Config::from(env(&[("FREIGHTDOCK_CLUSTER_API", "http://m:7451"), ("FREIGHTDOCK_CLUSTER_TOKEN_FILE", "/run/admin.token"), ("FREIGHTDOCK_CLUSTER_CA_FILE", "/run/ca.pem")])).unwrap();
         let c = c.cluster.unwrap();
-        assert_eq!((c.1, c.2), (PathBuf::from("/run/admin.token"), Some(PathBuf::from("/run/ca.pem"))));
+        assert_eq!((c.1, c.2), (Given::File("/run/admin.token".into()), Some(Given::File("/run/ca.pem".into()))));
+        // As the managers start it (G8.5): the token and the CA themselves, before any file.
+        let given = [("FREIGHTDOCK_CLUSTER_API", "https://m:7452"), ("FREIGHTDOCK_CLUSTER_TOKEN", "FDAT1-x"), ("FREIGHTDOCK_CLUSTER_CA", "PEM"), ("FREIGHTDOCK_CLUSTER_TOKEN_FILE", "/f"), ("FREIGHTDOCK_CLUSTER_CA_FILE", "/c")];
+        let c = Config::from(env(&given)).unwrap().cluster.unwrap();
+        assert_eq!((c.1, c.2), (Given::Value("FDAT1-x".into()), Some(Given::Value("PEM".into()))));
     }
 
     #[test]

@@ -188,6 +188,9 @@ pub struct Loaded {
     pub fresh: bool,
     /// The schema version of what they held (to send a snapshot when a migration changes it).
     pub schema: Option<i64>,
+    /// Their snapshot carried the certificate's CA; one from an older Freightdock did not, and is replaced by one that
+    /// does, so the CA made here is the one a move takes along.
+    pub tls_ca: bool,
 }
 
 /// A snapshot as Freightdock sends it: the database file and the key its secrets are sealed with, which must travel
@@ -197,6 +200,17 @@ struct Payload {
     v: u32,
     db: String,
     key: String,
+    /// The CA of Freightdock's own HTTPS certificate (`tls/ca.pem`, `tls/ca.key`), so a Freightdock started on another
+    /// node makes its certificate from the same CA and a browser that trusted it once still does (G8.5). Absent from
+    /// an older snapshot, and when there is none (one's own certificate, or plain HTTP).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    tls_ca: Option<(String, String)>,
+}
+
+/// The CA of Freightdock's own certificate in `data_dir`, when there is one.
+fn tls_ca(data_dir: &std::path::Path) -> Option<(String, String)> {
+    let dir = data_dir.join("tls");
+    Some((std::fs::read_to_string(dir.join("ca.pem")).ok()?, std::fs::read_to_string(dir.join("ca.key")).ok()?))
 }
 
 fn b64() -> base64::engine::GeneralPurpose {
@@ -220,7 +234,7 @@ pub async fn load(cluster: &crate::cluster::Cluster, data_dir: &std::path::Path)
     let Some(snapshot) = v["snapshot"].as_str() else {
         anyhow::ensure!(head == 0, "the managers hold changes but no snapshot");
         tracing::info!("the managers hold no database yet: this one is the first");
-        return Ok(Loaded { head: 0, fresh: true, schema: None });
+        return Ok(Loaded { head: 0, fresh: true, schema: None, tls_ca: false });
     };
     let p: Payload = serde_json::from_str(snapshot).context("the managers' snapshot is not one this Freightdock reads")?;
     let path = data_dir.join("freightdock.db");
@@ -229,6 +243,17 @@ pub async fn load(cluster: &crate::cluster::Cluster, data_dir: &std::path::Path)
     }
     std::fs::write(&path, b64().decode(&p.db)?)?;
     crate::tls::write_private(&data_dir.join("secret.key"), &b64().decode(&p.key)?)?;
+    let had_ca = p.tls_ca.is_some();
+    if let Some((pem, key)) = &p.tls_ca {
+        let dir = data_dir.join("tls");
+        std::fs::create_dir_all(&dir)?;
+        if tls_ca(data_dir).as_ref().is_none_or(|(p0, _)| p0 != pem) {
+            // A certificate from another CA is made again from this one (`tls::prepare`).
+            let _ = std::fs::remove_file(dir.join("cert.pem"));
+        }
+        crate::tls::write_private(&dir.join("ca.key"), key.as_bytes())?;
+        std::fs::write(dir.join("ca.pem"), pem)?;
+    }
     let changes: Vec<(u64, String)> = v["changes"].as_array().into_iter().flatten().filter_map(|c| Some((c["seq"].as_u64()?, c["data"].as_str()?.to_string()))).collect();
     let n = changes.len();
     let schema = tokio::task::spawn_blocking(move || -> Result<i64> {
@@ -243,7 +268,7 @@ pub async fn load(cluster: &crate::cluster::Cluster, data_dir: &std::path::Path)
     })
     .await??;
     tracing::info!("loaded the database from the managers: snapshot and {n} changes, at {head}");
-    Ok(Loaded { head, fresh: false, schema: Some(schema) })
+    Ok(Loaded { head, fresh: false, schema: Some(schema), tls_ca: had_ca })
 }
 
 /// Sends what the database writes to the managers, in order and numbered (see the module).
@@ -260,7 +285,8 @@ pub struct Replicator {
 const SNAPSHOT_EVERY: u64 = 200;
 
 impl Replicator {
-    /// Triggers on, and a first snapshot when the managers held none or a migration changed the schema.
+    /// Triggers on, and a first snapshot when the managers held none, a migration changed the schema, or theirs lacks
+    /// the certificate's CA there is here.
     pub async fn start(pool: &crate::db::Pool, cluster: std::sync::Arc<crate::cluster::Cluster>, data_dir: std::path::PathBuf, loaded: Loaded) -> Result<std::sync::Arc<Self>> {
         let p = pool.clone();
         let schema = tokio::task::spawn_blocking(move || -> Result<i64> {
@@ -271,7 +297,7 @@ impl Replicator {
         })
         .await??;
         let r = std::sync::Arc::new(Replicator { cluster, data_dir, head: tokio::sync::Mutex::new(loaded.head), since_snapshot: Default::default(), stale: Default::default() });
-        if loaded.fresh || loaded.schema != Some(schema) {
+        if loaded.fresh || loaded.schema != Some(schema) || (!loaded.tls_ca && tls_ca(&r.data_dir).is_some()) {
             let head = r.head.lock().await;
             r.snapshot(pool, *head).await?;
         }
@@ -307,7 +333,7 @@ impl Replicator {
         let (p, dir) = (pool.clone(), self.data_dir.clone());
         let db = tokio::task::spawn_blocking(move || serialize(&*p.get()?, &dir)).await??;
         let key = std::fs::read(self.data_dir.join("secret.key")).context("the secret key, to send with the snapshot")?;
-        let data = serde_json::to_string(&Payload { v: 1, db: b64().encode(db), key: b64().encode(key) })?;
+        let data = serde_json::to_string(&Payload { v: 1, db: b64().encode(db), key: b64().encode(key), tls_ca: tls_ca(&self.data_dir) })?;
         self.send(reqwest::Method::PUT, "/v1/ui-db/snapshot", json!({ "head": head, "data": data })).await?;
         self.since_snapshot.store(0, std::sync::atomic::Ordering::SeqCst);
         tracing::info!("sent the managers a snapshot of the database at {head}");
@@ -463,6 +489,8 @@ mod tests {
         let c = std::sync::Arc::new(crate::cluster::Cluster::new(api, token, None).unwrap());
         let loaded = load(&c, dir).await.unwrap();
         crate::secret::Sealer::open_or_make(&dir.join("secret.key")).unwrap();
+        // As `main` does: the HTTPS certificate's CA made (or the one loaded kept) before the first snapshot.
+        crate::ca::Ca::open_or_make_named(&dir.join("tls"), "Freightdock").unwrap();
         let mut db = crate::db::Db::open(&dir.join("freightdock.db")).unwrap();
         let r = db.replicate(c, dir.to_path_buf(), loaded).await.unwrap();
         (db, r)
@@ -486,6 +514,9 @@ mod tests {
         let (b, _) = node(&api, b_dir.path()).await;
         assert_eq!(users(&b).await, ["ann"], "the first's snapshot and change, loaded on the second");
         assert_eq!(std::fs::read(a_dir.path().join("secret.key")).unwrap(), std::fs::read(b_dir.path().join("secret.key")).unwrap(), "its secrets open there too");
+        for f in ["tls/ca.pem", "tls/ca.key"] {
+            assert_eq!(std::fs::read(a_dir.path().join(f)).unwrap(), std::fs::read(b_dir.path().join(f)).unwrap(), "{f}: a browser that trusted the first trusts the second");
+        }
         b.call(add_user("bob")).await.unwrap();
 
         assert!(a.call(add_user("cat")).await.is_err(), "the first is behind now: its write is refused");
@@ -494,5 +525,24 @@ mod tests {
         let c_dir = tempfile::tempdir().unwrap();
         let (c, _) = node(&api, c_dir.path()).await;
         assert_eq!(users(&c).await, ["ann", "bob"]);
+    }
+
+    #[tokio::test]
+    async fn a_snapshot_from_before_the_certificate_s_ca_travelled_is_replaced_by_one_with_it() {
+        use base64::Engine;
+        let api = fake_managers().await;
+        let c = crate::cluster::Cluster::new(&api, crate::cluster::Given::Value("t".into()), None).unwrap();
+        let old = tempfile::tempdir().unwrap();
+        let src = crate::db::Db::open(&old.path().join("freightdock.db")).unwrap();
+        let dir_ = old.path().to_path_buf();
+        let bytes = src.call(move |c| serialize(c, &dir_)).await.unwrap();
+        let data = json!({ "v": 1, "db": b64().encode(bytes), "key": b64().encode([7u8; 32]) }).to_string();
+        c.call(reqwest::Method::PUT, "/v1/ui-db/snapshot", Some(json!({ "head": 0, "data": data }))).await.unwrap();
+
+        let dir = tempfile::tempdir().unwrap();
+        node(&api, dir.path()).await;
+        let (_, v) = c.call(reqwest::Method::GET, "/v1/ui-db", None).await.unwrap();
+        let p: Payload = serde_json::from_str(v["snapshot"].as_str().unwrap()).unwrap();
+        assert_eq!(p.tls_ca.map(|t| t.0), Some(std::fs::read_to_string(dir.path().join("tls/ca.pem")).unwrap()), "the CA made here, at the managers now");
     }
 }

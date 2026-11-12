@@ -53,7 +53,8 @@ docker build -t freightdock .                # the image
   `FREIGHTDOCK_TLS_CERT` + `FREIGHTDOCK_TLS_KEY` (one's own, never touched), `FREIGHTDOCK_TLS_NAMES` (more names for Freightdock's
   own certificate), `FREIGHTDOCK_CLUSTER_API` (the managers' admin API, several comma separated),
   `FREIGHTDOCK_CLUSTER_TOKEN_FILE` (the API token's file), `FREIGHTDOCK_CLUSTER_CA_FILE` (the cluster CA, for
-  `https://`), `FREIGHTDOCK_SETUP_TOKEN` (the first run's setup token, at least 16 characters; else one is made and
+  `https://`), `FREIGHTDOCK_CLUSTER_TOKEN` and `FREIGHTDOCK_CLUSTER_CA` (the values, before the files: how the
+  managers start the UI they run), `FREIGHTDOCK_SETUP_TOKEN` (the first run's setup token, at least 16 characters; else one is made and
   printed to the log, and `freightdock setup-token` prints it again), `RUST_LOG`.
 
 ## The big picture

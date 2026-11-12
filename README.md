@@ -41,13 +41,20 @@ The repositories, side by side: **Freightdock-Contracts** (the gRPC contract bet
 - **Two roles**: an Administrator changes the cluster, anybody else signed in reads it.
 - **The activity log** (every change, who made it and from where) and the **auth log**, both as CSV too.
 - **API tokens** for scripts, and **HTTPS from the first start** with a certificate of its own, or yours.
-- **Highly available**: the UI's database is replicated through the managers, so a UI on another node takes over
-  with the same people and sessions.
+- **Highly available**: the managers run the UI and move it when its node fails; its database is replicated through
+  them, so it comes back with the same people, sessions and certificate.
 
 ## Get started
 
 You need a Freightdock cluster: a manager and a worker on one node is enough (the Manager repository's README has
-`install-node.sh first <host>`). Then, on that node, an API token for the UI and the cluster CA:
+`install-node.sh first <host>`). Then let the managers run the UI:
+
+```sh
+freightdock-manager ui ghcr.io/freightdock/freightdock:latest
+```
+
+It runs on a node of the cluster, moves when that node fails, and opens at **https://any-manager:7443**. Or run it
+yourself beside a manager: an API token for the UI and the cluster CA first.
 
 ```sh
 mkdir -p /var/lib/freightdock-ui

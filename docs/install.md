@@ -1,10 +1,26 @@
 # Install
 
 Freightdock is the UI of a Freightdock cluster, so a cluster comes first: a manager and a worker on one node is a
-whole cluster (the Manager repository's README, `install-node.sh first <host>`). The UI runs beside a manager, as a
-container, and talks to the managers' admin API.
+whole cluster (the Manager repository's README, `install-node.sh first <host>`). The UI is a container that talks to
+the managers' admin API.
 
-## On a manager's node
+## Run by the managers
+
+The simplest: let the managers run it. On a manager, as root:
+
+```sh
+freightdock-manager ui ghcr.io/freightdock/freightdock:latest
+freightdock-manager ui status        # where it runs
+```
+
+The managers place it on a node, move it when that node fails (a one-node cluster runs it again when the node is
+back), and every manager answers for it at **https://<any manager>:7443**, forwarding to the node it runs on (port
+7453 there). Its API token, the cluster CA and the managers' addresses are handed to it as it starts, never written
+anywhere; its database is the managers', so nothing is lost when it moves. `install-node.sh` does the same with
+`UI_IMAGE=<image>` on `first`. `freightdock-manager ui off` removes it. The setup token is in its log on the node it
+runs on (`docker logs freightdock-ui-1`).
+
+## By hand, on a manager's node
 
 The UI signs in to the managers with an API token and trusts the cluster CA alone. On the manager's node, as root:
 
@@ -183,6 +199,7 @@ The full list is in [reference/environment.md](reference/environment.md). The on
 | `FREIGHTDOCK_CLUSTER_API` | | The managers' admin API, `https://<manager>:7452`, several comma separated. |
 | `FREIGHTDOCK_CLUSTER_TOKEN_FILE` | `/var/lib/freightdock-manager/admin.token` | The file with the API token, read at each call. |
 | `FREIGHTDOCK_CLUSTER_CA_FILE` | | The cluster CA (`freightdock-manager ca`), needed for `https://`. |
+| `FREIGHTDOCK_CLUSTER_TOKEN`, `FREIGHTDOCK_CLUSTER_CA` | | The token and the CA themselves, before the files: how the managers start it. |
 | `FREIGHTDOCK_SETUP_TOKEN` | made at first start | The first run's setup token, 16 characters or more. |
 | `FREIGHTDOCK_TLS` | `on` | `off`: plain HTTP, behind a proxy that does TLS. |
 | `FREIGHTDOCK_TLS_CERT`, `FREIGHTDOCK_TLS_KEY` | | Your own certificate and key, only ever read. |

@@ -165,7 +165,8 @@ read-only token only reads.
 
 The cluster env: `FREIGHTDOCK_CLUSTER_API` (a manager's `http://127.0.0.1:7451`, or `https://<manager>:7452`, several
 comma separated), `FREIGHTDOCK_CLUSTER_TOKEN_FILE` (the admin token or an API token), `FREIGHTDOCK_CLUSTER_CA_FILE` (the
-cluster CA, needed for `https://`) ("Cluster" 8).
+cluster CA, needed for `https://`) ("Cluster" 8); `FREIGHTDOCK_CLUSTER_TOKEN` and `FREIGHTDOCK_CLUSTER_CA` give the
+values themselves, before the files, as the managers do when they run the UI ("Cluster" 11, `cluster::Given`).
 
 ## Testing
 

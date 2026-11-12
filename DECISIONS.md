@@ -1313,4 +1313,12 @@ pointer to what replaced it.
     notifications, backups of the managers' state, the MCP server, the import from Portainer (last), registries, and a
     node's Docker pages through its worker. Their DECISIONS sections stay, marked set aside, so their numbers and
     reasons are there when they come back.
+11. The managers run the UI (Freightdock-Manager's G8.5): `freightdock-manager ui <image>` places it on a node as the
+    managers' own stack, moves it when that node fails, and every manager answers for it at 7443. So the UI is
+    started with its token and the cluster CA as values (`FREIGHTDOCK_CLUSTER_TOKEN`, `FREIGHTDOCK_CLUSTER_CA`, taken
+    before their `_FILE`s), which the manager that starts it fills in and the cluster's state never holds; a value is
+    never shown in a log. It has no volume, so the CA of its own HTTPS certificate travels in the database snapshot
+    with `secret.key`, made before the first snapshot: a browser that trusted the UI once still trusts it on another
+    node. A snapshot from before that carried none is replaced at start, and a certificate from another CA is made
+    again. Run by hand beside a manager, as before, still works.
 

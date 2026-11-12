@@ -13,6 +13,8 @@
 | `FREIGHTDOCK_CLUSTER_API` | unset | The managers' admin API: `https://<manager>:7452`, several comma separated, or a manager's `http://127.0.0.1:7451` on the same machine. Unset, Freightdock serves sign-in and settings and says the cluster is not connected. |
 | `FREIGHTDOCK_CLUSTER_TOKEN_FILE` | `/var/lib/freightdock-manager/admin.token` | The token it signs in to the managers with (an admin API token, or the manager's admin token over `http://127.0.0.1`), read at each call; mount it read-only. |
 | `FREIGHTDOCK_CLUSTER_CA_FILE` | | The cluster CA (`freightdock-manager ca`), the only one trusted over `https://`. |
+| `FREIGHTDOCK_CLUSTER_TOKEN` | | The token itself, taken before `FREIGHTDOCK_CLUSTER_TOKEN_FILE`: how the managers start the UI they run. Never written to the log. |
+| `FREIGHTDOCK_CLUSTER_CA` | | The cluster CA itself (PEM), taken before `FREIGHTDOCK_CLUSTER_CA_FILE`. |
 | `FREIGHTDOCK_SETUP_TOKEN` | made at first start | The first run's setup token (16 characters or more), for an automated install; else one is made, kept in `<data>/setup-token` until setup is done, and printed to the log. |
 | `TZ` | `/etc/localtime` | The zone the log's times are written in. |
 | `RUST_LOG` | `freightdock=info,warn` | How much it logs: `freightdock=debug` for more. |
