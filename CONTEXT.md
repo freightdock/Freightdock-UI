@@ -132,7 +132,8 @@ read-only token only reads.
 | `GET /api/cluster/recoveries?stack=` | session | the managers' recovery history, newest first |
 | `POST /api/cluster/join-tokens` | admin | `{kind: worker or manager, ttl_s?}`: `{token}`, shown once |
 | `GET /api/cluster/stacks`, `GET /api/cluster/stacks/{name}` | session | the manager's stacks with their workloads; one with its Compose file |
-| `POST /api/cluster/stacks` | admin | `{name, compose}`: made or changed; `{stack, warnings}` |
+| `POST /api/cluster/stacks` | admin | `{name, compose, nodes?, exposures?}`: made or changed, on the workers chosen (`[]` any) with its exposures on the pool (each left out: as it was); `{stack, warnings}` ("Cluster" 19) |
+| `POST /api/cluster/stack-check` | admin | the same body, nothing deployed: the services and the ports their file asks for, the warnings, where the workloads would go (`placements`) or why not (`unplaced`) ("Cluster" 19) |
 | `POST /api/cluster/stacks/{name}/{start,stop,restart}`, `DELETE /api/cluster/stacks/{name}` | admin | the stack's workloads run, stop, restart or go |
 | `GET /api/cluster/floating` | session | the floating addresses and each one's holder ("Cluster" 15) |
 | `PUT /api/cluster/stacks/{name}/exposures` | admin | `{exposures: [{service, container_port, protocol, address, port}]}`: what the stack exposes on the pool, all of it ("Cluster" 17) |

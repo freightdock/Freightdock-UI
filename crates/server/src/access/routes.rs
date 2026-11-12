@@ -94,6 +94,7 @@ pub const RULES: &[(&str, &str, Rule)] = &[
     ("POST", "/api/cluster/join-tokens", Admin),
     ("GET", "/api/cluster/stacks", Session),
     ("POST", "/api/cluster/stacks", Admin),
+    ("POST", "/api/cluster/stack-check", Admin),
     ("GET", "/api/cluster/stacks/{name}", Session),
     ("DELETE", "/api/cluster/stacks/{name}", Admin),
     ("POST", "/api/cluster/stacks/{name}/{action}", Admin),

@@ -11,10 +11,11 @@ import { t } from './i18n.js';
 /** What the variables box of a stack or template says under it. */
 export const ENV_HELP = t('editor.env_help');
 
-/** codeEditor({ id, label, value, rows, help, language }) → { el, focus(), value (get/set), setError(text) }. `language`
- *  is fd-code-editor's: `yaml` for a compose file, `env` for a .env; `text` when none is given. */
-export function codeEditor({ id, label, value = '', rows = 18, help = null, language = null }) {
-  const editor = ssCodeEditor({ id, label, value, rows, language: language || 'text' });
+/** codeEditor({ id, label, value, rows, help, language, onChange }) → { el, focus(), value (get/set), setError(text) }.
+ *  `language` is fd-code-editor's: `yaml` for a compose file, `env` for a .env; `text` when none is given. `onChange(text)`
+ *  on every edit by hand. */
+export function codeEditor({ id, label, value = '', rows = 18, help = null, language = null, onChange = () => {} }) {
+  const editor = ssCodeEditor({ id, label, value, rows, language: language || 'text', onChange });
   const err = h('div');
   const el = h('div', { class: 'fui-field' },
     h('label', { class: 'fui-field__label', htmlFor: id }, label),

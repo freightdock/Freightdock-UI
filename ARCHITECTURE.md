@@ -266,9 +266,12 @@ is a toast.
 `pages/cluster-stacks.js` (`/cluster/stacks`, beside it under Overview) lists the cluster's stacks
 (`/api/cluster/stacks`, which asks `/v1/stacks`), each with its workloads: the node it is placed on, its status as
 the manager words it (running, stopped, pending, failed, no node, unknown), its container as the worker last reported
-it, and its last command. An administrator deploys a stack from a Compose file in the code editor, changes one by
-deploying it again (`GET /api/cluster/stacks/{name}` gives the file back), starts, stops, restarts or removes it
-("Cluster" 4). The manager's warnings on a file (keys it set aside) are toasts.
+it, and its last command, under a search and filters ("Cluster" 20). An administrator starts, stops, restarts or
+removes a stack ("Cluster" 4), and deploys or changes one on the deployer, `pages/cluster-deploy.js`
+(`/cluster/stacks/new`, `/cluster/stacks/<name>/edit`, "Cluster" 19): the Compose file in the code editor, checked by
+the managers a moment after each edit (`/api/cluster/stack-check`), where it runs, and its exposures on the pool
+(`exposureEditor`, which the stacks page's Exposures dialog uses too), all sent with the deploy. The manager's warnings
+on a file (keys it set aside) are listed under it and toasts after the deploy.
 
 Below the stacks, the same page shows the managers' recovery history (`/api/cluster/recoveries`, "Cluster" 7): a
 workload moved off a fenced node and where to, or left there and why; each workload's row says what happens to it if

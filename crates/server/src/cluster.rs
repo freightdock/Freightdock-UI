@@ -171,6 +171,7 @@ pub fn router() -> Router<App> {
         .route("/api/cluster/recoveries", get(recoveries))
         .route("/api/cluster/join-tokens", post(join_token))
         .route("/api/cluster/stacks", get(stacks).post(deploy_stack))
+        .route("/api/cluster/stack-check", post(check_stack))
         .route("/api/cluster/stacks/{name}", get(stack).delete(remove_stack))
         .route("/api/cluster/stacks/{name}/{action}", post(stack_action))
         .route("/api/cluster/stacks/{name}/exposures", axum::routing::put(set_exposures))
@@ -436,12 +437,38 @@ async fn stack(State(app): State<App>, _a: Authed, Path(name): Path<String>) -> 
 struct DeployBody {
     name: String,
     compose: String,
+    /// The nodes chosen for it (ids; empty: any) and its exposures on the pool; each left out stays as it was.
+    #[serde(default)]
+    nodes: Option<Vec<String>>,
+    #[serde(default)]
+    exposures: Option<Value>,
 }
 
-/// Makes or changes a stack from a Compose file; the manager reads the file and places the workloads ("Cluster" 4).
+impl DeployBody {
+    /// As the manager takes it, with only what was given.
+    fn to_manager(&self) -> Value {
+        let mut v = json!({ "name": self.name.trim(), "compose": self.compose });
+        if let Some(n) = &self.nodes {
+            v["nodes"] = json!(n);
+        }
+        if let Some(e) = &self.exposures {
+            v["exposures"] = e.clone();
+        }
+        v
+    }
+}
+
+/// What a deploy would do, changing nothing: the services and the ports their file asks for, the warnings, where the
+/// workloads would go or why not ("Cluster" 19).
+async fn check_stack(State(app): State<App>, _a: Authed, Json(b): Json<DeployBody>) -> ApiResult<Json<Value>> {
+    Ok(Json(cluster(&app)?.call(reqwest::Method::POST, "/v1/stack-check", Some(b.to_manager())).await?.1))
+}
+
+/// Makes or changes a stack from a Compose file, on the nodes chosen for it and with its exposures; the manager reads
+/// the file and places the workloads ("Cluster" 4, 19).
 async fn deploy_stack(State(app): State<App>, a: Authed, Json(b): Json<DeployBody>) -> ApiResult<(StatusCode, Json<Value>)> {
     let name = b.name.trim().to_string();
-    let (s, v) = cluster(&app)?.call(reqwest::Method::POST, "/v1/stacks", Some(json!({ "name": name, "compose": b.compose }))).await?;
+    let (s, v) = cluster(&app)?.call(reqwest::Method::POST, "/v1/stacks", Some(b.to_manager())).await?;
     audit::record(&app.db, Some(&a.session.user), a.ip, audit::entry("cluster.stack.deploy", name)).await;
     Ok((s, Json(v)))
 }
@@ -499,6 +526,8 @@ mod tests {
                 if !ok {
                     return (StatusCode::UNAUTHORIZED, "no".to_string());
                 }
+                // What was sent, given back by the two that echo it.
+                let got: Value = serde_json::from_slice(&axum::body::to_bytes(req.into_body(), 1 << 20).await.unwrap_or_default()).unwrap_or(Value::Null);
                 match line.as_str() {
                     "GET /v1/cluster" => (StatusCode::OK, json!({ "cluster_id": "c1", "raft": [{ "raft_id": "5271529257891035005", "addr": "192.0.2.1:7450", "leader": true }] }).to_string()),
                     "GET /v1/nodes" => (StatusCode::OK, json!([{ "id": "6f1c7c2e-0000-4000-8000-000000000001", "liveness": { "health": "healthy" } }]).to_string()),
@@ -509,7 +538,8 @@ mod tests {
                     "POST /v1/nodes/6f1c7c2e-0000-4000-8000-000000000001/authorize" => (StatusCode::OK, json!({ "fencing": { "state": "authorized" } }).to_string()),
                     "GET /v1/recoveries?stack=web" => (StatusCode::OK, json!([{ "workload_id": "web.nginx.1", "to": null, "reason": "pinned" }]).to_string()),
                     "GET /v1/stacks" => (StatusCode::OK, json!([{ "name": "web", "workloads": [] }]).to_string()),
-                    "POST /v1/stacks" => (StatusCode::CREATED, json!({ "stack": { "name": "web" }, "warnings": [] }).to_string()),
+                    "POST /v1/stacks" => (StatusCode::CREATED, json!({ "stack": { "name": "web" }, "warnings": [], "got": got }).to_string()),
+                    "POST /v1/stack-check" => (StatusCode::OK, json!({ "services": { "web": { "ports": [{ "host_port": 8080, "container_port": 80 }] } }, "got": got }).to_string()),
                     "POST /v1/stacks/web/stop" => (StatusCode::CONFLICT, json!({ "error": "the cluster says no" }).to_string()),
                     "POST /v1/stacks/web/restart" => (StatusCode::OK, json!({ "restarting": 1, "busy": 0 }).to_string()),
                     "DELETE /v1/stacks/web" => (StatusCode::NO_CONTENT, String::new()),
@@ -701,6 +731,12 @@ mod tests {
         let change = |method: &str, path: &str, body: Value| Request::builder().method(method).uri(path).header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).header(header::HOST, "freightdock.test").header(header::CONTENT_TYPE, "application/json").body(Body::from(body.to_string())).unwrap();
         let (s, _, b) = call(&app, change("POST", "/api/cluster/stacks", json!({ "name": "web", "compose": "services: {}" }))).await;
         assert_eq!((s, b["stack"]["name"].clone()), (StatusCode::CREATED, json!("web")));
+        assert_eq!((b["got"].get("nodes"), b["got"].get("exposures")), (None, None), "left out: the manager keeps them as they were");
+        let chosen = json!({ "name": "web", "compose": "services: {}", "nodes": ["n1"], "exposures": [{ "service": "web", "container_port": 80, "protocol": "tcp", "address": "192.0.2.10", "port": 80 }] });
+        let (_, _, b) = call(&app, change("POST", "/api/cluster/stacks", chosen.clone())).await;
+        assert_eq!((&b["got"]["nodes"], &b["got"]["exposures"][0]["address"]), (&json!(["n1"]), &json!("192.0.2.10")), "the nodes and exposures chosen go with the deploy");
+        let (s, _, b) = call(&app, change("POST", "/api/cluster/stack-check", chosen)).await;
+        assert_eq!((s, &b["services"]["web"]["ports"][0]["host_port"], &b["got"]["nodes"]), (StatusCode::OK, &json!(8080), &json!(["n1"])), "a check is passed on whole");
         let (s, _, b) = call(&app, change("POST", "/api/cluster/stacks/web/restart", json!({}))).await;
         assert_eq!((s, b["restarting"].clone()), (StatusCode::OK, json!(1)));
         let (s, _, _) = call(&app, change("DELETE", "/api/cluster/stacks/web", Value::Null)).await;
@@ -711,8 +747,8 @@ mod tests {
         let (s, _, _) = call(&app, change("DELETE", "/api/cluster/stacks/..%2Fnodes", Value::Null)).await;
         assert_eq!(s, StatusCode::NOT_FOUND);
         let actions: Vec<String> = app.db.call(|c| Ok(c.prepare("SELECT action || ' ' || COALESCE(target, '') FROM audit ORDER BY id")?.query_map([], |r| r.get(0))?.collect::<Result<_, _>>()?)).await.unwrap();
-        assert_eq!(actions.iter().filter(|a| a.starts_with("cluster.stack")).cloned().collect::<Vec<_>>(), vec!["cluster.stack.deploy web", "cluster.stack.restart web", "cluster.stack.remove web"]);
-        assert_eq!(asked.lock().unwrap().len(), 4);
+        assert_eq!(actions.iter().filter(|a| a.starts_with("cluster.stack")).cloned().collect::<Vec<_>>(), vec!["cluster.stack.deploy web", "cluster.stack.deploy web", "cluster.stack.restart web", "cluster.stack.remove web"]);
+        assert_eq!(asked.lock().unwrap().len(), 6, "a check changes nothing, so it is not on record");
     }
 
     #[tokio::test]

@@ -1,44 +1,76 @@
 // The cluster's stacks ("Cluster" 4): each stack with its workloads, where each runs and how it is, asked of the manager
-// again every few seconds. An administrator deploys a stack from a Compose file (or changes one by deploying it
-// again), starts, stops or restarts it, or removes it. Placement and the containers themselves are the manager's.
-// Each stack says how each of its services is reached from outside the cluster ("Cluster" 17): on a pool address (an
-// exposure, chosen here, never in the Compose file), on every node's own address (the Compose file's ports), or not at
-// all (internal only); an administrator sets the exposures.
+// again every few seconds, under a search and filters by state, worker and reach ("Cluster" 20). An administrator
+// deploys a stack or changes one on the deployer page (cluster-deploy.js), starts, stops or restarts it, or removes it.
+// Placement and the containers themselves are the manager's. Each stack says how each of its services is reached from
+// outside the cluster ("Cluster" 17, 19): on a pool address (an exposure, never in the Compose file) or not at all
+// (internal only), with the ports its Compose file asks for that open nothing; an administrator sets the exposures.
 
 import { h, mount, ago, when, shortId } from '../dom.js';
 import { get, post, put, del } from '../api.js';
 import { isAdmin } from '../state.js';
 import { loadInto, table } from '../view.js';
 import { confirm } from '../confirm.js';
-import { codeEditor } from '../editor.js';
 import { pageHeader } from '../../finui/components/page-header/page-header.js';
 import { card } from '../../finui/components/card/card.js';
 import { status } from '../../finui/components/badge/badge.js';
 import { button } from '../../finui/components/button/button.js';
 import { emptyState } from '../../finui/components/empty/empty.js';
 import { openModal } from '../../finui/components/modal/modal.js';
-import { formField } from '../../finui/components/field/field.js';
+import { segmented } from '../../finui/components/segmented/segmented.js';
 import { toast } from '../../finui/components/toast/toast.js';
 import { t, tOr } from '../i18n.js';
 import { nodeName as shownName } from './cluster.js';
+import { exposureEditor } from './cluster-deploy.js';
 
 const EVERY_MS = 3000;
 /** The nodes' shown names by id, from the last load. */
 let names = new Map();
 const TONES = { running: 'good', stopped: 'info', pending: 'warning', failed: 'critical', unplaced: 'critical', unknown: 'warning', fenced: 'critical' };
 const sec = (ms) => Math.floor((ms || 0) / 1000);
-// A Compose file to start from: Compose's own words.
-const EXAMPLE = `services:
-  web:
-    image: nginx:alpine
-    ports: ["8080:80"]
-    deploy:
-      replicas: 2
-`;
+/** The managers' own stack, the UI: changed with `freightdock-manager ui`, reached at 7443 of every manager. */
+const SYSTEM = 'freightdock';
+/** The search and filters, kept while Freightdock is open so a way back finds them as they were. */
+const filter = { q: '', state: 'all', node: '', reach: 'all' };
+
+/** Whether stack `s` is one the filters keep. The search matches the stack's, its services', images', workloads' and
+ *  workers' names, its addresses and its exposures, ignoring case. */
+export function kept(s, f, nameOf) {
+  const w = s.workloads || [];
+  const up = w.filter((x) => x.status === 'running').length;
+  const state = s.stopped ? 'stopped' : up === w.length ? 'running' : 'attention';
+  if (f.state !== 'all' && f.state !== state) return false;
+  if (f.node && !w.some((x) => x.node_id === f.node)) return false;
+  const pooled = (s.exposures || []).length > 0;
+  if (f.reach === 'pool' && !pooled) return false;
+  if (f.reach === 'internal' && pooled) return false;
+  const q = f.q.trim().toLowerCase();
+  if (!q) return true;
+  const words = [s.name, s.subnet, ...Object.entries(s.services || {}).flatMap(([k, v]) => [k, v.image]),
+    ...w.flatMap((x) => [x.id, x.address, x.node_id && nameOf(x.node_id), x.hostname]),
+    ...(s.exposures || []).map((e) => `${e.address}:${e.port}`)];
+  return words.some((x) => x && String(x).toLowerCase().includes(q));
+}
+
+function toolbar(nodes, redraw) {
+  const search = h('input', { class: 'fui-field__input fd-stacks__search', type: 'search', value: filter.q, placeholder: t('pages.cluster_stacks.search'), 'aria-label': t('pages.cluster_stacks.search') });
+  search.addEventListener('input', () => { filter.q = search.value; redraw(); });
+  const node = h('select', { class: 'fui-field__input fd-stacks__node', 'aria-label': t('pages.cluster_stacks.filter_node') },
+    h('option', { value: '' }, t('pages.cluster_stacks.all_nodes')), nodes.map((n) => h('option', { value: n.id, selected: n.id === filter.node }, shownName(n))));
+  node.addEventListener('change', () => { filter.node = node.value; redraw(); });
+  return h('div', { class: 'fd-stacks__bar' }, search,
+    segmented({ label: t('pages.cluster_stacks.filter_state'), size: 'sm', value: filter.state, onChange: (v) => { filter.state = v; redraw(); },
+      options: ['all', 'running', 'attention', 'stopped'].map((v) => ({ value: v, label: t(`pages.cluster_stacks.state_${v}`) })) }),
+    segmented({ label: t('pages.cluster_stacks.filter_reach'), size: 'sm', value: filter.reach, onChange: (v) => { filter.reach = v; redraw(); },
+      options: ['all', 'pool', 'internal'].map((v) => ({ value: v, label: t(`pages.cluster_stacks.reach_filter_${v}`) })) }),
+    node);
+}
 
 export function clusterStacksPage({ el, signal }) {
-  const head = h('div'), list = h('div', { class: 'stack' });
-  el.append(head, list);
+  const head = h('div'), bar = h('div'), list = h('div', { class: 'stack' });
+  el.append(head, bar, list);
+  // The bar is drawn again only when the workers change, so typing in it is never cut off by a reload; it always
+  // redraws the latest load's list.
+  let barFor = '', redrawNow = () => {};
   const reload = loadInto(list, {
     signal,
     load: async (s) => {
@@ -51,10 +83,19 @@ export function clusterStacksPage({ el, signal }) {
       // Nodes by the name given them in Freightdock ("Cluster" 12), else their hostname.
       names = new Map((nodes || []).map((n) => [n.id, shownName(n)]));
       mount(head, pageHeader(t('pages.cluster_stacks.title'), t('pages.cluster_stacks.sub'),
-        c.connected && isAdmin() ? button({ size: 'sm', variant: 'primary', onClick: () => deployDialog(null, reload) }, t('pages.cluster_stacks.deploy')) : null));
-      if (!c.connected) return emptyState(t('pages.cluster.not_connected'), t('pages.cluster.not_connected_text'));
-      if (!stacks.length) return emptyState(t('pages.cluster_stacks.none'), t('pages.cluster_stacks.none_text'));
-      return h('div', { class: 'stack' }, ...stacks.map((s) => stackCard(s, reload)), recoveryCard(recoveries));
+        c.connected && isAdmin() ? button({ size: 'sm', variant: 'primary', href: '/cluster/stacks/new' }, t('pages.cluster_stacks.deploy')) : null));
+      if (!c.connected) { mount(bar); barFor = ''; return emptyState(t('pages.cluster.not_connected'), t('pages.cluster.not_connected_text')); }
+      if (!stacks.length) { mount(bar); barFor = ''; return emptyState(t('pages.cluster_stacks.none'), t('pages.cluster_stacks.none_text')); }
+      const key = (nodes || []).map((n) => `${n.id}=${shownName(n)}`).join(',');
+      if (key !== barFor) { barFor = key; mount(bar, toolbar(nodes || [], () => redrawNow())); }
+      const shown = h('div', { class: 'stack' });
+      redrawNow = () => {
+        const keep = stacks.filter((s) => kept(s, filter, (id) => names.get(id)));
+        mount(shown, h('p', { class: 'sub', 'aria-live': 'polite' }, t('pages.cluster_stacks.showing', { n: keep.length, of: stacks.length })),
+          ...(keep.length ? keep.map((s) => stackCard(s, reload)) : [emptyState(t('pages.cluster_stacks.none_match'), t('pages.cluster_stacks.none_match_text'))]));
+      };
+      redrawNow();
+      return h('div', { class: 'stack' }, shown, recoveryCard(recoveries));
     },
   });
   const timer = setInterval(() => { if (!document.hidden) reload(); }, EVERY_MS);
@@ -70,26 +111,30 @@ function stackCard(s, reload) {
       ? button({ size: 'sm', onClick: () => act(s.name, 'start', reload) }, t('pages.cluster_stacks.start'))
       : button({ size: 'sm', onClick: () => act(s.name, 'stop', reload) }, t('pages.cluster_stacks.stop')),
     s.stopped ? null : button({ size: 'sm', onClick: () => act(s.name, 'restart', reload) }, t('pages.cluster_stacks.restart')),
-    button({ size: 'sm', onClick: () => deployDialog(s.name, reload) }, t('pages.cluster_stacks.edit')),
+    s.name === SYSTEM ? null : button({ size: 'sm', href: `/cluster/stacks/${encodeURIComponent(s.name)}/edit` }, t('pages.cluster_stacks.edit')),
     button({ size: 'sm', onClick: () => exposeDialog(s, reload) }, t('pages.cluster_stacks.exposures')),
-    button({ size: 'sm', variant: 'danger', onClick: () => removeStack(s.name, reload) }, t('common.remove'))) : null;
+    s.name === SYSTEM ? null : button({ size: 'sm', variant: 'danger', onClick: () => removeStack(s.name, reload) }, t('common.remove'))) : null;
   const services = Object.entries(s.services || {}).map(([k, v]) => `${k} (${v.image}, ${v.replicas}x)`).join(', ');
   return card({
     title: h('span', { class: 'row' }, h('span', { class: 'mono' }, s.name), state),
     sub: h('span', null, h('span', { title: when(sec(s.updated_at)) }, t('pages.cluster_stacks.updated', { when: ago(sec(s.updated_at)), services })),
-      s.subnet ? h('span', { class: 'mono' }, ` · ${t('pages.cluster_stacks.network', { subnet: s.subnet })}`) : null),
+      s.subnet ? h('span', { class: 'mono' }, ` · ${t('pages.cluster_stacks.network', { subnet: s.subnet })}`) : null,
+      h('span', null, ` · ${(s.nodes || []).length ? t('pages.cluster_stacks.runs_on', { nodes: s.nodes.map((id) => names.get(id) || shortId(id)).join(', ') }) : t('pages.cluster_stacks.runs_anywhere')}`)),
     actions,
     body: h('div', { class: 'stack' }, workloadTable(w), reachTable(s)),
   });
 }
 
-/** How each service is reached from outside the cluster: its exposures on the pool, the Compose file's ports on every
- *  node's own address, or nothing (internal only). */
+/** How each service is reached from outside the cluster: its exposures on the pool, or nothing (internal only); and
+ *  the ports its Compose file asks for that no exposure answers, which open nothing ("Cluster" 19). */
 export function reachOf(s) {
   return Object.entries(s.services || {}).map(([name, svc]) => {
-    const pool = (s.exposures || []).filter((e) => e.service === name).map((e) => ({ kind: 'pool', text: `${e.address}:${e.port} → ${e.container_port}/${e.protocol}` }));
-    const nodes = (svc.ports || []).filter((p) => p.host_port).map((p) => ({ kind: 'nodes', text: `:${p.host_port} → ${p.container_port}/${p.protocol || 'tcp'}` }));
-    return { name, ways: [...pool, ...nodes] };
+    const mine = (s.exposures || []).filter((e) => e.service === name);
+    const pool = mine.map((e) => ({ kind: 'pool', text: `${e.address}:${e.port} → ${e.container_port}/${e.protocol}` }));
+    if (s.name === SYSTEM) return { name, ways: [...pool, { kind: 'managers', text: '7443' }] };
+    const asked = (svc.ports || []).filter((p) => p.host_port && !mine.some((e) => e.container_port === p.container_port && e.protocol === (p.protocol || 'tcp')))
+      .map((p) => ({ kind: 'asked', text: `${p.host_port}:${p.container_port}/${p.protocol || 'tcp'}` }));
+    return { name, ways: [...pool, ...asked] };
   });
 }
 
@@ -98,50 +143,35 @@ function reachTable(s) {
     rows: reachOf(s), filter: false, dense: true, label: t('pages.cluster_stacks.reach'),
     columns: [
       { label: t('pages.cluster_stacks.service'), cell: (r) => h('span', { class: 'mono' }, r.name), sort: (r) => r.name },
-      { label: t('pages.cluster_stacks.reach'), cell: (r) => (r.ways.length
-        ? h('div', { class: 'row wrap' }, r.ways.map((w) => h('span', { title: t(`pages.cluster_stacks.reach_${w.kind}_help`) }, status({ tone: w.kind === 'pool' ? 'good' : 'info' }, t(`pages.cluster_stacks.reach_${w.kind}`, { what: w.text })))))
-        : h('span', { class: 'sub', title: t('pages.cluster_stacks.reach_internal_help') }, t('pages.cluster_stacks.reach_internal'))) },
+      { label: t('pages.cluster_stacks.reach'), cell: (r) => {
+        const pool = r.ways.filter((w) => w.kind === 'pool'), asked = r.ways.filter((w) => w.kind === 'asked');
+        const managers = r.ways.filter((w) => w.kind === 'managers');
+        if (managers.length) return h('div', { class: 'row wrap' }, pool.map((w) => status({ tone: 'good' }, t('pages.cluster_stacks.reach_pool', { what: w.text }))),
+          managers.map((w) => h('span', { title: t('pages.cluster_stacks.reach_managers_help') }, status({ tone: 'info' }, t('pages.cluster_stacks.reach_managers', { port: w.text })))));
+        return h('div', { class: 'row wrap' },
+          pool.length ? pool.map((w) => h('span', { title: t('pages.cluster_stacks.reach_pool_help') }, status({ tone: 'good' }, t('pages.cluster_stacks.reach_pool', { what: w.text }))))
+            : h('span', { class: 'sub', title: t('pages.cluster_stacks.reach_internal_help') }, t('pages.cluster_stacks.reach_internal')),
+          asked.map((w) => h('span', { class: 'sub', title: t('pages.cluster_stacks.reach_asked_help') }, t('pages.cluster_stacks.reach_asked', { what: w.text }))));
+      } },
     ],
   });
 }
 
-/** The stack's exposures on the pool, all of them, edited as rows; the managers check them whole. */
+/** The stack's exposures on the pool, all of them, edited as rows (the deployer's editor); the managers check them
+ *  whole. The ports its Compose file asks for that have none are offered, internal only until an address is chosen. */
 async function exposeDialog(s, reload) {
   let pool;
   try { pool = await get('/api/cluster/floating'); } catch (e) { toast({ text: e.message, tone: 'critical' }); return; }
-  const services = Object.keys(s.services || {});
-  const firstPort = (svc) => (((s.services || {})[svc] || {}).ports || [])[0];
-  const rows = h('div', { class: 'stack' });
+  const editor = exposureEditor({ pool, stack: s.name, initial: s.exposures || [] });
+  editor.offer(s.services || {}, false);
   const err = h('p', { class: 'fui-field__error', role: 'alert' });
-  const field = (label, input, wide) => h('label', { class: ['fui-field', 'fd-expose__field', wide && 'fd-expose__field--wide'] }, h('span', { class: 'fui-field__label' }, label), input);
-  const select = (options, value) => h('select', { class: 'fui-field__input' }, options.map((o) => h('option', { value: o, selected: o === value }, o)));
-  const row = (e = {}) => {
-    const svc = select(services, e.service || services[0]);
-    const cport = h('input', { class: 'fui-field__input mono', type: 'number', min: 1, max: 65535, value: e.container_port || (firstPort(svc.value) || {}).container_port || '' });
-    svc.addEventListener('change', () => { if (!cport.value && firstPort(svc.value)) cport.value = firstPort(svc.value).container_port; });
-    const proto = select(['tcp', 'udp'], e.protocol || 'tcp');
-    const addr = select(pool.map((p) => p.address), e.address);
-    const port = h('input', { class: 'fui-field__input mono', type: 'number', min: 1, max: 65535, value: e.port || '' });
-    const el = h('div', { class: 'fd-expose' },
-      field(t('pages.cluster_stacks.service'), svc), field(t('pages.cluster_stacks.container_port'), cport), field(t('pages.cluster_stacks.protocol'), proto),
-      h('span', { class: 'fd-expose__arrow', 'aria-hidden': 'true' }, '←'),
-      field(t('pages.cluster.floating_address'), addr, true), field(t('pages.cluster_stacks.outside_port'), port),
-      button({ size: 'sm', variant: 'danger', onClick: () => el.remove() }, t('common.remove')));
-    el.read = () => ({ service: svc.value, container_port: Number(cport.value), protocol: proto.value, address: addr.value, port: Number(port.value) });
-    return el;
-  };
-  for (const e of s.exposures || []) rows.append(row(e));
-  const add = button({ size: 'sm', disabled: !pool.length, onClick: () => rows.append(row()) }, t('pages.cluster_stacks.add_exposure'));
   const go = button({ variant: 'primary', type: 'submit' }, t('common.save'));
-  const form = h('form', { class: 'stack', novalidate: true },
-    h('p', null, t('pages.cluster_stacks.exposures_text')),
-    pool.length ? null : h('p', { class: 'sub' }, t('pages.cluster_stacks.no_pool')),
-    rows, h('div', null, add), err, h('div', { class: 'row row--end' }, go));
+  const form = h('form', { class: 'stack', novalidate: true }, editor.el, err, h('div', { class: 'row row--end' }, go));
   const m = openModal({ title: t('pages.cluster_stacks.exposures_of', { name: s.name }), body: form, wide: true });
   form.addEventListener('submit', async (ev) => {
     ev.preventDefault();
-    const exposures = [...rows.children].map((r) => r.read());
-    if (exposures.some((x) => !x.container_port || !x.port || !x.address)) { err.textContent = t('pages.cluster_stacks.exposure_incomplete'); return; }
+    const exposures = editor.read();
+    if (!exposures) { err.textContent = t('pages.cluster_stacks.exposure_incomplete'); return; }
     go.disabled = true;
     try {
       await put(`/api/cluster/stacks/${encodeURIComponent(s.name)}/exposures`, { exposures });
@@ -209,35 +239,4 @@ async function act(name, action, reload) {
 async function removeStack(name, reload) {
   if (!(await confirm({ title: t('pages.cluster_stacks.remove_title', { name }), body: t('pages.cluster_stacks.remove_body') }))) return;
   try { await del(`/api/cluster/stacks/${encodeURIComponent(name)}`); toast({ text: t('pages.cluster_stacks.removed', { name }), tone: 'good' }); reload(); } catch (e) { toast({ text: e.message, tone: 'critical' }); }
-}
-
-/** Deploys a new stack (`existing` null) or a changed one, from its Compose file. */
-async function deployDialog(existing, reload) {
-  let compose = EXAMPLE;
-  if (existing) {
-    try { compose = (await get(`/api/cluster/stacks/${encodeURIComponent(existing)}`)).compose || ''; } catch (e) { toast({ text: e.message, tone: 'critical' }); return; }
-  }
-  const name = formField({ id: 'cs-name', label: t('pages.cluster_stacks.name'), autocomplete: 'off', help: t('pages.cluster_stacks.name_help') });
-  name.input.value = existing || '';
-  if (existing) name.input.readOnly = true;
-  const file = codeEditor({ id: 'cs-compose', label: t('pages.cluster_stacks.compose'), value: compose, rows: 18, language: 'yaml', help: t('pages.cluster_stacks.compose_help') });
-  const go = button({ variant: 'primary', type: 'submit' }, t('pages.cluster_stacks.deploy'));
-  const form = h('form', { class: 'stack', novalidate: true }, name.el, file.el, h('div', { class: 'row row--end' }, go));
-  const m = openModal({ title: existing ? t('pages.cluster_stacks.edit_title', { name: existing }) : t('pages.cluster_stacks.deploy'), body: form, wide: true, initialFocus: existing ? undefined : name.input });
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const n = name.input.value.trim();
-    if (!/^[a-z0-9][a-z0-9-]{0,39}$/.test(n)) { name.setError(t('pages.cluster_stacks.name_help')); return; }
-    go.disabled = true;
-    try {
-      const r = await post('/api/cluster/stacks', { name: n, compose: file.value });
-      m.close();
-      toast({ text: t('pages.cluster_stacks.deployed', { name: n }), tone: 'good' });
-      for (const w of r.warnings || []) toast({ text: w, tone: 'warning' });
-      reload();
-    } catch (err) {
-      go.disabled = false;
-      toast({ text: err.message, tone: 'critical' });
-    }
-  });
 }

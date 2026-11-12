@@ -152,7 +152,7 @@ const ON_PURPOSE = [
   { file: 'pages/images.js', text: /^FROM alpine/ },
   // A compose file to start from: Compose's own words.
   { file: 'pages/swarm-stacks.js', text: /^services: web: image: nginx/ },
-  { file: 'pages/cluster-stacks.js', text: /^services: web: image: nginx/ },
+  { file: 'pages/cluster-deploy.js', text: /^services: web: image: nginx/ },
   // Docker's create body's own keys.
   { file: 'pages/container-edit.js', text: /^(Init|Tty|Privileged|Image|Cmd|Entrypoint|User|Hostname|Env|Labels|Binds|Memory)$/ },
   // Errors for whoever builds with a component, not for the person using the page.

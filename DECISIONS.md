@@ -1359,10 +1359,26 @@ pointer to what replaced it.
     (the Compose file's `ports:`), or not at all ("Internal only"). A pool address answers only its exposures and a
     port is its own on each address, so two stacks may use one port on two addresses; the managers check that and
     Freightdock passes their refusal on. The pool card on the Cluster page lists what each address exposes. Saying
-    which is which is the point: what leaves the cluster is only what somebody meant to let out.
+    which is which is the point: what leaves the cluster is only what somebody meant to let out. **Superseded** in
+    part by 19: a Compose port no longer answers on the workers' own addresses.
 18. The cluster has a name (owner, 2026-11-13), given by an Administrator on the Cluster page
     (`PUT /api/cluster/name`, `cluster.rename` in the activity log) and kept in Freightdock only, in `cluster_names` by
     the cluster's id, like a node's or a manager's ("Cluster" 12, 14); it heads the Cluster page and the dashboard.
     The managers know the cluster by its id alone, so a name never has to agree with them. The pool takes a range
     (`192.0.2.10-20`, `192.0.2.8/29`, at most 1024) as well as one address; an address no stack exposes on shows
     "Not in use", since the managers announce it on the LAN only once one does.
+19. A stack is reached from outside the cluster only on the pool, and otherwise only inside it (owner, 2026-11-13):
+    a Compose file's `ports:` open nothing, on a worker's own address or anywhere. They are what the file asks for,
+    which the deployer offers as exposures on a free pool address (kept, moved, or set to Internal only before it
+    deploys), so a ready-made Compose file still works and nothing leaves by accident. Only the managers' own stack, the
+    UI, has its port answered on every worker, for the managers to forward 7443 to; it cannot be edited or removed here.
+    A stack is deployed and changed on its own page, the deployer (`/cluster/stacks/new`, `/cluster/stacks/<name>/edit`),
+    in three parts the managers check as they are written (`POST /api/cluster/stack-check`, Admin, changing nothing so
+    not on record): the Compose file with the services found and the keys set aside; where it runs, any healthy worker
+    or the workers chosen (`nodes`, kept by the managers, its workloads placed only there and moved there when the
+    choice changes), with where its new workloads would go or why they cannot; and its exposures. The deploy sends all
+    three at once (`POST /api/cluster/stacks` with `nodes` and `exposures`), checked whole by the managers.
+20. The stacks page has a search (stack, service, image, workload, worker, address and exposure, ignoring case) and
+    filters by state (running, needs attention, stopped), by reach (on the pool, internal only) and by worker, kept
+    while Freightdock is open; it says how many of the stacks it shows. The bar is drawn again only when the workers
+    change, so a reload every few seconds never takes the typing away.
