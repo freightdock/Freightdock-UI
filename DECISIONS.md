@@ -1360,3 +1360,9 @@ pointer to what replaced it.
     port is its own on each address, so two stacks may use one port on two addresses; the managers check that and
     Freightdock passes their refusal on. The pool card on the Cluster page lists what each address exposes. Saying
     which is which is the point: what leaves the cluster is only what somebody meant to let out.
+18. The cluster has a name (owner, 2026-11-13), given by an Administrator on the Cluster page
+    (`PUT /api/cluster/name`, `cluster.rename` in the activity log) and kept in Freightdock only, in `cluster_names` by
+    the cluster's id, like a node's or a manager's ("Cluster" 12, 14); it heads the Cluster page and the dashboard.
+    The managers know the cluster by its id alone, so a name never has to agree with them. The pool takes a range
+    (`192.0.2.10-20`, `192.0.2.8/29`, at most 1024) as well as one address; an address no stack exposes on shows
+    "Not in use", since the managers announce it on the LAN only once one does.

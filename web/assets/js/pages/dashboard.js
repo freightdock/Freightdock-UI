@@ -60,6 +60,7 @@ export function dashboardPage({ el, signal }) {
     draw: ({ c, n, st }) => {
       if (!c.connected) return emptyState(t('pages.cluster.not_connected'), t('pages.cluster.not_connected_text'));
       const cl = c.cluster || {};
+      if (c.name) mount(head, pageHeader(c.name, t('pages.dashboard.sub')));
       const raft = cl.raft || [];
       const nodes = n || [];
       return h('div', { class: 'stack' }, topRow(cl, raft, nodes), usageRow(nodes), nodeRows(nodes, st || [], raft));

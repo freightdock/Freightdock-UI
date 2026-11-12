@@ -162,6 +162,7 @@ pub fn router() -> Router<App> {
         .route("/api/cluster/nodes/{id}", get(node).delete(remove_node))
         .route("/api/cluster/nodes/{id}/name", axum::routing::put(rename_node))
         .route("/api/cluster/managers/{id}/name", axum::routing::put(rename_manager))
+        .route("/api/cluster/name", axum::routing::put(rename_cluster))
         .route("/api/cluster/nodes/{id}/commands", post(command))
         .route("/api/cluster/nodes/{id}/labels", axum::routing::put(set_labels))
         .route("/api/cluster/nodes/{id}/authorize", post(authorize))
@@ -192,7 +193,12 @@ async fn overview(State(app): State<App>, _a: Authed) -> ApiResult<Json<Value>> 
             m["name"] = json!(name);
         }
     }
-    Ok(Json(json!({ "connected": true, "cluster": v })))
+    // The cluster's name, given here by its id ("Cluster" 18).
+    let name = match v["cluster_id"].as_str() {
+        Some(id) => names_in(&app, "cluster_names").await?.remove(id),
+        None => None,
+    };
+    Ok(Json(json!({ "connected": true, "cluster": v, "name": name })))
 }
 
 async fn nodes(State(app): State<App>, _a: Authed) -> ApiResult<Json<Value>> {
@@ -239,6 +245,13 @@ async fn rename_node(State(app): State<App>, a: Authed, Path(id): Path<String>, 
 }
 
 /// The same for a manager, by its raft id (a number): shown instead of its address ("Cluster" 14).
+/// Gives the cluster a name to be shown by, here only; an empty name takes it away.
+async fn rename_cluster(State(app): State<App>, a: Authed, Json(b): Json<NameBody>) -> ApiResult<Json<Value>> {
+    let (_, v) = cluster(&app)?.call(reqwest::Method::GET, "/v1/cluster", None).await?;
+    let Some(id) = v["cluster_id"].as_str().map(str::to_string) else { return Err(ApiError::not_found("cluster")) };
+    give_name(&app, a, "cluster_names", "cluster_id", "cluster.rename", id, b.name).await
+}
+
 async fn rename_manager(State(app): State<App>, a: Authed, Path(id): Path<String>, Json(b): Json<NameBody>) -> ApiResult<Json<Value>> {
     if id.is_empty() || id.len() > 20 || !id.bytes().all(|b| b.is_ascii_digit()) {
         return Err(ApiError::not_found("manager"));
@@ -340,11 +353,12 @@ struct FloatingBody {
     address: String,
 }
 
-async fn add_floating(State(app): State<App>, a: Authed, Json(b): Json<FloatingBody>) -> ApiResult<StatusCode> {
+/// One address or a range of them; answers how many were new, as the manager counted.
+async fn add_floating(State(app): State<App>, a: Authed, Json(b): Json<FloatingBody>) -> ApiResult<(StatusCode, Json<Value>)> {
     let address = b.address.trim().to_string();
-    let (s, _) = cluster(&app)?.call(reqwest::Method::POST, "/v1/floating", Some(json!({ "address": address }))).await?;
+    let (s, v) = cluster(&app)?.call(reqwest::Method::POST, "/v1/floating", Some(json!({ "address": address }))).await?;
     audit::record(&app.db, Some(&a.session.user), a.ip, audit::entry("cluster.floating.add", address)).await;
-    Ok(s)
+    Ok((s, Json(v)))
 }
 
 async fn remove_floating(State(app): State<App>, a: Authed, Path(address): Path<String>) -> ApiResult<StatusCode> {
@@ -503,7 +517,7 @@ mod tests {
                     "PUT /v1/stacks/web/exposures" => (StatusCode::OK, json!({ "name": "web", "exposures": [{ "service": "nginx", "container_port": 80, "protocol": "tcp", "address": "192.0.2.10", "port": 443 }] }).to_string()),
                     "GET /v1/traffic" => (StatusCode::OK, json!({ "reporting": ["6f1c7c2e-0000-4000-8000-000000000001"], "workloads": [], "flows": [{ "from": { "kind": "outside" }, "to": { "kind": "workload", "id": "web.nginx.1" }, "port": 80, "out_bps": 10 }] }).to_string()),
                     "GET /v1/floating" => (StatusCode::OK, json!([{ "address": "192.0.2.10", "holder": "6f1c7c2e-0000-4000-8000-000000000001", "since": 1 }]).to_string()),
-                    "POST /v1/floating" => (StatusCode::CREATED, String::new()),
+                    "POST /v1/floating" => (StatusCode::CREATED, json!({ "added": 3 }).to_string()),
                     "DELETE /v1/floating/192.0.2.10" => (StatusCode::NO_CONTENT, String::new()),
                     "GET /v1/nodes/broken" => (StatusCode::SERVICE_UNAVAILABLE, "the cluster cannot take changes now".to_string()),
                     _ => (StatusCode::NOT_FOUND, "unknown".to_string()),
@@ -613,6 +627,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn the_cluster_is_named_by_an_administrator_and_shown_with_it() {
+        let (app, _, _d) = connected("t0k3n").await;
+        let (cookie, csrf) = signed_in(&app).await;
+        let put = |name: &str| Request::put("/api/cluster/name").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).header(header::CONTENT_TYPE, "application/json").body(Body::from(json!({ "name": name }).to_string())).unwrap();
+        let (_, _, b) = call(&app, get("/api/cluster", &cookie)).await;
+        assert_eq!(b["name"], Value::Null, "no name yet");
+        assert_eq!(call(&app, put("  Home lab  ")).await.0, StatusCode::OK);
+        let (_, _, b) = call(&app, get("/api/cluster", &cookie)).await;
+        assert_eq!(b["name"], "Home lab");
+        assert_eq!(call(&app, put(&"x".repeat(65))).await.0, StatusCode::BAD_REQUEST);
+        let (action, target): (String, String) = app.db.call(|c| Ok(c.query_row("SELECT action, target FROM audit ORDER BY id DESC LIMIT 1", [], |r| Ok((r.get(0)?, r.get(1)?)))?)).await.unwrap();
+        assert_eq!((action.as_str(), target.as_str()), ("cluster.rename", "c1"), "by the cluster's id");
+        assert_eq!(call(&app, put("")).await.0, StatusCode::OK);
+        let (_, _, b) = call(&app, get("/api/cluster", &cookie)).await;
+        assert_eq!(b["name"], Value::Null, "an empty name takes it away");
+    }
+
+    #[tokio::test]
     async fn the_traffic_is_anybody_s_who_is_signed_in() {
         let (app, _, _d) = connected("t0k3n").await;
         assert_eq!(call(&app, Request::get("/api/cluster/traffic").body(Body::empty()).unwrap()).await.0, StatusCode::UNAUTHORIZED);
@@ -628,7 +660,8 @@ mod tests {
         let (s, _, b) = call(&app, get("/api/cluster/floating", &cookie)).await;
         assert_eq!((s, b[0]["address"].clone()), (StatusCode::OK, json!("192.0.2.10")));
         let add = post("/api/cluster/floating").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).body(json_body(json!({ "address": "192.0.2.10" }))).unwrap();
-        assert_eq!(call(&app, add).await.0, StatusCode::CREATED);
+        let (s, _, b) = call(&app, add).await;
+        assert_eq!((s, b["added"].clone()), (StatusCode::CREATED, json!(3)), "how many a range added, as the manager counted");
         let del = |a: &str| Request::delete(format!("/api/cluster/floating/{a}")).header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).body(Body::empty()).unwrap();
         assert_eq!(call(&app, del("192.0.2.10")).await.0, StatusCode::NO_CONTENT);
         assert_eq!(call(&app, del("..%2Fnodes")).await.0, StatusCode::NOT_FOUND, "only an address goes into the manager's path");

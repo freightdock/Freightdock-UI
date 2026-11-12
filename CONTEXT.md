@@ -108,7 +108,7 @@ and the managers replicate them as they replicate the rest (empty). The ones in 
 | `auth_log` | every sign-in, failure and sign-out: at, event, method, ok, user, name tried, ip, user agent |
 | `api_tokens` | user, name (unique per user, case-blind), SHA-256 of the token, `hint` (its last four), read_only, created/expires/last used, last used ip |
 | `teams`, `team_members` | a team's name (unique, case-blind); who is in which (both sides cascade), and `synced_by`: the provider whose groups put them there (NULL: by hand, and a sign-in never takes them out) |
-| `node_names`, `manager_names` | the names nodes (by node id) and managers (by raft id) are shown by in Freightdock only ("Cluster" 12, 14) |
+| `node_names`, `manager_names`, `cluster_names` | the names nodes (by node id), managers (by raft id) and the cluster (by its id) are shown by in Freightdock only ("Cluster" 12, 14, 18) |
 | `_replog` | in a cluster: each change since the last push, written by the `_rep_*` triggers ("Cluster" 9); never replicated itself |
 
 ## API
@@ -125,6 +125,7 @@ read-only token only reads.
 | `GET /api/cluster/nodes/{id}` | session | one node, with the containers it reports and its name here |
 | `PUT /api/cluster/nodes/{id}/name` | admin | `{name}`: the name it is shown by in Freightdock only; empty takes it away ("Cluster" 12) |
 | `PUT /api/cluster/managers/{id}/name` | admin | `{name}`, by raft id: a manager's name in Freightdock only; empty takes it away ("Cluster" 14) |
+| `PUT /api/cluster/name` | admin | `{name}`: the cluster's name in Freightdock only, given back as `name` by `GET /api/cluster`; empty takes it away ("Cluster" 18) |
 | `DELETE /api/cluster/nodes/{id}` | admin | the node out of the cluster |
 | `PUT /api/cluster/nodes/{id}/labels` | admin | `{labels}`: the node's cluster labels, all of them |
 | `POST /api/cluster/nodes/{id}/authorize` | admin | a node that came back fenced runs workloads again |
@@ -136,7 +137,7 @@ read-only token only reads.
 | `GET /api/cluster/floating` | session | the floating addresses and each one's holder ("Cluster" 15) |
 | `PUT /api/cluster/stacks/{name}/exposures` | admin | `{exposures: [{service, container_port, protocol, address, port}]}`: what the stack exposes on the pool, all of it ("Cluster" 17) |
 | `GET /api/cluster/traffic` | session | each node's latest flows, their ends named by the managers ("Cluster" 16) |
-| `POST /api/cluster/floating`, `DELETE /api/cluster/floating/{address}` | admin | `{address}`: added; removed (an IPv4 address in the path only) |
+| `POST /api/cluster/floating`, `DELETE /api/cluster/floating/{address}` | admin | `{address}`, one or a range: added (`{added}`, how many were new); removed (an IPv4 address in the path only) |
 | `GET /api/status` | anyone | name, version, configured, `sso: {providers: [{id, label, kind, preset}], ldap}` (the buttons; whether a directory takes the password form) |
 | `GET /api/auth/sso/{id}/login?next=` | anyone | off to that provider |
 | `GET /api/auth/sso/{id}/callback` | anyone | back from it (only that provider's sign-ins): signed in, or `/login?sso_error=` |

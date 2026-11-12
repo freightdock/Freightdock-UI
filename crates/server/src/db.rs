@@ -445,6 +445,13 @@ pub(crate) const MIGRATIONS: &[&str] = &[
         name    TEXT NOT NULL
     );
     "#,
+    // 23: the cluster's name in Freightdock, by cluster id ("Cluster" 18).
+    r#"
+    CREATE TABLE cluster_names (
+        cluster_id TEXT PRIMARY KEY,
+        name       TEXT NOT NULL
+    );
+    "#,
 ];
 
 impl Db {

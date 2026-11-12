@@ -2,7 +2,7 @@
 // as the managers agree on it and which manager hears each, each opening its own page, and the latest events, all asked of the manager again every few seconds. An administrator
 // sends a node a command (a ping, or a container run, stopped or removed), removes a node, or makes a join token to add
 // one ("Cluster" 2). Under the workers the floating addresses, each with the worker holding it; an administrator adds
-// or removes one.
+// or a range of them, or removes one. An administrator names the cluster ("Cluster" 18).
 
 import { h, mount, ago, when, shortId } from '../dom.js';
 import { get, post, put, del } from '../api.js';
@@ -17,6 +17,7 @@ import { emptyState } from '../../finui/components/empty/empty.js';
 import { openModal } from '../../finui/components/modal/modal.js';
 import { formField } from '../../finui/components/field/field.js';
 import { codeLine } from '../../finui/components/code-block/code-block.js';
+import { nameDialog } from './cluster-node.js';
 import { toast } from '../../finui/components/toast/toast.js';
 import { t, tOr } from '../i18n.js';
 
@@ -43,7 +44,8 @@ export function theClusterPage({ el, signal }) {
         return emptyState(t('pages.cluster.not_connected'), t('pages.cluster.not_connected_text'));
       }
       const cl = c.cluster || {};
-      mount(head, pageHeader(t('nav.the_cluster'), t('pages.cluster.id', { id: cl.cluster_id || '' }), isAdmin() ? h('div', { class: 'row' },
+      mount(head, pageHeader(c.name || t('nav.the_cluster'), t('pages.cluster.id', { id: cl.cluster_id || '' }), isAdmin() ? h('div', { class: 'row' },
+        button({ size: 'sm', onClick: () => renameCluster(c.name, reload) }, t('pages.cluster.rename')),
         button({ size: 'sm', onClick: () => joinToken('worker') }, t('pages.cluster.add_node')),
         button({ size: 'sm', onClick: () => joinToken('manager') }, t('pages.cluster.add_manager'))) : null));
       mount(nodes, card({ title: t('pages.cluster.workers'), body: n ? nodeTable(n, cl.raft || [], reload) : emptyState(t('pages.cluster.no_answer'), '') }));
@@ -259,6 +261,7 @@ function floatingTable(list, nodes, reload) {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const holder = (x) => {
     if (!x.holder) return status({ tone: 'warning' }, t('pages.cluster.floating_waiting'));
+    if (!(x.exposures || []).length) return h('span', { class: 'sub', title: t('pages.cluster.floating_standby_title') }, t('pages.cluster.floating_standby'));
     const n = byId.get(x.holder);
     return h('a', { href: `/cluster/nodes/${encodeURIComponent(x.holder)}` }, n ? nodeName(n) : shortId(x.holder));
   };
@@ -277,7 +280,7 @@ function floatingTable(list, nodes, reload) {
 }
 
 function floatingDialog(reload) {
-  const f = formField({ id: 'cl-floating', label: t('pages.cluster.floating_address'), placeholder: '192.0.2.10', inputMode: 'decimal', help: t('pages.cluster.floating_add_help') });
+  const f = formField({ id: 'cl-floating', label: t('pages.cluster.floating_address'), placeholder: '192.0.2.10-20', inputMode: 'decimal', help: t('pages.cluster.floating_add_help') });
   const go = button({ variant: 'primary', type: 'submit' }, t('pages.cluster.floating_add'));
   const form = h('form', { class: 'stack', novalidate: true }, f.el, h('div', { class: 'row row--end' }, go));
   const m = openModal({ title: t('pages.cluster.floating_add'), body: form, initialFocus: f.input });
@@ -286,11 +289,19 @@ function floatingDialog(reload) {
     const address = f.input.value.trim();
     go.disabled = true;
     try {
-      await post('/api/cluster/floating', { address });
+      const r = await post('/api/cluster/floating', { address });
       m.close();
-      toast({ text: t('pages.cluster.floating_added', { address }), tone: 'good' });
+      const n = r && typeof r.added === 'number' ? r.added : 1;
+      toast({ text: /[-/]/.test(address) ? t('pages.cluster.floating_added_range', { n }) : t('pages.cluster.floating_added', { address }), tone: 'good' });
       reload();
     } catch (x) { go.disabled = false; f.setError(x.message); }
+  });
+}
+
+function renameCluster(name, reload) {
+  nameDialog({
+    title: t('pages.cluster.rename_title'), value: name, placeholder: t('nav.the_cluster'), help: t('pages.cluster.name_help'),
+    save: (v) => put('/api/cluster/name', { name: v }), saved: t('pages.cluster.renamed'), reload,
   });
 }
 
