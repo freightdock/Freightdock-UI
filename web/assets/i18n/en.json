@@ -358,7 +358,8 @@
     "pages": "Pages",
     "menu": "Menu",
     "the_cluster": "Cluster",
-    "cluster_stacks": "Cluster stacks"
+    "cluster_stacks": "Cluster stacks",
+    "cluster_network": "Network"
   },
   "routes": {
     "setup": "Set up",
@@ -1003,6 +1004,30 @@
       "worker_here": "Worker on its host",
       "name_help": "Shown in Freightdock instead of the address. The managers keep its raft id and address. Empty gives the address back.",
       "renamed": "The manager's name is saved."
+    },
+    "network": {
+      "title": "Network",
+      "sub": "Who talks to whom in the cluster, live: since the last heartbeat of each node.",
+      "map": "Traffic",
+      "map_sub": "Point at a workload or a node to see only its lines; click to keep it. A line is as thick as its traffic and moves the way the connections went.",
+      "map_label": "The cluster network with {n} lines of traffic",
+      "flows": "Flows",
+      "outside": "Outside",
+      "outside_clients": "Outside the cluster",
+      "per_second": "{n}/s",
+      "line_title": "{out} out, {in} back, ports {ports}, {n} connections",
+      "none_reporting": "No node reports its traffic",
+      "none_reporting_text": "The workers read their traffic with conntrack; install it on them (install-node.sh does).",
+      "no_workloads": "No workloads",
+      "quiet": "Nothing moved since the last heartbeat.",
+      "from": "From",
+      "to": "To",
+      "port": "Port",
+      "port_via": "{port}/{protocol} via {via}",
+      "out": "Out",
+      "in": "Back",
+      "connections": "Connections",
+      "counted_by": "Counted by"
     }
   },
   "components": {

@@ -358,7 +358,8 @@
     "pages": "Sider",
     "menu": "Meny",
     "the_cluster": "Klynge",
-    "cluster_stacks": "Klyngestabler"
+    "cluster_stacks": "Klyngestabler",
+    "cluster_network": "Nettverk"
   },
   "routes": {
     "setup": "Sett opp",
@@ -1003,6 +1004,30 @@
       "worker_here": "Arbeider på verten",
       "name_help": "Vises i Freightdock i stedet for adressen. Managerne beholder raft-id og adresse. Tomt gir adressen tilbake.",
       "renamed": "Managerens navn er lagret."
+    },
+    "network": {
+      "title": "Nettverk",
+      "sub": "Hvem som snakker med hvem i klyngen, direkte: siden hver nodes siste hjerteslag.",
+      "map": "Trafikk",
+      "map_sub": "Pek på en arbeidslast eller en node for å se bare linjene dens; klikk for å holde den. En linje er like tykk som trafikken og beveger seg den veien tilkoblingene gikk.",
+      "map_label": "Klyngens nettverk med {n} trafikklinjer",
+      "flows": "Strømmer",
+      "outside": "Utenfor",
+      "outside_clients": "Utenfor klyngen",
+      "per_second": "{n}/s",
+      "line_title": "{out} ut, {in} tilbake, porter {ports}, {n} tilkoblinger",
+      "none_reporting": "Ingen node rapporterer trafikken sin",
+      "none_reporting_text": "Arbeiderne leser trafikken med conntrack; installer det på dem (install-node.sh gjør det).",
+      "no_workloads": "Ingen arbeidslaster",
+      "quiet": "Ingenting har beveget seg siden siste hjerteslag.",
+      "from": "Fra",
+      "to": "Til",
+      "port": "Port",
+      "port_via": "{port}/{protocol} via {via}",
+      "out": "Ut",
+      "in": "Tilbake",
+      "connections": "Tilkoblinger",
+      "counted_by": "Talt av"
     }
   },
   "components": {

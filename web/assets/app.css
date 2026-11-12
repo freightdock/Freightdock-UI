@@ -303,3 +303,23 @@
   .home-figs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .home-row__actions { padding: 0 4px; }
 }
+
+/* The live network ("Cluster" 16): boxes per node, ends to point at, a moving line per pair of ends that talked. */
+.fd-net-wrap { overflow-x: auto; }
+.fd-net { display: block; max-width: none; font: 12px var(--sans); }
+.fd-net__box { fill: var(--bg-2); stroke: var(--border); }
+.fd-net__end { cursor: pointer; outline: none; transition: opacity 0.15s; }
+.fd-net__end rect { fill: var(--bg-lift); stroke: var(--border-strong); }
+.fd-net__end--node rect { fill: transparent; stroke: none; }
+.fd-net__end--node .fd-net__label { font-weight: 600; fill: var(--text-strong); }
+.fd-net__end--outside rect { fill: var(--accent-wash); stroke: var(--accent); }
+.fd-net__end:focus-visible rect { stroke: var(--focus-color); stroke-width: 2; }
+.fd-net__end.is-on rect { stroke: var(--accent); }
+.fd-net__label { fill: var(--text); }
+.fd-net__sub { fill: var(--text-muted); }
+.fd-net__flow { fill: none; stroke: var(--accent); stroke-linecap: round; stroke-dasharray: 8 10; opacity: 0.85; animation: fd-net-move 1.2s linear infinite; transition: opacity 0.15s; }
+.fd-net__flow--outside { stroke: var(--series-2); }
+.fd-net.is-focus .fd-net__flow:not(.is-on) { opacity: 0.1; }
+.fd-net.is-focus .fd-net__end:not(.is-on) { opacity: 0.45; }
+@keyframes fd-net-move { to { stroke-dashoffset: -18; } }
+@media (prefers-reduced-motion: reduce) { .fd-net__flow { animation: none; stroke-dasharray: none; } }

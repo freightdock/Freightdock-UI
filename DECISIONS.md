@@ -1346,3 +1346,10 @@ pointer to what replaced it.
     both written to the activity log (`cluster.floating.add`, `cluster.floating.remove`). What makes an address good
     and which worker holds it is the managers' to decide, so Freightdock checks nothing more and passes their refusal
     on as it is. The card sits on the Cluster page under the workers.
+16. The network is drawn live (owner's wish, G9.8, `/cluster/network`, under Overview): outside the cluster on the
+    left, a column per node with its workloads, and a moving line per pair of ends that talked since each node's last
+    heartbeat, as thick as its traffic, from `GET /api/cluster/traffic` (anybody signed in) every three seconds. The
+    owner chose flows (who talks to whom) over node links or counters per workload. Each connection is counted by one
+    node, so a line is never drawn twice; a client outside the cluster is never named. Pointing at an end shows only
+    its lines and a click keeps that, across redraws. The same flows are a table under it, for exact numbers and for
+    screen readers; the lines stand still for whoever asks for reduced motion.

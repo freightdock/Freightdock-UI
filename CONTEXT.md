@@ -134,6 +134,7 @@ read-only token only reads.
 | `POST /api/cluster/stacks` | admin | `{name, compose}`: made or changed; `{stack, warnings}` |
 | `POST /api/cluster/stacks/{name}/{start,stop,restart}`, `DELETE /api/cluster/stacks/{name}` | admin | the stack's workloads run, stop, restart or go |
 | `GET /api/cluster/floating` | session | the floating addresses and each one's holder ("Cluster" 15) |
+| `GET /api/cluster/traffic` | session | each node's latest flows, their ends named by the managers ("Cluster" 16) |
 | `POST /api/cluster/floating`, `DELETE /api/cluster/floating/{address}` | admin | `{address}`: added; removed (an IPv4 address in the path only) |
 | `GET /api/status` | anyone | name, version, configured, `sso: {providers: [{id, label, kind, preset}], ldap}` (the buttons; whether a directory takes the password form) |
 | `GET /api/auth/sso/{id}/login?next=` | anyone | off to that provider |

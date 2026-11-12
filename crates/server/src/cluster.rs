@@ -173,6 +173,7 @@ pub fn router() -> Router<App> {
         .route("/api/cluster/stacks/{name}", get(stack).delete(remove_stack))
         .route("/api/cluster/stacks/{name}/{action}", post(stack_action))
         .route("/api/cluster/floating", get(floating).post(add_floating))
+        .route("/api/cluster/traffic", get(traffic))
         .route("/api/cluster/floating/{address}", axum::routing::delete(remove_floating))
 }
 
@@ -321,6 +322,11 @@ async fn set_labels(State(app): State<App>, a: Authed, Path(id): Path<String>, J
     let (_, v) = cluster(&app)?.call(reqwest::Method::PUT, &format!("/v1/nodes/{id}/labels"), Some(json!({ "labels": b.labels }))).await?;
     audit::record(&app.db, Some(&a.session.user), a.ip, Entry { action: "cluster.node.labels", target: Some(id), detail: Some(detail) }).await;
     Ok(Json(v))
+}
+
+/// The cluster's traffic now (G9.8): each node's latest flows, their ends named by the managers.
+async fn traffic(State(app): State<App>, _a: Authed) -> ApiResult<Json<Value>> {
+    Ok(Json(cluster(&app)?.call(reqwest::Method::GET, "/v1/traffic", None).await?.1))
 }
 
 /// The floating addresses (G10.3) and each one's holder.
@@ -483,6 +489,7 @@ mod tests {
                     "POST /v1/stacks/web/restart" => (StatusCode::OK, json!({ "restarting": 1, "busy": 0 }).to_string()),
                     "DELETE /v1/stacks/web" => (StatusCode::NO_CONTENT, String::new()),
                     "GET /v1/nodes/6f1c7c2e-0000-4000-8000-000000000001" => (StatusCode::OK, json!({ "id": "6f1c7c2e-0000-4000-8000-000000000001", "hostname": "docker", "containers": [] }).to_string()),
+                    "GET /v1/traffic" => (StatusCode::OK, json!({ "reporting": ["6f1c7c2e-0000-4000-8000-000000000001"], "workloads": [], "flows": [{ "from": { "kind": "outside" }, "to": { "kind": "workload", "id": "web.nginx.1" }, "port": 80, "out_bps": 10 }] }).to_string()),
                     "GET /v1/floating" => (StatusCode::OK, json!([{ "address": "192.0.2.10", "holder": "6f1c7c2e-0000-4000-8000-000000000001", "since": 1 }]).to_string()),
                     "POST /v1/floating" => (StatusCode::CREATED, String::new()),
                     "DELETE /v1/floating/192.0.2.10" => (StatusCode::NO_CONTENT, String::new()),
@@ -577,6 +584,15 @@ mod tests {
         let c = app.cluster.get().unwrap();
         let e = c.call(reqwest::Method::GET, "/v1/nodes/broken", None).await.unwrap_err();
         assert_eq!(e.status, StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[tokio::test]
+    async fn the_traffic_is_anybody_s_who_is_signed_in() {
+        let (app, _, _d) = connected("t0k3n").await;
+        assert_eq!(call(&app, Request::get("/api/cluster/traffic").body(Body::empty()).unwrap()).await.0, StatusCode::UNAUTHORIZED);
+        let (cookie, _) = signed_in(&app).await;
+        let (s, _, b) = call(&app, get("/api/cluster/traffic", &cookie)).await;
+        assert_eq!((s, b["flows"][0]["to"]["id"].clone()), (StatusCode::OK, json!("web.nginx.1")));
     }
 
     #[tokio::test]
