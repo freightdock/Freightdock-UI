@@ -6,7 +6,7 @@
 
 - [ ] Written test first: a failing test, then the code ([CONTRIBUTING.md](../CONTRIBUTING.md)).
 - [ ] `cargo test` and `cargo clippy --all-targets -- -D warnings` pass; `qa/js-check.sh` for UI changes.
-- [ ] `qa/run.sh` passes, if it touches what a real Docker does.
+- [ ] Checked on a test cluster, if it touches what the managers do.
 - [ ] CONTEXT.md, ARCHITECTURE.md and DECISIONS.md describe the new code (in the same commit).
 - [ ] A CHANGELOG.md bullet, if a person would notice it.
 - [ ] Docs in `docs/` updated, if it changes how something is done.

@@ -1,3 +1,5 @@
+# The UI of a Freightdock cluster, beside a manager on the same node (docs/install.md says how to make the token and
+# the CA file first).
 services:
   freightdock:
     image: ghcr.io/freightdock/freightdock:latest
@@ -5,12 +7,15 @@ services:
     # build: .
     container_name: freightdock
     restart: unless-stopped
-    ports:
-      - "7443:7443" # the web UI and API, HTTPS with a certificate Freightdock makes
-      - "7444:7444" # where agents on other hosts connect; leave it out if Freightdock manages this host alone
+    # The manager's admin API is 127.0.0.1:7452 on this node; the UI listens on 7443.
+    network_mode: host
     environment:
-      # The zone the log and the schedules are in.
+      # The zone the log is in.
       TZ: Europe/London
+      # The managers, several comma separated: the next is tried when one cannot be reached.
+      FREIGHTDOCK_CLUSTER_API: https://127.0.0.1:7452
+      FREIGHTDOCK_CLUSTER_TOKEN_FILE: /run/freightdock/api.token
+      FREIGHTDOCK_CLUSTER_CA_FILE: /run/freightdock/ca.pem
       # Optional: the first run's setup token (16 characters or more); else Freightdock makes one, and
       # `docker exec freightdock freightdock setup-token` shows it.
       # FREIGHTDOCK_SETUP_TOKEN: change-me-to-something-long
@@ -19,7 +24,7 @@ services:
       # More names for Freightdock's own certificate, beside localhost, the machine's name and its addresses.
       # FREIGHTDOCK_TLS_NAMES: freightdock.lan,192.0.2.10
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/freightdock-ui:/run/freightdock:ro
       - freightdock:/data
 
 volumes:

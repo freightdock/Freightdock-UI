@@ -71,9 +71,6 @@ paths = [
   '''(?:^|/)Cargo\.lock$''',
 ]
 regexes = [
-  # The throwaway MinIO's credentials in the end-to-end suite (qa/run.sh, tests/qa.rs): a container that lives for
-  # one run on a private network and is removed after.
-  '''qa-secret-key-1234''',
   # RFC 6455's sample Sec-WebSocket-Key, used by the WebSocket tests.
   '''dGhlIHNhbXBsZSBub25jZQ==''',
   # AWS's published example keys, used by the Signature Version 4 tests (backup/s3.rs, registries/ecr.rs).

@@ -1,18 +1,14 @@
 # Tests Freightdock, then builds its image and publishes it to the GitHub Container Registry.
 #
-#   pull request      gitleaks, tests, the end-to-end suite and a build of every platform; nothing is published
+#   pull request      gitleaks, tests and a build of every platform; nothing is published
 #   push to main      ghcr.io/<owner>/freightdock:edge
 #   tag vX.Y.Z        :X.Y.Z, :X.Y, :X (not for 0.x) and :latest, plus a release with that version's patch notes
 #                     (a vX.Y.Z-rc.N tag: :X.Y.Z-rc.N alone, and the release a pre-release)
 #
-# The agent is a product of its own, in the Agent repository, with its own CI. This one takes its crates as Cargo
-# dependencies at the tag crates/server/Cargo.toml names (the tunnel protocol, and the agent for one in-process test),
-# and names its image, at the same tag, for the `docker run` line of a new host.
-#
 # amd64 and arm64 are each built on a runner of their own architecture (no emulation: compiling Rust under QEMU takes
 # the better part of an hour), pushed by digest, and joined into one multi-platform tag. Publishing needs nothing but
 # the job's own GITHUB_TOKEN. Two secrets are optional: PRIVATE_PATTERNS (the secrets job), and GIT_DEPS_TOKEN, a
-# read-only token for git dependencies that are private on GitHub (the Agent repository's crates, until it is public).
+# read-only token for git dependencies that are private on GitHub.
 #
 # Every action is pinned to a commit, with its version beside it; Dependabot (.github/dependabot.yml) moves the pins.
 name: ci
@@ -131,41 +127,6 @@ jobs:
           [ "v$version" = "$GITHUB_REF_NAME" ] || { echo "::error::tag $GITHUB_REF_NAME, but Cargo.toml says $version"; exit 1; }
           grep -q "^## \[$version\]" CHANGELOG.md || { echo "::error::CHANGELOG.md has no entry for $version"; exit 1; }
 
-  qa:
-    name: End-to-end suite
-    needs: test
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Rust
-        run: |
-          if ! command -v rustup >/dev/null 2>&1; then
-            curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
-            echo "$HOME/.cargo/bin" >>"$GITHUB_PATH"
-            export PATH="$HOME/.cargo/bin:$PATH"
-          fi
-          rustup toolchain install stable --profile minimal
-          rustup default stable
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            ~/.cargo/registry/index
-            ~/.cargo/registry/cache
-            ~/.cargo/git/db
-            target
-          key: cargo-qa-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
-          restore-keys: cargo-qa-${{ runner.os }}-
-      - name: Private git dependencies, with GIT_DEPS_TOKEN when it is set
-        env:
-          GIT_DEPS_TOKEN: ${{ secrets.GIT_DEPS_TOKEN }}
-        run: |
-          [ -n "$GIT_DEPS_TOKEN" ] || { echo "GIT_DEPS_TOKEN is not set: git dependencies are fetched as public"; exit 0; }
-          git config --global url."https://x-access-token:${GIT_DEPS_TOKEN}@github.com/".insteadOf https://github.com/
-          echo CARGO_NET_GIT_FETCH_WITH_CLI=true >>"$GITHUB_ENV"
-      - name: Against a throwaway docker:dind
-        run: qa/run.sh
-
   plan:
     name: Image names and platforms
     runs-on: ubuntu-24.04
@@ -173,7 +134,6 @@ jobs:
     outputs:
       registry: ${{ steps.plan.outputs.registry }}
       image: ${{ steps.plan.outputs.image }}
-      agent: ${{ steps.plan.outputs.agent }}
       version: ${{ steps.plan.outputs.version }}
       push: ${{ steps.plan.outputs.push }}
       builds: ${{ steps.plan.outputs.builds }}
@@ -186,9 +146,6 @@ jobs:
           # Registries want lower case.
           repo=$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')
           image="$registry/$repo"
-          # The agent's image is its own repository's, beside this one under the same owner.
-          owner=$(printf '%s' "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')
-          agent="$registry/$owner/agent"
           case "$GITHUB_REF" in
             refs/tags/v*) version=${GITHUB_REF_NAME#v} ;;
             refs/heads/main) version=edge ;;
@@ -206,7 +163,6 @@ jobs:
           {
             echo "registry=$registry"
             echo "image=$image"
-            echo "agent=$agent"
             echo "version=$version"
             echo "push=$push"
             echo "builds=$builds"
@@ -215,7 +171,7 @@ jobs:
 
   build:
     name: Build ${{ matrix.image }} ${{ matrix.platform }}
-    needs: [secrets, test, qa, plan]
+    needs: [secrets, test, plan]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     permissions:
@@ -226,7 +182,6 @@ jobs:
       matrix: ${{ fromJSON(needs.plan.outputs.builds) }}
     env:
       IMAGE: ${{ needs.plan.outputs.image }}${{ matrix.suffix }}
-      AGENT_IMAGE: ${{ needs.plan.outputs.agent }}:${{ needs.plan.outputs.version }}
       VERSION: ${{ needs.plan.outputs.version }}
       PUSH: ${{ needs.plan.outputs.push }}
     steps:
@@ -252,7 +207,6 @@ jobs:
           secret=
           [ -n "$GIT_DEPS_TOKEN" ] && secret=--secret=id=git_deps_token,env=GIT_DEPS_TOKEN
           docker buildx build --platform "$PLATFORM" -f "$DOCKERFILE" $secret \
-            --build-arg "AGENT_IMAGE=$AGENT_IMAGE" \
             --label "org.opencontainers.image.title=$TITLE" \
             --label "org.opencontainers.image.description=$DESCRIPTION" \
             --label "org.opencontainers.image.url=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
@@ -354,13 +308,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           IMAGE: ${{ needs.plan.outputs.image }}
-          AGENT: ${{ needs.plan.outputs.agent }}
         run: |
           set -eu
           version="${GITHUB_REF_NAME#v}"
           # Everything between this version's heading and the next one.
           awk -v v="$version" '$0 ~ "^## \\[" v "\\]" {on=1; next} on && /^## \[/ {exit} on' CHANGELOG.md >notes.md
-          printf '\n---\n\n```sh\ndocker pull %s:%s\ndocker pull %s:%s\n```\n' "$IMAGE" "$version" "$AGENT" "$version" >>notes.md
+          printf '\n---\n\n```sh\ndocker pull %s:%s\n```\n' "$IMAGE" "$version" >>notes.md
           set --
           case "$version" in *-*) set -- --prerelease ;; esac
           gh release create "$GITHUB_REF_NAME" --title "Freightdock $version" --notes-file notes.md --verify-tag "$@"
