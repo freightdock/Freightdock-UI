@@ -116,12 +116,20 @@
 .fd-dash-row--two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (max-width: 760px) { .fd-dash-row, .fd-dash-row--two { grid-template-columns: 1fr; } }
 .fd-gauge { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
-.fd-gauge__svg { width: 100%; max-width: 200px; }
+.fd-gauge__dial { position: relative; width: 100%; max-width: 200px; }
+.fd-gauge__svg { display: block; width: 100%; }
+.fd-gauge__dial .fd-gauge__value { position: absolute; left: 0; right: 0; bottom: 4px; }
 .fd-gauge__track, .fd-gauge__fill { fill: none; stroke-width: 9; stroke-linecap: round; }
 .fd-gauge__track { stroke: var(--track); }
 .fd-gauge__fill--good { stroke: var(--good); }
 .fd-gauge__fill--warning { stroke: var(--warning); }
 .fd-gauge__fill--critical { stroke: var(--critical); }
+/* FinUI has no orange: halfway between its warning and its critical. */
+.fd-gauge__fill--orange { stroke: color-mix(in oklab, var(--warning), var(--critical)); }
+.fd-gauge__value--good { color: var(--good); }
+.fd-gauge__value--warning { color: var(--warning); }
+.fd-gauge__value--orange { color: color-mix(in oklab, var(--warning), var(--critical)); }
+.fd-gauge__value--critical { color: var(--critical); }
 .fd-gauge__value { font-size: 1.5rem; font-weight: 600; color: var(--text-strong); }
 .fd-gauge__caption { color: var(--text-muted); }
 .fd-dash-quorum { padding: 18px 0 6px; transform: scale(1.25); }

@@ -20,16 +20,30 @@ const HEALTH_TONES = { healthy: 'good', suspect: 'warning', unreachable: 'critic
 function gauge(share, tone, value, caption) {
   const p = Math.max(0, Math.min(1, Number(share) || 0)) * 100;
   const arc = 'M 10 50 A 40 40 0 0 1 90 50';
+  // The value sits inside the arch, the caption under it.
   return h('div', { class: 'fd-gauge' },
-    s('svg', { viewBox: '0 0 100 56', class: 'fd-gauge__svg', 'aria-hidden': 'true' },
-      s('path', { d: arc, class: 'fd-gauge__track', pathLength: '100' }),
-      s('path', { d: arc, class: `fd-gauge__fill fd-gauge__fill--${tone}`, pathLength: '100', 'stroke-dasharray': `${p} 100` })),
-    h('div', { class: 'fd-gauge__value' }, value),
+    h('div', { class: 'fd-gauge__dial' },
+      s('svg', { viewBox: '0 0 100 56', class: 'fd-gauge__svg', 'aria-hidden': 'true' },
+        s('path', { d: arc, class: 'fd-gauge__track', pathLength: '100' }),
+        s('path', { d: arc, class: `fd-gauge__fill fd-gauge__fill--${tone}`, pathLength: '100', 'stroke-dasharray': `${p} 100` })),
+      h('div', { class: `fd-gauge__value fd-gauge__value--${tone}` }, value)),
     h('div', { class: 'fd-gauge__caption' }, caption));
 }
 
-/** good when all are, warning while a majority is, critical below. */
-const shareTone = (up, all) => (all && up === all ? 'good' : up * 2 > all ? 'warning' : 'critical');
+/** The managers: good when all are online, warning while one more could go and quorum hold, orange when one more
+ *  would lose it, critical without it. */
+function managerTone(up, voters, quorate) {
+  if (!quorate || !voters) return 'critical';
+  if (up >= voters) return 'good';
+  return (up - 1) * 2 > voters ? 'warning' : 'orange';
+}
+/** The workers (no quorum): good when all are healthy, warning when some are not, orange with one left, critical with
+ *  none. */
+function workerTone(up, all) {
+  if (!all || !up) return 'critical';
+  if (up === all) return 'good';
+  return up > 1 ? 'warning' : 'orange';
+}
 /** For what is used: good under 70%, warning under 90%. */
 const useTone = (share) => (share < 0.7 ? 'good' : share < 0.9 ? 'warning' : 'critical');
 
@@ -58,17 +72,18 @@ export function dashboardPage({ el, signal }) {
 function topRow(cl, raft, nodes) {
   const up = raft.filter((m) => m.online).length;
   const voters = raft.filter((m) => m.voter).length;
+  const votersUp = raft.filter((m) => m.voter && m.online).length;
   const leader = raft.find((m) => m.leader);
   const leaderNode = leader && nodes.find((x) => nodeHost(x) === hostOf(leader.addr));
   const healthy = nodes.filter((x) => (x.liveness || {}).health === 'healthy').length;
   return h('div', { class: 'fd-dash-row' },
-    card({ title: t('pages.dashboard.managers'), body: gauge(raft.length ? up / raft.length : 0, shareTone(up, raft.length), t('pages.dashboard.n_of', { n: up, of: raft.length }), t('pages.dashboard.online')) }),
+    card({ title: t('pages.dashboard.managers'), body: gauge(raft.length ? up / raft.length : 0, managerTone(votersUp, voters, cl.quorate), t('pages.dashboard.n_of', { n: up, of: raft.length }), t('pages.dashboard.online')) }),
     card({ title: t('pages.dashboard.quorum'), body: h('div', { class: 'fd-gauge' },
-      h('div', { class: 'fd-dash-quorum' }, cl.quorate ? status({ tone: 'good' }, t('pages.dashboard.quorate')) : status({ tone: 'critical' }, t('pages.dashboard.not_quorate'))),
+      h('div', { class: 'fd-dash-quorum' }, cl.quorate ? status({ tone: managerTone(votersUp, voters, true) === 'good' ? 'good' : 'warning' }, t('pages.dashboard.quorate')) : status({ tone: 'critical' }, t('pages.dashboard.not_quorate'))),
       h('div', { class: 'fd-gauge__caption' }, t('pages.dashboard.voters', { n: voters })),
       h('div', { class: 'fd-gauge__value' }, leader ? (leaderNode ? h('a', { href: `/cluster/nodes/${encodeURIComponent(leaderNode.id)}` }, nodeName(leaderNode)) : h('span', { class: 'mono' }, leader.addr)) : t('pages.dashboard.no_leader')),
       h('div', { class: 'fd-gauge__caption' }, t('pages.dashboard.leader'))) }),
-    card({ title: t('pages.dashboard.workers'), body: gauge(nodes.length ? healthy / nodes.length : 0, shareTone(healthy, nodes.length), t('pages.dashboard.n_of', { n: healthy, of: nodes.length }), t('pages.dashboard.healthy')) }));
+    card({ title: t('pages.dashboard.workers'), body: gauge(nodes.length ? healthy / nodes.length : 0, workerTone(healthy, nodes.length), t('pages.dashboard.n_of', { n: healthy, of: nodes.length }), t('pages.dashboard.healthy')) }));
 }
 
 /** CPU over every node weighted by its CPUs, memory as used over total; nodes not heard are left out. */

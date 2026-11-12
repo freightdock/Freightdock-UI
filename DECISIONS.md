@@ -1330,5 +1330,8 @@ pointer to what replaced it.
 13. The dashboard (`/dashboard`, owner's wish, 2026-11-12) is where Freightdock opens: managers online, whether the
     cluster is quorate and which node leads (the managers' `online` and `quorate`, from the reports they exchange each
     second), workers healthy, then CPU (weighted by each node's CPUs) and memory over every node heard, then a row per
-    node with its CPU, memory, disk and workloads. It reads only what the cluster pages read, and changes nothing.
+    node with its CPU, memory, disk and workloads. It reads only what the cluster pages read, and changes nothing. The
+    managers' gauge is green with all online, yellow while one more could go and quorum hold, orange when one more
+    would lose it, red without it; the workers' green with all healthy, yellow with some down, orange with one left,
+    red with none (FinUI has no orange: its warning and critical mixed).
 
