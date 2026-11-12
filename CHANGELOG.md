@@ -83,6 +83,9 @@ First light
 - **Freightdock speaks Norwegian**: every word of the UI comes from a catalogue, in English or Norsk bokmål, chosen per browser under Account, Language (or the browser's own language when it is one of them). Numbers, sizes, dates and times are written the language's way.
 - **The agent is a repository of its own**, `freightdock-agent`, with its own image and releases; Freightdock builds against the commit of it it names, and the `docker run` line it gives for a new host names the agent image of the same tag.
 
+### Fixed
+- **The Cluster stacks page shows each node by the name you gave it** (it showed the hostname), linked to the node's page; the moves of a recovery too.
+
 ### Changed
 - **Freightdock's own certificate names the host**: `localhost`, `127.0.0.1`, `::1`, the machine's name and every address it listens on, plus any you add with `FREIGHTDOCK_TLS_NAMES`, and is good for 825 days, so tools that check names (Node, curl, Claude Code) accept it once the CA is trusted. It is made again at a start when the host's names or addresses change or it has less than 30 days left. The old certificate without names is replaced on the first start; a certificate of your own (`FREIGHTDOCK_TLS_CERT`) is never touched, and Freightdock no longer makes one at that path when it is missing: it says so and stops.
 - **Single sign-on signs you in to your own account**: the first time somebody signs in through the provider, they land in the local account of the same name instead of a second "(SSO)" one. A switch in the SSO settings turns this off for a provider whose users choose their own names.

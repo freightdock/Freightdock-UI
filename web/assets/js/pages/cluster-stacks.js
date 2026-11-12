@@ -17,8 +17,11 @@ import { openModal } from '../../finui/components/modal/modal.js';
 import { formField } from '../../finui/components/field/field.js';
 import { toast } from '../../finui/components/toast/toast.js';
 import { t, tOr } from '../i18n.js';
+import { nodeName as shownName } from './cluster.js';
 
 const EVERY_MS = 3000;
+/** The nodes' shown names by id, from the last load. */
+let names = new Map();
 const TONES = { running: 'good', stopped: 'info', pending: 'warning', failed: 'critical', unplaced: 'critical', unknown: 'warning', fenced: 'critical' };
 const sec = (ms) => Math.floor((ms || 0) / 1000);
 // A Compose file to start from: Compose's own words.
@@ -37,11 +40,13 @@ export function clusterStacksPage({ el, signal }) {
     signal,
     load: async (s) => {
       const c = await get('/api/cluster', { signal: s });
-      if (!c.connected) return { c, stacks: [], recoveries: [] };
-      const [stacks, recoveries] = await Promise.all([get('/api/cluster/stacks', { signal: s }), get('/api/cluster/recoveries', { signal: s })]);
-      return { c, stacks, recoveries };
+      if (!c.connected) return { c, stacks: [], recoveries: [], nodes: [] };
+      const [stacks, recoveries, nodes] = await Promise.all([get('/api/cluster/stacks', { signal: s }), get('/api/cluster/recoveries', { signal: s }), get('/api/cluster/nodes', { signal: s }).catch(() => [])]);
+      return { c, stacks, recoveries, nodes };
     },
-    draw: ({ c, stacks, recoveries }) => {
+    draw: ({ c, stacks, recoveries, nodes }) => {
+      // Nodes by the name given them in Freightdock ("Cluster" 12), else their hostname.
+      names = new Map((nodes || []).map((n) => [n.id, shownName(n)]));
       mount(head, pageHeader(t('pages.cluster_stacks.title'), t('pages.cluster_stacks.sub'),
         c.connected && isAdmin() ? button({ size: 'sm', variant: 'primary', onClick: () => deployDialog(null, reload) }, t('pages.cluster_stacks.deploy')) : null));
       if (!c.connected) return emptyState(t('pages.cluster.not_connected'), t('pages.cluster.not_connected_text'));
@@ -89,7 +94,7 @@ function workloadTable(rows) {
     rows, filter: false, dense: true, empty: [t('pages.cluster_stacks.no_workloads'), ''],
     columns: [
       { label: t('pages.cluster_stacks.workload'), cell: (w) => h('span', { class: 'mono' }, w.id), sort: (w) => w.id },
-      { label: t('pages.cluster.node'), cell: (w) => (w.node_id ? h('div', { class: 'name-cell' }, h('span', null, w.hostname || shortId(w.node_id)), h('span', { class: 'sub mono', title: w.node_id }, shortId(w.node_id))) : h('span', { class: 'sub' }, t('pages.cluster_stacks.no_node'))) },
+      { label: t('pages.cluster.node'), cell: (w) => (w.node_id ? h('div', { class: 'name-cell' }, h('a', { href: `/cluster/nodes/${encodeURIComponent(w.node_id)}` }, names.get(w.node_id) || w.hostname || shortId(w.node_id)), h('span', { class: 'sub mono', title: w.node_id }, shortId(w.node_id))) : h('span', { class: 'sub' }, t('pages.cluster_stacks.no_node'))), sort: (w) => names.get(w.node_id) || w.hostname || '' },
       { label: t('pages.cluster_stacks.address'), cell: (w) => (w.address ? h('span', { class: 'mono' }, w.address) : h('span', { class: 'sub' }, t('pages.cluster_stacks.no_address'))), sort: (w) => addrKey(w.address) },
       { label: t('pages.cluster_stacks.status'), cell: (w) => status({ tone: TONES[w.status] || 'info', line: true }, tOr(`pages.cluster_stacks.status_word.${w.status}`, w.status)), sort: (w) => w.status },
       { label: t('pages.cluster_stacks.recovery'), cell: (w) => h('span', { class: 'sub' }, tOr(`pages.cluster_stacks.recovery_kind.${w.recovery}`, w.recovery || '')), sort: (w) => w.recovery || '' },
@@ -99,7 +104,7 @@ function workloadTable(rows) {
   });
 }
 
-const nodeName = (host, id) => (id ? `${host || ''} ${shortId(id)}`.trim() : '');
+const nodeName = (host, id) => (id ? names.get(id) || `${host || ''} ${shortId(id)}`.trim() : '');
 
 /** The managers' recovery history ("Cluster" 7), newest first, the latest 50. */
 function recoveryCard(rows) {
