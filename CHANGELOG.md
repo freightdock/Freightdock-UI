@@ -20,6 +20,9 @@ First light
 - **Rolling a Swarm service back, scaling it or updating it, or draining, promoting or labelling a node, on a busy host** no longer fails with "update out of sequence": Swarm moves their versions by itself, so the change is read and sent again. An update over somebody else's change meanwhile is refused instead of overwriting it.
 
 ### Added
+- **A page for every node**: click a node on the Cluster page to see what the managers know of it, the stacks' workloads placed on it and the containers it says it runs.
+- **Managers and workers**: the Cluster page shows which node each manager runs on, and whether each node runs a manager too.
+- **Rename a node** in Freightdock only: an administrator gives it a name to be shown by, while the node and the cluster keep its hostname. Written to the activity log.
 - **The managers run the UI**: `freightdock-manager ui <image>` places it on a node of the cluster, moves it when that node fails, and every manager answers for it at port 7443, so any manager's address opens it. Its token and the cluster CA come in `FREIGHTDOCK_CLUSTER_TOKEN` and `FREIGHTDOCK_CLUSTER_CA` (the values, beside the `_FILE` settings), and the CA of its own certificate travels with its database, so the certificate you trusted once is still trusted after a move.
 - **Freightdock**: one small Rust binary with its web UI built in, managing Docker without a licence key, a node limit or a paid tier.
 - **Forgejo and Gitea registries**: your own git server's packages as a registry of its own kind, asking for its address and an access token with the package scopes, browsed and pulled from like any other.

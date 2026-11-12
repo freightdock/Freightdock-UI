@@ -431,6 +431,13 @@ pub(crate) const MIGRATIONS: &[&str] = &[
     DROP TABLE registries;
     ALTER TABLE registries_new RENAME TO registries;
     "#,
+    // 21: the names nodes are given in Freightdock, shown instead of their hostname ("Cluster" 12).
+    r#"
+    CREATE TABLE node_names (
+        node_id TEXT PRIMARY KEY,
+        name    TEXT NOT NULL
+    );
+    "#,
 ];
 
 impl Db {

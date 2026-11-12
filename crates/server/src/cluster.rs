@@ -159,7 +159,8 @@ pub fn router() -> Router<App> {
     Router::new()
         .route("/api/cluster", get(overview))
         .route("/api/cluster/nodes", get(nodes))
-        .route("/api/cluster/nodes/{id}", axum::routing::delete(remove_node))
+        .route("/api/cluster/nodes/{id}", get(node).delete(remove_node))
+        .route("/api/cluster/nodes/{id}/name", axum::routing::put(rename_node))
         .route("/api/cluster/nodes/{id}/commands", post(command))
         .route("/api/cluster/nodes/{id}/labels", axum::routing::put(set_labels))
         .route("/api/cluster/nodes/{id}/authorize", post(authorize))
@@ -184,7 +185,57 @@ async fn overview(State(app): State<App>, _a: Authed) -> ApiResult<Json<Value>> 
 }
 
 async fn nodes(State(app): State<App>, _a: Authed) -> ApiResult<Json<Value>> {
-    Ok(Json(cluster(&app)?.call(reqwest::Method::GET, "/v1/nodes", None).await?.1))
+    let mut v = cluster(&app)?.call(reqwest::Method::GET, "/v1/nodes", None).await?.1;
+    let names = node_names(&app).await?;
+    for n in v.as_array_mut().into_iter().flatten() {
+        if let Some(name) = n["id"].as_str().and_then(|id| names.get(id)) {
+            n["name"] = json!(name);
+        }
+    }
+    Ok(Json(v))
+}
+
+/// One node, with the containers it reports and the name given it here.
+async fn node(State(app): State<App>, _a: Authed, Path(id): Path<String>) -> ApiResult<Json<Value>> {
+    id_or_404(&id, "node")?;
+    let mut v = cluster(&app)?.call(reqwest::Method::GET, &format!("/v1/nodes/{id}"), None).await?.1;
+    if let Some(name) = node_names(&app).await?.remove(&id) {
+        v["name"] = json!(name);
+    }
+    Ok(Json(v))
+}
+
+/// The names nodes were given in Freightdock ("Cluster" 12), by node id.
+async fn node_names(app: &App) -> ApiResult<std::collections::HashMap<String, String>> {
+    Ok(app.db.call(|c| Ok(c.prepare("SELECT node_id, name FROM node_names")?.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<Result<_, _>>()?)).await?)
+}
+
+#[derive(Deserialize)]
+struct NameBody {
+    name: String,
+}
+
+/// Gives a node a name to be shown by, here only: the managers and the node keep its hostname ("Cluster" 12). An
+/// empty name takes it away.
+async fn rename_node(State(app): State<App>, a: Authed, Path(id): Path<String>, Json(b): Json<NameBody>) -> ApiResult<Json<Value>> {
+    id_or_404(&id, "node")?;
+    let name = b.name.trim().to_string();
+    if name.chars().count() > 64 || name.chars().any(char::is_control) {
+        return Err(ApiError::bad("A name is at most 64 characters, on one line.").field("name"));
+    }
+    let (node, n) = (id.clone(), name.clone());
+    app.db
+        .call(move |c| {
+            if n.is_empty() {
+                c.execute("DELETE FROM node_names WHERE node_id = ?1", [&node])?;
+            } else {
+                c.execute("INSERT INTO node_names (node_id, name) VALUES (?1, ?2) ON CONFLICT (node_id) DO UPDATE SET name = excluded.name", [&node, &n])?;
+            }
+            Ok(())
+        })
+        .await?;
+    audit::record(&app.db, Some(&a.session.user), a.ip, Entry { action: "cluster.node.rename", target: Some(id.clone()), detail: Some(name.clone()) }).await;
+    Ok(Json(json!({ "id": id, "name": if name.is_empty() { Value::Null } else { json!(name) } })))
 }
 
 #[derive(Deserialize)]
@@ -380,6 +431,7 @@ mod tests {
                     "POST /v1/stacks/web/stop" => (StatusCode::CONFLICT, json!({ "error": "the cluster says no" }).to_string()),
                     "POST /v1/stacks/web/restart" => (StatusCode::OK, json!({ "restarting": 1, "busy": 0 }).to_string()),
                     "DELETE /v1/stacks/web" => (StatusCode::NO_CONTENT, String::new()),
+                    "GET /v1/nodes/6f1c7c2e-0000-4000-8000-000000000001" => (StatusCode::OK, json!({ "id": "6f1c7c2e-0000-4000-8000-000000000001", "hostname": "docker", "containers": [] }).to_string()),
                     "GET /v1/nodes/broken" => (StatusCode::SERVICE_UNAVAILABLE, "the cluster cannot take changes now".to_string()),
                     _ => (StatusCode::NOT_FOUND, "unknown".to_string()),
                 }
@@ -516,6 +568,29 @@ mod tests {
         let actions: Vec<String> = app.db.call(|c| Ok(c.prepare("SELECT action || ' ' || COALESCE(target, '') FROM audit ORDER BY id")?.query_map([], |r| r.get(0))?.collect::<Result<_, _>>()?)).await.unwrap();
         assert_eq!(actions.iter().filter(|a| a.starts_with("cluster.stack")).cloned().collect::<Vec<_>>(), vec!["cluster.stack.deploy web", "cluster.stack.restart web", "cluster.stack.remove web"]);
         assert_eq!(asked.lock().unwrap().len(), 4);
+    }
+
+    #[tokio::test]
+    async fn a_node_s_name_is_freightdock_s_own_an_administrator_s_to_give_and_on_record() {
+        let (app, asked, _d) = connected("t0k3n").await;
+        let (cookie, csrf) = signed_in(&app).await;
+        let node = "6f1c7c2e-0000-4000-8000-000000000001";
+        let rename = |name: &str| Request::put(format!("/api/cluster/nodes/{node}/name")).header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).header(header::HOST, "freightdock.test").header(header::CONTENT_TYPE, "application/json").body(json_body(json!({ "name": name }))).unwrap();
+        let (s, _, b) = call(&app, rename("  web box  ")).await;
+        assert_eq!((s, b["name"].clone()), (StatusCode::OK, json!("web box")));
+        assert_eq!(asked.lock().unwrap().len(), 0, "the managers are not told");
+        let (_, _, b) = call(&app, get("/api/cluster/nodes", &cookie)).await;
+        assert_eq!(b[0]["name"], "web box", "shown with the managers' nodes");
+        let (s, _, b) = call(&app, get(&format!("/api/cluster/nodes/{node}"), &cookie)).await;
+        assert_eq!((s, b["name"].clone(), b["hostname"].clone()), (StatusCode::OK, json!("web box"), json!("docker")));
+        let (action, detail): (String, String) = app.db.call(|c| Ok(c.query_row("SELECT action, detail FROM audit ORDER BY id DESC LIMIT 1", [], |r| Ok((r.get(0)?, r.get(1)?)))?)).await.unwrap();
+        assert_eq!((action.as_str(), detail.as_str()), ("cluster.node.rename", "web box"));
+
+        assert_eq!(call(&app, rename(&"x".repeat(65))).await.0, StatusCode::BAD_REQUEST, "64 characters at most");
+        let (s, _, b) = call(&app, rename("")).await;
+        assert_eq!((s, b["name"].clone()), (StatusCode::OK, Value::Null), "an empty name gives the hostname back");
+        let (_, _, b) = call(&app, get("/api/cluster/nodes", &cookie)).await;
+        assert_eq!(b[0].get("name"), None);
     }
 
     #[tokio::test]

@@ -80,7 +80,9 @@ pub const RULES: &[(&str, &str, Rule)] = &[
     // The cluster: reading it is anybody's who is signed in, changing it an Administrator's ("Cluster" 2)
     ("GET", "/api/cluster", Session),
     ("GET", "/api/cluster/nodes", Session),
+    ("GET", "/api/cluster/nodes/{id}", Session),
     ("DELETE", "/api/cluster/nodes/{id}", Admin),
+    ("PUT", "/api/cluster/nodes/{id}/name", Admin),
     ("POST", "/api/cluster/nodes/{id}/commands", Admin),
     ("PUT", "/api/cluster/nodes/{id}/labels", Admin),
     ("POST", "/api/cluster/nodes/{id}/authorize", Admin),

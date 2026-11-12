@@ -121,6 +121,8 @@ read-only token only reads.
 | `GET /api/cluster` | session | `{connected}`, and with a cluster the manager's `/v1/cluster` as `cluster` |
 | `GET /api/cluster/nodes`, `GET /api/cluster/events?after=&node=`, `GET /api/cluster/commands/{id}` | session | the manager's answer, as it is |
 | `POST /api/cluster/nodes/{id}/commands` | admin | `{op, ...}` to the node; 202 and the command |
+| `GET /api/cluster/nodes/{id}` | session | one node, with the containers it reports and its name here |
+| `PUT /api/cluster/nodes/{id}/name` | admin | `{name}`: the name it is shown by in Freightdock only; empty takes it away ("Cluster" 12) |
 | `DELETE /api/cluster/nodes/{id}` | admin | the node out of the cluster |
 | `PUT /api/cluster/nodes/{id}/labels` | admin | `{labels}`: the node's cluster labels, all of them |
 | `POST /api/cluster/nodes/{id}/authorize` | admin | a node that came back fenced runs workloads again |

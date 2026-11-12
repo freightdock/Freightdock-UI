@@ -20,6 +20,7 @@ import { usersPage } from './pages/users.js';
 import { signinsPage } from './pages/signins.js';
 import { theClusterPage } from './pages/cluster.js';
 import { clusterStacksPage } from './pages/cluster-stacks.js';
+import { clusterNodePage } from './pages/cluster-node.js';
 import { t } from './i18n.js';
 
 motion();
@@ -29,6 +30,7 @@ route('/setup', setupPage, { bare: true, title: t('routes.setup') });
 route('/login', loginPage, { bare: true, title: t('routes.login') });
 route('/cluster', theClusterPage, { title: t('nav.the_cluster') });
 route('/cluster/stacks', clusterStacksPage, { title: t('nav.cluster_stacks') });
+route('/cluster/nodes/:id', clusterNodePage, { title: t('pages.cluster_node.title') });
 route('/account', accountPage, { title: t('nav.account') });
 route('/activity', activityPage, { title: t('nav.activity') });
 route('/users', usersPage, { title: t('nav.users') });

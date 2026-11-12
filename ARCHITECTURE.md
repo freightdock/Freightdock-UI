@@ -244,11 +244,14 @@ status and sentence ("Cluster" 2). `GET /api/cluster` answers `{connected: false
 it on any Freightdock.
 
 The page is `pages/cluster.js` (`/cluster`, the landing page, under Overview): the
-managers and which leads, the nodes with their health as the managers agree on it and which manager hears each, the
+managers, which leads and the node each runs on (matched by host), the workers (every node, with whether it runs a
+manager too, each opening `pages/cluster-node.js` at `/cluster/nodes/{id}`: its details, the workloads placed on it
+and the containers it reports; an administrator renames it there, "Cluster" 12) with their health as the managers agree on it and which manager hears each, the
 latest events, asked again every three seconds; an administrator pings a node, runs, stops or removes a container on
 it, sets its labels (`PUT /api/cluster/nodes/{id}/labels`, "Cluster" 5; the labels column shows the worker's own and
 the cluster's merged), authorizes one that came back fenced (`POST /api/cluster/nodes/{id}/authorize`, "Cluster" 6;
-the Fencing column shows the managers' fencing state with its message as a tooltip), removes it, or makes a join token for a worker or a manager. A command is followed until it ends and its outcome
+the Fencing column shows the managers' fencing state with its message as a tooltip), removes it, or makes a join token for a worker or a manager. A node is shown by its name in Freightdock (`node_names`,
+merged into the managers' answers by `cluster.rs`), else its hostname. A command is followed until it ends and its outcome
 is a toast.
 
 `pages/cluster-stacks.js` (`/cluster/stacks`, beside it under Overview) lists the cluster's stacks

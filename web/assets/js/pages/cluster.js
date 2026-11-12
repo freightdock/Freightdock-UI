@@ -1,5 +1,5 @@
-// The cluster ("Cluster" 1): its managers (which leads), its nodes with their health as the managers agree on it and
-// which manager hears each, and the latest events, all asked of the manager again every few seconds. An administrator
+// The cluster ("Cluster" 1): its managers (which leads, and on which node), its workers (every node) with their health
+// as the managers agree on it and which manager hears each, each opening its own page, and the latest events, all asked of the manager again every few seconds. An administrator
 // sends a node a command (a ping, or a container run, stopped or removed), removes a node, or makes a join token to add
 // one ("Cluster" 2).
 
@@ -45,20 +45,49 @@ export function theClusterPage({ el, signal }) {
       mount(head, pageHeader(t('nav.the_cluster'), t('pages.cluster.id', { id: cl.cluster_id || '' }), isAdmin() ? h('div', { class: 'row' },
         button({ size: 'sm', onClick: () => joinToken('worker') }, t('pages.cluster.add_node')),
         button({ size: 'sm', onClick: () => joinToken('manager') }, t('pages.cluster.add_manager'))) : null));
-      mount(nodes, card({ title: t('pages.cluster.nodes'), body: n ? nodeTable(n, reload) : emptyState(t('pages.cluster.no_answer'), '') }));
+      const hosts = managerHosts(cl.raft || []);
+      mount(nodes, card({ title: t('pages.cluster.workers'), body: n ? nodeTable(n, hosts, reload) : emptyState(t('pages.cluster.no_answer'), '') }));
       mount(events, card({ title: t('pages.cluster.events'), body: e ? eventTable(e) : emptyState(t('pages.cluster.no_answer'), '') }));
-      return card({ title: t('pages.cluster.managers'), body: managerTable(cl.raft || []) });
+      return card({ title: t('pages.cluster.managers'), body: managerTable(cl.raft || [], n || []) });
     },
   });
   const timer = setInterval(() => { if (!document.hidden) reload(); }, EVERY_MS);
   signal.addEventListener('abort', () => clearInterval(timer));
 }
 
-function managerTable(raft) {
+/** The host of `host:port` (`[v6]:port` too). */
+export function hostOf(addr) {
+  if (!addr) return '';
+  const i = addr.lastIndexOf(':');
+  return (i > 0 ? addr.slice(0, i) : addr).replace(/^\[|\]$/g, '');
+}
+
+/** What a node is shown by: the name given it in Freightdock, else its hostname, else its id. */
+export function nodeName(n) {
+  return n.name || n.hostname || shortId(n.id);
+}
+
+/** The node's address as the managers see it: where its worker connects from, or for one connected over loopback the
+ *  manager that hears it. */
+export function nodeHost(n) {
+  const l = n.liveness || {};
+  const h0 = hostOf(l.peer);
+  if (h0 === '127.0.0.1' || h0 === '::1' || h0 === 'localhost') return l.via ? hostOf(l.via) : '';
+  return h0;
+}
+
+/** The managers' hosts, to tell which nodes run a manager too. */
+export function managerHosts(raft) {
+  return new Set(raft.map((m) => hostOf(m.addr)));
+}
+
+function managerTable(raft, list) {
+  const onNode = (m) => list.find((n) => nodeHost(n) === hostOf(m.addr));
   return table({
     rows: raft, filter: false, dense: true, empty: [t('pages.cluster.no_managers'), ''],
     columns: [
       { label: t('pages.cluster.address'), cell: (m) => h('span', { class: 'mono' }, m.addr) },
+      { label: t('pages.cluster.node'), cell: (m) => { const n = onNode(m); return n ? h('a', { href: `/cluster/nodes/${encodeURIComponent(n.id)}` }, nodeName(n)) : h('span', { class: 'sub' }, t('pages.cluster.no_worker')); } },
       { label: t('pages.cluster.role'), cell: (m) => status({ tone: m.leader ? 'good' : m.voter ? 'info' : 'warning' }, m.leader ? t('pages.cluster.leader') : m.voter ? t('pages.cluster.voter') : t('pages.cluster.learner')) },
       { label: t('pages.cluster.raft_id'), cell: (m) => h('span', { class: 'mono sub' }, String(m.raft_id)) },
       { label: '', cell: (m) => (m.me ? h('span', { class: 'sub' }, t('pages.cluster.this_one')) : '') },
@@ -71,11 +100,12 @@ function labels(n) {
   return Object.entries(l).map(([k, v]) => `${k}=${v}`).join(', ');
 }
 
-function nodeTable(list, reload) {
+function nodeTable(list, hosts, reload) {
   return table({
     rows: list, empty: [t('pages.cluster.no_nodes'), t('pages.cluster.no_nodes_text')], label: t('pages.cluster.nodes'),
     columns: [
-      { label: t('pages.cluster.node'), cell: (n) => h('div', { class: 'name-cell' }, h('span', null, n.hostname || shortId(n.id)), h('span', { class: 'sub mono', title: n.id }, shortId(n.id))), sort: (n) => n.hostname || n.id },
+      { label: t('pages.cluster.node'), cell: (n) => h('div', { class: 'name-cell' }, h('a', { href: `/cluster/nodes/${encodeURIComponent(n.id)}` }, nodeName(n)), h('span', { class: 'sub mono', title: n.id }, n.name ? `${n.hostname || ''} · ${shortId(n.id)}` : shortId(n.id))), sort: (n) => nodeName(n) },
+      { label: t('pages.cluster.role'), cell: (n) => hosts.has(nodeHost(n)) ? status({ tone: 'info' }, t('pages.cluster.role_manager')) : h('span', { class: 'sub' }, t('pages.cluster.role_worker')), sort: (n) => (hosts.has(nodeHost(n)) ? 0 : 1) },
       { label: t('pages.cluster.health'), cell: (n) => { const hl = (n.liveness || {}).health || 'unreachable'; return status({ tone: HEALTH_TONES[hl] || 'info', line: true }, tOr(`pages.cluster.health_word.${hl}`, hl)); }, sort: (n) => (n.liveness || {}).health || '' },
       { label: t('pages.cluster.heard'), cell: (n) => { const ms = (n.liveness || {}).last_heard_ms_ago; return ms == null ? '' : h('span', { class: 'nowrap' }, t('pages.cluster.seconds', { n: (ms / 1000).toFixed(1) })); } },
       { label: t('pages.cluster.via'), cell: (n) => { const l = n.liveness || {}; return l.via ? h('span', { class: 'mono sub' }, l.via) : h('span', { class: 'sub' }, l.last_heard_ms_ago == null ? '' : t('pages.cluster.this_manager')); } },
@@ -109,7 +139,7 @@ function eventTable(list) {
 
 /** Sends a command and follows it until it ends (or a minute passes), saying how it went. */
 async function send(n, body) {
-  const name = n.hostname || shortId(n.id);
+  const name = nodeName(n);
   try {
     const c = await post(`/api/cluster/nodes/${encodeURIComponent(n.id)}/commands`, body);
     toast({ text: t('pages.cluster.sent', { op: body.op, name }), tone: 'info' });
@@ -132,7 +162,7 @@ function runDialog(n) {
   const image = formField({ id: 'cl-image', label: t('pages.cluster.image'), autocomplete: 'off', placeholder: 'nginx:alpine' });
   const go = button({ variant: 'primary', type: 'submit' }, t('pages.cluster.run'));
   const form = h('form', { class: 'stack', novalidate: true }, id.el, image.el, h('div', { class: 'row row--end' }, go));
-  const m = openModal({ title: t('pages.cluster.run_on', { name: n.hostname || shortId(n.id) }), body: form, initialFocus: id.input });
+  const m = openModal({ title: t('pages.cluster.run_on', { name: nodeName(n) }), body: form, initialFocus: id.input });
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     if (!id.input.value.trim()) { id.setError(t('pages.cluster.needed')); return; }
@@ -150,7 +180,7 @@ function workloadDialog(n) {
     send(n, { op, workload_id: id.input.value.trim() });
   };
   const m = openModal({
-    title: t('pages.cluster.workload_on', { name: n.hostname || shortId(n.id) }), initialFocus: id.input,
+    title: t('pages.cluster.workload_on', { name: nodeName(n) }), initialFocus: id.input,
     body: h('div', { class: 'stack' }, id.el, h('div', { class: 'row row--end' },
       button({ onClick: act('stop_container') }, t('pages.cluster.stop')),
       button({ variant: 'danger', onClick: act('remove_container') }, t('common.remove')))),
@@ -169,7 +199,7 @@ function labelsDialog(n, reload) {
       h('p', { class: 'fui-field__help' }, t('pages.cluster.labels_help')),
       own ? h('p', { class: 'fui-field__help' }, t('pages.cluster.labels_own', { labels: own })) : null, err),
     h('div', { class: 'row row--end' }, go));
-  const m = openModal({ title: t('pages.cluster.labels_on', { name: n.hostname || shortId(n.id) }), body: form, initialFocus: area });
+  const m = openModal({ title: t('pages.cluster.labels_on', { name: nodeName(n) }), body: form, initialFocus: area });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const labels = {};
@@ -182,7 +212,7 @@ function labelsDialog(n, reload) {
     try {
       await put(`/api/cluster/nodes/${encodeURIComponent(n.id)}/labels`, { labels });
       m.close();
-      toast({ text: t('pages.cluster.labels_saved', { name: n.hostname || shortId(n.id) }), tone: 'good' });
+      toast({ text: t('pages.cluster.labels_saved', { name: nodeName(n) }), tone: 'good' });
       reload();
     } catch (x) { go.disabled = false; err.textContent = x.message; }
   });
@@ -190,13 +220,13 @@ function labelsDialog(n, reload) {
 
 /** Lets a node that came back fenced run workloads again; its workloads start at the next reconcile. */
 async function authorize(n, reload) {
-  const name = n.hostname || shortId(n.id);
+  const name = nodeName(n);
   if (!(await confirm({ title: t('pages.cluster.authorize_title', { name }), body: t('pages.cluster.authorize_body'), action: t('pages.cluster.authorize'), danger: false }))) return;
   try { await post(`/api/cluster/nodes/${encodeURIComponent(n.id)}/authorize`, {}); toast({ text: t('pages.cluster.authorized', { name }), tone: 'good' }); reload(); } catch (e) { toast({ text: e.message, tone: 'critical' }); }
 }
 
 async function removeNode(n, reload) {
-  const name = n.hostname || shortId(n.id);
+  const name = nodeName(n);
   if (!(await confirm({ title: t('pages.cluster.remove_title', { name }), body: t('pages.cluster.remove_body') }))) return;
   try { await del(`/api/cluster/nodes/${encodeURIComponent(n.id)}`); toast({ text: t('pages.cluster.removed', { name }), tone: 'good' }); reload(); } catch (e) { toast({ text: e.message, tone: 'critical' }); }
 }

@@ -112,6 +112,9 @@
 /* ------------------------------------------------------------ two-factor: the QR code and the recovery codes */
 /* The tokens are light-dark(): with color-scheme light here they give their light values, so the code is dark on light
    in either theme, as some scanners read nothing else. */
+.fd-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; margin: 0; }
+.fd-facts dt { color: var(--text-muted); }
+.fd-facts dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
 .fd-qr { display: block; color-scheme: light; border-radius: var(--radius-sm); flex: none; }
 .fd-qr__light { fill: var(--bg-lift); }
 .fd-qr__dark { fill: var(--text-strong); }

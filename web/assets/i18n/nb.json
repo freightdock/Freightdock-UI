@@ -829,7 +829,11 @@
       "authorize": "Godkjenn",
       "authorize_title": "Godkjenne {name}?",
       "authorize_body": "Den kom tilbake fencet og kjører ingen styrte arbeidslaster før den er godkjent. Godkjenn den bare når ingenting den kjørte er startet et annet sted i mellomtiden.",
-      "authorized": "{name} godkjent"
+      "authorized": "{name} godkjent",
+      "workers": "Arbeidere",
+      "role_manager": "Manager og arbeider",
+      "role_worker": "Arbeider",
+      "no_worker": "Ingen arbeider hørt på denne verten"
     },
     "cluster_stacks": {
       "title": "Klyngestabler",
@@ -897,6 +901,41 @@
       "deployed": "{name} rullet ut",
       "starting": "{name} starter",
       "stopping": "{name} stopper"
+    },
+    "cluster_node": {
+      "title": "Node",
+      "sub": "En node i klyngen: hva den er, og hva som kjører på den.",
+      "sub_named": "Vertsnavnet er {hostname}; navnet finnes bare i Freightdock.",
+      "back": "Alle noder",
+      "rename": "Gi nytt navn",
+      "details": "Detaljer",
+      "workloads": "Arbeidslaster plassert her",
+      "containers": "Containere den melder",
+      "no_report": "Ingen melding",
+      "no_report_text": "Ingen manager har hørt fra arbeideren på denne noden nylig.",
+      "hostname": "Vertsnavn",
+      "id": "ID",
+      "address": "Adresse",
+      "system": "System",
+      "cpus": "CPU-er",
+      "memory": "Minne",
+      "no_workloads": "Ingen stakk har en arbeidslast plassert på denne noden.",
+      "stack": "Stakk",
+      "no_containers": "Den kjører ingen styrte containere.",
+      "state_word": "Tilstand",
+      "container": "Container",
+      "name": "Navn",
+      "name_help": "Vises i Freightdock i stedet for vertsnavnet. Noden og managerne beholder vertsnavnet. Tomt gir vertsnavnet tilbake.",
+      "rename_title": "Gi {name} nytt navn",
+      "renamed": "Navnet på noden er lagret.",
+      "state": {
+        "running": "kjører",
+        "exited": "avsluttet",
+        "created": "opprettet",
+        "restarting": "starter på nytt",
+        "paused": "pauset",
+        "dead": "død"
+      }
     }
   },
   "components": {

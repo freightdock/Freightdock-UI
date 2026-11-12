@@ -1321,4 +1321,10 @@ pointer to what replaced it.
     with `secret.key`, made before the first snapshot: a browser that trusted the UI once still trusts it on another
     node. A snapshot from before that carried none is replaced at start, and a certificate from another CA is made
     again. Run by hand beside a manager, as before, still works.
+12. A node can be given a name in Freightdock (owner's wish, 2026-11-12), shown instead of its hostname wherever a
+    node is named here; the managers and the node keep its hostname, so nothing in the cluster depends on it. It is an
+    Administrator's to give (`PUT /api/cluster/nodes/{id}/name`, at most 64 characters on one line, empty takes it
+    away), kept in Freightdock's database (`node_names`, replicated with the rest) and written to the activity log
+    (`cluster.node.rename` with the name). Each node has a page of its own (`/cluster/nodes/{id}`): what the managers
+    know of it, the stacks' workloads placed on it and the containers it reports.
 
