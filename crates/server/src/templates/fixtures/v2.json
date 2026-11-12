@@ -1,0 +1,69 @@
+{
+  "version": "2",
+  "templates": [
+    {
+      "type": 1,
+      "title": "Registry",
+      "description": "Docker image registry",
+      "categories": ["docker"],
+      "platform": "linux",
+      "logo": "https://example.com/logos/registry.png",
+      "image": "registry:latest",
+      "ports": ["5000/tcp"],
+      "volumes": [{ "container": "/var/lib/registry" }],
+      "env": [{ "name": "REGISTRY_PROXY_REMOTEURL", "default": "https://registry-1.docker.io", "preset": true }]
+    },
+    {
+      "type": 1,
+      "title": "Ubuntu",
+      "description": "Debian-based Linux operating system",
+      "categories": ["operating-system"],
+      "platform": "linux",
+      "logo": "javascript:alert(1)",
+      "image": "ubuntu:latest",
+      "interactive": true,
+      "command": "/bin/bash -c 'echo hi; sleep infinity'"
+    },
+    {
+      "type": 1,
+      "title": "Monitor",
+      "description": "Watches the Docker socket",
+      "note": "Needs <b>the socket</b>, read only.",
+      "image": "example/monitor:2",
+      "name": "monitor",
+      "hostname": "mon",
+      "privileged": true,
+      "restart_policy": "always",
+      "network": "host",
+      "labels": [{ "name": "com.example.role", "value": "monitor" }],
+      "ports": ["8080:80/tcp", "53/udp"],
+      "volumes": [{ "container": "/var/run/docker.sock", "bind": "/var/run/docker.sock", "readonly": true }, { "container": "/data", "bind": "/srv/monitor" }],
+      "env": [
+        { "name": "LEVEL", "label": "Log level", "select": [{ "text": "Info", "value": "info", "default": true }, { "text": "Debug", "value": "debug" }] },
+        { "name": "TOKEN", "label": "API token", "description": "From the dashboard." }
+      ]
+    },
+    {
+      "type": 2,
+      "title": "Swarm monitoring",
+      "description": "Monitor your cluster",
+      "repository": { "url": "https://github.com/portainer/templates", "stackfile": "swarm/monitoring/docker-compose.yml" }
+    },
+    {
+      "type": 3,
+      "title": "WordPress",
+      "description": "WordPress setup with a MySQL database",
+      "categories": ["CMS"],
+      "repository": { "url": "https://github.com/portainer/templates", "stackfile": "stacks/wordpress/docker-compose.yml" },
+      "env": [{ "name": "MYSQL_DATABASE_PASSWORD", "label": "Database root password" }]
+    },
+    {
+      "type": 4,
+      "title": "Edge thing",
+      "description": "A compose file by its address",
+      "stackfile": "https://example.com/edge/docker-compose.yml"
+    },
+    { "type": "not a number", "title": "Broken" },
+    { "type": 1, "description": "No title" }
+  ]
+}

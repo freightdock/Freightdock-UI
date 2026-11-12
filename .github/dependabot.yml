@@ -1,0 +1,32 @@
+# Moves the commits the workflow's actions are pinned to, the images' base images and the crates, once a week.
+version: 2
+# The Agent repository's crates come from GitHub, private until the release: Dependabot reads them with the token in
+# the Dependabot secret GIT_DEPS_TOKEN ("Agent" 12). Once that repository is public, the registry and its secret go.
+registries:
+  agent:
+    type: git
+    url: https://github.com
+    username: x-access-token
+    password: ${{secrets.GIT_DEPS_TOKEN}}
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+  # The crates. Minor and patch releases come together in one pull request a week; a major release, which may change
+  # what the code has to say, comes on its own.
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    registries: [agent]
+    groups:
+      crates:
+        update-types: [minor, patch]

@@ -1,0 +1,185 @@
+[
+ {
+  "Id": 2,
+  "Name": "alpha",
+  "Type": 1,
+  "URL": "unix:///var/run/docker.sock",
+  "GroupId": 1,
+  "TagIds": [],
+  "Status": 1,
+  "PublicURL": "",
+  "TLSConfig": {
+   "TLS": false,
+   "TLSSkipVerify": false
+  },
+  "Agent": {},
+  "ContainerEngine": "",
+  "Snapshots": [
+   {
+    "Time": 1794259432,
+    "DockerVersion": "29.9.3",
+    "Swarm": false,
+    "TotalCPU": 4,
+    "ContainerCount": 16,
+    "RunningContainerCount": 16,
+    "StackCount": 6
+   }
+  ]
+ },
+ {
+  "Id": 3,
+  "Name": "proxy",
+  "Type": 2,
+  "URL": "tcp://192.0.2.6:9001",
+  "GroupId": 1,
+  "TagIds": [],
+  "Status": 1,
+  "PublicURL": "",
+  "TLSConfig": {
+   "TLS": true,
+   "TLSSkipVerify": true
+  },
+  "Agent": {
+   "Version": "2.45.3"
+  },
+  "ContainerEngine": "",
+  "Snapshots": [
+   {
+    "Time": 1794259432,
+    "DockerVersion": "29.9.3",
+    "Swarm": false,
+    "TotalCPU": 4,
+    "ContainerCount": 16,
+    "RunningContainerCount": 16,
+    "StackCount": 6
+   }
+  ]
+ },
+ {
+  "Id": 5,
+  "Name": "media",
+  "Type": 2,
+  "URL": "tcp://192.0.2.5:9001",
+  "GroupId": 1,
+  "TagIds": [],
+  "Status": 1,
+  "PublicURL": "",
+  "TLSConfig": {
+   "TLS": true,
+   "TLSSkipVerify": true
+  },
+  "Agent": {
+   "Version": "2.45.3"
+  },
+  "ContainerEngine": "docker",
+  "Snapshots": [
+   {
+    "Time": 1794259432,
+    "DockerVersion": "29.9.3",
+    "Swarm": false,
+    "TotalCPU": 4,
+    "ContainerCount": 16,
+    "RunningContainerCount": 16,
+    "StackCount": 6
+   }
+  ]
+ },
+ {
+  "Id": 6,
+  "Name": "nas",
+  "Type": 2,
+  "URL": "tcp://192.0.2.3:9001",
+  "GroupId": 1,
+  "TagIds": [],
+  "Status": 1,
+  "PublicURL": "",
+  "TLSConfig": {
+   "TLS": true,
+   "TLSSkipVerify": true
+  },
+  "Agent": {
+   "Version": "2.45.3"
+  },
+  "ContainerEngine": "docker",
+  "Snapshots": [
+   {
+    "Time": 1794259432,
+    "DockerVersion": "29.9.3",
+    "Swarm": false,
+    "TotalCPU": 4,
+    "ContainerCount": 16,
+    "RunningContainerCount": 16,
+    "StackCount": 6
+   }
+  ]
+ },
+ {
+  "Id": 7,
+  "Name": "apps",
+  "Type": 2,
+  "URL": "tcp://192.0.2.9:9001",
+  "GroupId": 1,
+  "TagIds": [],
+  "Status": 1,
+  "PublicURL": "",
+  "TLSConfig": {
+   "TLS": true,
+   "TLSSkipVerify": true
+  },
+  "Agent": {
+   "Version": "2.45.3"
+  },
+  "ContainerEngine": "docker",
+  "Snapshots": [
+   {
+    "Time": 1794259432,
+    "DockerVersion": "29.9.3",
+    "Swarm": false,
+    "TotalCPU": 4,
+    "ContainerCount": 16,
+    "RunningContainerCount": 16,
+    "StackCount": 6
+   }
+  ]
+ },
+ {
+  "Id": 8,
+  "Name": "spare",
+  "Type": 2,
+  "URL": "tcp://192.0.2.10:9001",
+  "GroupId": 1,
+  "TagIds": [],
+  "Status": 2,
+  "PublicURL": "",
+  "TLSConfig": {
+   "TLS": true,
+   "TLSSkipVerify": true
+  },
+  "Agent": {
+   "Version": "2.39.3",
+   "IsOutdated": true
+  },
+  "ContainerEngine": "docker",
+  "Snapshots": []
+ },
+ {
+  "Id": 9,
+  "Name": "old",
+  "Type": 2,
+  "URL": "tcp://192.0.2.14:9001",
+  "GroupId": 1,
+  "TagIds": [],
+  "Status": 2,
+  "PublicURL": "",
+  "TLSConfig": {
+   "TLS": true,
+   "TLSSkipVerify": true
+  },
+  "Agent": {
+   "Version": "2.39.0",
+   "IsOutdated": true
+  },
+  "ContainerEngine": "docker",
+  "Snapshots": []
+ }
+]

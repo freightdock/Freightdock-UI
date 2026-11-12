@@ -1,0 +1,37 @@
+{
+  "version": "3",
+  "templates": [
+    {
+      "id": 1,
+      "type": 1,
+      "title": "Registry",
+      "description": "Docker image registry",
+      "categories": ["docker"],
+      "platform": "linux",
+      "image": "registry:latest",
+      "ports": ["5000/tcp"],
+      "volumes": [{ "container": "/var/lib/registry" }]
+    },
+    {
+      "id": 44,
+      "type": 3,
+      "title": "WordPress",
+      "description": "WordPress setup with a MySQL database",
+      "note": "Deploys a WordPress instance connected to a MySQL database.",
+      "categories": ["CMS"],
+      "platform": "linux",
+      "repository": { "url": "https://github.com/portainer/templates", "stackfile": "stacks/wordpress/docker-compose.yml" },
+      "env": [
+        { "name": "MYSQL_DATABASE_PASSWORD", "label": "Database root password", "description": "Password used by the MySQL root user." },
+        { "name": "DB_HOST", "label": "Database host", "type": "container" }
+      ]
+    },
+    {
+      "id": 70,
+      "type": 2,
+      "title": "Swarm thing",
+      "description": "Needs a swarm",
+      "repository": { "url": "https://github.com/portainer/templates", "stackfile": "swarm/x/docker-compose.yml" }
+    }
+  ]
+}

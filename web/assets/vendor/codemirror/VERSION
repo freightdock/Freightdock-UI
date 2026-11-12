@@ -1,0 +1,47 @@
+codemirror.js is CodeMirror 6 bundled by esbuild into one minified ES module, made once in a throwaway node container
+and never edited by hand. MIT, see LICENSE (every package in the bundle, each with its own).
+
+Built 2026-11-09 from the npm registry, exact versions:
+
+  @codemirror/state 6.7.6         @lezer/common 1.5.5
+  @codemirror/view 6.43.15        @lezer/highlight 1.2.5
+  @codemirror/commands 6.11.1     @lezer/lr 1.4.12
+  @codemirror/search 6.7.2        @lezer/yaml 1.0.4
+  @codemirror/language 6.13.1     @marijn/find-cluster-break 1.0.4
+  @codemirror/streamparser 6.0.0  style-mod 4.1.4
+  @codemirror/lang-yaml 6.1.3     w3c-keyname 2.2.8
+  @codemirror/legacy-modes 6.5.5  crelt 1.0.7
+  esbuild 0.28.2 (the tool only; none of it is in the bundle)
+
+What it exports is what ss-code-editor (web/assets/js/components/code-editor) uses: the editor, its state and
+compartments, the keymaps (default, history, search, indent with Tab), line numbers, the active line, bracket matching,
+HighlightStyle and the highlight tags, and the languages: YAML (lang-yaml), and Dockerfile, properties (for .env files)
+and shell from legacy-modes. To add something, add it to the entry below and build again.
+
+To build it again (from the repository's root; needs Docker only, and writes nothing but codemirror.js here):
+
+  mkdir -p /tmp/cm-build && cat > /tmp/cm-build/entry.js <<'EOF'
+  export { EditorState, Compartment } from '@codemirror/state';
+  export { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, highlightSpecialChars, placeholder } from '@codemirror/view';
+  export { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
+  export { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
+  export { HighlightStyle, syntaxHighlighting, indentOnInput, bracketMatching, StreamLanguage, indentUnit } from '@codemirror/language';
+  export { tags } from '@lezer/highlight';
+  export { yaml } from '@codemirror/lang-yaml';
+  export { dockerFile } from '@codemirror/legacy-modes/mode/dockerfile';
+  export { properties } from '@codemirror/legacy-modes/mode/properties';
+  export { shell } from '@codemirror/legacy-modes/mode/shell';
+  EOF
+  docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v /tmp/cm-build:/b -v "$PWD/web/assets/vendor/codemirror:/out" \
+    -w /b node:22-alpine sh -c '
+    npm init -y >/dev/null &&
+    npm install --no-audit --no-fund --save-exact @codemirror/state@6.7.6 @codemirror/view@6.43.15 \
+      @codemirror/commands@6.11.1 @codemirror/search@6.7.2 @codemirror/language@6.13.1 @codemirror/streamparser@6.0.0 \
+      @codemirror/lang-yaml@6.1.3 @codemirror/legacy-modes@6.5.5 @lezer/common@1.5.5 @lezer/highlight@1.2.5 \
+      @lezer/lr@1.4.12 @lezer/yaml@1.0.4 @marijn/find-cluster-break@1.0.4 style-mod@4.1.4 w3c-keyname@2.2.8 \
+      crelt@1.0.7 esbuild@0.28.2 &&
+    npx esbuild entry.js --bundle --format=esm --minify --legal-comments=none --outfile=/out/codemirror.js'
+  rm -rf /tmp/cm-build
+
+A newer CodeMirror: the same with the versions changed, then LICENSE made again from the packages' own LICENSE files
+(the list of what went in is esbuild's --metafile), and these versions written here.

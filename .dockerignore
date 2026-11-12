@@ -1,0 +1,11 @@
+target
+data
+.git
+agent
+*.db
+*.pem
+*.key
+.env
+.env.*
+docs/screenshots
+.cargo/config.toml

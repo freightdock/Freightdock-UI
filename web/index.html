@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="same-origin">
+  <title>Freightdock</title>
+  <link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
+  <link rel="preload" href="/assets/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/assets/finui.css">
+  <link rel="stylesheet" href="/assets/finmotion/finmotion.css">
+  <link rel="stylesheet" href="/assets/app.css">
+  <link rel="stylesheet" href="/assets/js/components/output-view/output-view.css">
+  <link rel="stylesheet" href="/assets/js/components/terminal/terminal.css">
+  <link rel="stylesheet" href="/assets/js/components/code-editor/code-editor.css">
+  <!-- After the stylesheets, and not a module: it applies this browser's theme before the first paint, and fetches its
+       language's words while the rest loads. -->
+  <script src="/assets/js/theme.js"></script>
+  <link rel="modulepreload" href="/assets/finui/core.js">
+  <link rel="modulepreload" href="/assets/js/i18n.js">
+  <link rel="modulepreload" href="/assets/js/app.js">
+  <link rel="modulepreload" href="/assets/js/api.js">
+  <link rel="modulepreload" href="/assets/js/router.js">
+  <link rel="modulepreload" href="/assets/js/shell.js">
+  <script type="module" src="/assets/js/main.js"></script>
+</head>
+<body>
+  <div id="app"><div class="boot" role="status" aria-label="Loading Freightdock"><span class="fui-spinner"></span></div></div>
+  <noscript><p class="noscript">Freightdock needs JavaScript to show your containers.</p></noscript>
+</body>
+</html>

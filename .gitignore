@@ -1,0 +1,40 @@
+# Build output.
+/target
+target/
+
+# Freightdock's data: the database, its keys and certificates, the stacks' files. Never in the repository.
+/data/
+data/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.backup
+secret.key
+
+# An agent's data folder (FREIGHTDOCK_AGENT_DATA=./agent): its key and certificate.
+/agent/
+
+# Keys and certificates, wherever they are.
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+
+# Environment files, except the examples.
+.env
+.env.*
+*.env
+!.env.example
+!*.env.example
+
+# Cargo's local settings: the patch for working on the agent beside the server (.cargo/config.toml.example).
+/.cargo/config.toml
+
+# Editors and systems.
+*~
+*.swp
+.DS_Store
+.idea/
+.vscode/

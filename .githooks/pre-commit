@@ -1,0 +1,94 @@
+#!/bin/sh
+# Freightdock's pre-commit hook: keeps secrets and private data out of a commit.
+#
+# Turn it on once per clone:   git config core.hooksPath .githooks
+#
+# 1. Files that are never committed (databases, keys, certificates, .env files, the data folders).
+# 2. A fast check of the staged lines for obvious secrets and private addresses, and for the words listed, one
+#    extended regular expression a line, in .git/info/private-patterns (never committed; see CONTRIBUTING.md).
+# 3. gitleaks with .gitleaks.toml on the staged files: the installed gitleaks, else its Docker image, else a warning.
+#
+# A false alarm in a genuine test fixture: add `gitleaks:allow` at the end of the line, or a justified allowlist entry
+# to .gitleaks.toml. `git commit --no-verify` skips all of this; CI runs gitleaks again on every push.
+
+set -eu
+
+GITLEAKS_IMAGE="zricethezav/gitleaks:v8.28.0"
+top=$(git rev-parse --show-toplevel)
+common=$(git rev-parse --git-common-dir)
+cd "$top"
+
+fail=0
+say() { printf 'pre-commit: %s\n' "$*" >&2; }
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -n "$staged" ] || exit 0
+
+# 1. Files that must never be committed.
+for f in $staged; do
+  case "$f" in
+    *.env.example|*.env.sample|.githooks/*) continue ;;
+  esac
+  case "$f" in
+    data/*|*/data/*|agent/*|*.db|*.db-wal|*.db-shm|*.sqlite|*.pem|*.key|*.p12|*.pfx|*.crt|*secret.key|.env|*.env|.env.*|*.backup)
+      say "refusing to commit $f: data, keys, certificates and .env files stay out of the repository (.gitignore)"
+      fail=1 ;;
+  esac
+done
+
+# 2. The fast check, on the lines being added. Third-party copies are checked upstream, not here.
+added=$(git diff --cached -U0 --diff-filter=ACMR -- . ':(exclude)web/assets/vendor' ':(exclude)web/assets/finui' \
+  ':(exclude)Cargo.lock' ':(exclude).gitleaks.toml' ':(exclude).githooks' | grep '^+' | grep -v '^+++' | grep -v 'gitleaks:allow' || true)
+
+check() { # check <what> <extended regex> [a regex of lines it allows]
+  hits=$(printf '%s\n' "$added" | grep -nE -e "$2" | grep -vE -e "${3:-^\$}" || true)
+  if [ -n "$hits" ]; then
+    say "$1 in the staged lines:"
+    printf '%s\n' "$hits" | cut -c1-160 >&2
+    fail=1
+  fi
+}
+
+check "a private key" '-----BEGIN ([A-Z]+ )?PRIVATE KEY-----'
+check "a Freightdock API token" 'fdk_[0-9a-f]{64}'
+check "a Freightdock join token" 'FDJT1-[0-9a-f]{64}-[0-9a-f]{64}'
+check "a Freightdock webhook address" '/api/webhooks/[0-9a-f]{64}'
+check "a GitHub token" '(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{60,}'
+check "a GitLab token" 'glpat-[A-Za-z0-9_-]{20}'
+check "an AWS access key" 'AKIA[0-9A-Z]{16}' 'AKIAIOSFODNN7EXAMPLE'
+check "a Slack or Anthropic or OpenAI key" 'xox[abpr]-[A-Za-z0-9-]{10,}|sk-ant-[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9]{40,}'
+check "a private address (use 192.0.2.x)" '(^|[^0-9.])192\.168\.[0-9]{1,3}\.[0-9]{1,3}([^0-9.]|$)'
+check "a private address (use 192.0.2.x)" '(^|[^0-9.])10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}([^0-9.]|$)'
+
+private="$common/info/private-patterns"
+if [ -f "$private" ]; then
+  while IFS= read -r p; do
+    case "$p" in ''|'#'*) continue ;; esac
+    hits=$(printf '%s\n' "$added" | grep -niE -e "$p" || true)
+    if [ -n "$hits" ]; then
+      say "a private name (.git/info/private-patterns) in the staged lines:"
+      printf '%s\n' "$hits" | cut -c1-160 >&2
+      fail=1
+    fi
+  done < "$private"
+fi
+
+if [ "$fail" = 1 ]; then
+  say "nothing committed. Take it out, or use 192.0.2.x / example.com in examples."
+  exit 1
+fi
+
+# 3. gitleaks on the staged versions of the staged files.
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+git diff --cached --name-only -z --diff-filter=ACMR | xargs -0 git checkout-index --prefix="$tmp/" --
+cp .gitleaks.toml "$tmp/.gitleaks.toml" 2>/dev/null || true
+
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks dir "$tmp" -c "$tmp/.gitleaks.toml" --no-banner --redact --log-level warn || { say "gitleaks found something; nothing committed"; exit 1; }
+elif command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+  docker run --rm --network none --user "$(id -u):$(id -g)" -v "$tmp:/scan:ro" "$GITLEAKS_IMAGE" \
+    dir /scan -c /scan/.gitleaks.toml --no-banner --redact --log-level warn || { say "gitleaks found something; nothing committed"; exit 1; }
+else
+  say "gitleaks is not installed and Docker is not reachable: only the fast check ran (CI runs gitleaks)"
+fi

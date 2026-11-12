@@ -1,0 +1,9 @@
+{
+ "ID": "0f3c5e2a-7b1d-4c8e-9a6f-2d4b8e1c7a90",
+ "Name": "alpha",
+ "ServerVersion": "29.9.3",
+ "Swarm": {
+  "LocalNodeState": "inactive"
+ },
+ "OperatingSystem": "Ubuntu 22.04.5 LTS"
+}

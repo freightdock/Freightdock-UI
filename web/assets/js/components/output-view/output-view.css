@@ -1,0 +1,6 @@
+.fd-output { height: min(70vh, 640px); min-height: 240px; overflow: auto; padding: 10px 12px; background: var(--bg-sunken); border: 1px solid var(--border-soft); border-radius: var(--radius); font: 12.5px/1.55 var(--mono); color: var(--text); }
+.fd-output:focus-visible { outline: var(--focus-width) solid var(--focus-color); outline-offset: var(--focus-offset); }
+.fd-output__line { white-space: pre-wrap; overflow-wrap: anywhere; }
+.fd-output__line--err { color: var(--critical-text); }
+.fd-output__note { display: flex; align-items: center; gap: 6px; margin: 6px 0; color: var(--text-faint); font-family: var(--sans); font-size: 12px; }
+.fd-output--small { height: 320px; min-height: 160px; }

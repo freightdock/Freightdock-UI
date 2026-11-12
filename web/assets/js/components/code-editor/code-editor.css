@@ -1,0 +1,45 @@
+/* Freightdock: code-editor. CodeMirror in FinUI's tokens. CodeMirror's own theme brings light colours of its own; each is
+   overridden here with a selector that outweighs it, so only tokens show, in both themes and every preset. */
+.fd-code-editor { --fd-code-editor-line: 1.55em; font: 12.5px/1.55 var(--mono); }
+.fd-code-editor__plain { width: 100%; font: inherit; white-space: pre; tab-size: 2; }
+.fd-code-editor .cm-editor { min-height: calc(var(--fd-code-editor-rows, 12) * var(--fd-code-editor-line) + 16px); max-height: 70vh;
+  color: var(--text); background: var(--field-bg); border: 1px solid var(--field-border); border-radius: var(--radius-field); }
+.fd-code-editor--invalid .cm-editor, .fd-code-editor--invalid .fd-code-editor__plain { border-color: var(--critical); }
+.fd-code-editor .cm-editor.cm-focused { outline: var(--focus-width) solid var(--focus-color); outline-offset: var(--focus-offset); }
+.fd-code-editor .cm-editor .cm-scroller { font: inherit; line-height: var(--fd-code-editor-line); border-radius: inherit; }
+.fd-code-editor .cm-editor .cm-content { padding: 8px 0; caret-color: var(--accent); }
+.fd-code-editor .cm-editor .cm-line { padding: 0 10px; }
+.fd-code-editor .cm-editor .cm-gutters { color: var(--text-faint); background: var(--bg-sunken); border-right: 1px solid var(--border-soft); }
+.fd-code-editor .cm-editor .cm-activeLine { background: var(--hover); }
+.fd-code-editor .cm-editor .cm-activeLineGutter { color: var(--text-muted); background: var(--hover); }
+.fd-code-editor .cm-editor .cm-cursor, .fd-code-editor .cm-editor .cm-dropCursor { border-left-color: var(--accent); }
+.fd-code-editor .cm-editor .cm-selectionLayer .cm-selectionBackground,
+.fd-code-editor .cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground,
+.fd-code-editor .cm-editor .cm-content ::selection { background: var(--selection); }
+.fd-code-editor .cm-editor .cm-selectionMatch { background: var(--accent-wash); }
+.fd-code-editor .cm-editor.cm-focused .cm-matchingBracket { color: var(--text-strong); background: var(--accent-wash); }
+.fd-code-editor .cm-editor.cm-focused .cm-nonmatchingBracket { color: var(--critical-text); background: var(--crit-wash); }
+.fd-code-editor .cm-editor .cm-searchMatch { background: var(--warn-wash); outline: 1px solid var(--warning); }
+.fd-code-editor .cm-editor .cm-searchMatch.cm-searchMatch-selected { background: var(--accent-wash); }
+.fd-code-editor .cm-editor .cm-panels { color: var(--text); background: var(--bg-2); border-color: var(--border-soft); }
+.fd-code-editor .cm-editor .cm-panels.cm-panels-top { border-bottom: 1px solid var(--border-soft); }
+.fd-code-editor .cm-editor .cm-panels.cm-panels-bottom { border-top: 1px solid var(--border-soft); }
+.fd-code-editor .cm-editor .cm-panel.cm-search { font-family: var(--sans); font-size: 12px; }
+.fd-code-editor .cm-editor .cm-textfield { color: var(--text); background: var(--field-bg); border: 1px solid var(--field-border); border-radius: var(--radius-sm); }
+.fd-code-editor .cm-editor .cm-button { color: var(--text); background: var(--bg-lift); background-image: none; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.fd-code-editor .cm-editor .cm-button:active { background: var(--hover); background-image: none; }
+.fd-code-editor .cm-editor .cm-panel.cm-search [name=close] { color: var(--text-muted); }
+.fd-code-editor .cm-editor .cm-tooltip { color: var(--text); background: var(--tooltip-bg); border: 1px solid var(--border-soft); }
+.fd-code-editor .cm-editor .cm-specialChar { color: var(--critical-text); }
+
+/* What each kind of text is, by token. */
+.fd-code-editor .fd-code-editor__keyword { color: var(--accent); font-weight: 600; }
+.fd-code-editor .fd-code-editor__key { color: var(--series-1); }
+.fd-code-editor .fd-code-editor__string { color: var(--series-2); }
+.fd-code-editor .fd-code-editor__number { color: var(--series-3); }
+.fd-code-editor .fd-code-editor__atom { color: var(--series-4); }
+.fd-code-editor .fd-code-editor__variable { color: var(--text-strong); }
+.fd-code-editor .fd-code-editor__meta { color: var(--text-muted); }
+.fd-code-editor .fd-code-editor__comment { color: var(--text-faint); font-style: italic; }
+.fd-code-editor .fd-code-editor__punctuation { color: var(--text-muted); }
+.fd-code-editor .fd-code-editor__invalid { color: var(--critical-text); text-decoration: underline wavy var(--critical); }

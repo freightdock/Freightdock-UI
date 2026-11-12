@@ -1,0 +1,3 @@
+.fd-terminal { height: min(70vh, 640px); min-height: 280px; padding: 8px; background: var(--bg-sunken); border: 1px solid var(--border-soft); border-radius: var(--radius); overflow: hidden; }
+.fd-terminal .xterm { height: 100%; }
+.fd-terminal .xterm-viewport { background: transparent !important; }

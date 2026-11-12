@@ -1,0 +1,520 @@
+[
+ {
+  "Id": 3,
+  "Name": "arr",
+  "Type": 2,
+  "EndpointId": 2,
+  "SwarmId": "",
+  "EntryPoint": "docker-compose.yml",
+  "Env": [],
+  "ResourceControl": {
+   "Id": 3,
+   "ResourceId": "2_arr",
+   "SubResourceIds": [],
+   "Type": 6,
+   "UserAccesses": [],
+   "TeamAccesses": [],
+   "Public": false,
+   "AdministratorsOnly": true,
+   "System": false
+  },
+  "Status": 2,
+  "DeploymentStartStatus": 0,
+  "ProjectPath": "/data/compose/3",
+  "CreationDate": 1730360394,
+  "CreatedBy": "admin",
+  "UpdateDate": 0,
+  "UpdatedBy": "admin",
+  "AdditionalFiles": null,
+  "AutoUpdate": null,
+  "Option": null,
+  "FromAppTemplate": false,
+  "Namespace": "",
+  "CreatedByUserId": "",
+  "Webhook": "",
+  "SupportRelativePath": false,
+  "HelmChartPath": "",
+  "HelmValuesFiles": null,
+  "FilesystemPath": "",
+  "StackFileVersion": 1,
+  "PreviousDeploymentInfo": null,
+  "IsDetachedFromGit": false,
+  "Registries": null,
+  "GitConfig": null
+ },
+ {
+  "Id": 4,
+  "Name": "watchtower",
+  "Type": 2,
+  "EndpointId": 2,
+  "SwarmId": "",
+  "EntryPoint": "docker-compose.yml",
+  "Env": [],
+  "ResourceControl": {
+   "Id": 4,
+   "ResourceId": "2_watchtower",
+   "SubResourceIds": [],
+   "Type": 6,
+   "UserAccesses": [],
+   "TeamAccesses": [],
+   "Public": false,
+   "AdministratorsOnly": true,
+   "System": false
+  },
+  "Status": 2,
+  "DeploymentStartStatus": 0,
+  "ProjectPath": "/data/compose/4",
+  "CreationDate": 1730363905,
+  "CreatedBy": "admin",
+  "UpdateDate": 1772783803,
+  "UpdatedBy": "admin",
+  "AdditionalFiles": null,
+  "AutoUpdate": null,
+  "Option": {
+   "Prune": false,
+   "HelmAtomic": false
+  },
+  "FromAppTemplate": false,
+  "Namespace": "",
+  "CreatedByUserId": "",
+  "Webhook": "",
+  "SupportRelativePath": false,
+  "HelmChartPath": "",
+  "HelmValuesFiles": null,
+  "FilesystemPath": "",
+  "StackFileVersion": 7,
+  "PreviousDeploymentInfo": {
+   "Version": 0,
+   "FileVersion": 6
+  },
+  "IsDetachedFromGit": false,
+  "Registries": [],
+  "GitConfig": null
+ },
+ {
+  "Id": 12,
+  "Name": "wg-easy",
+  "Type": 2,
+  "EndpointId": 3,
+  "SwarmId": "",
+  "EntryPoint": "docker-compose.yml",
+  "Env": [],
+  "ResourceControl": {
+   "Id": 15,
+   "ResourceId": "3_wg-easy",
+   "SubResourceIds": [],
+   "Type": 6,
+   "UserAccesses": [],
+   "TeamAccesses": [],
+   "Public": false,
+   "AdministratorsOnly": true,
+   "System": false
+  },
+  "Status": 2,
+  "DeploymentStartStatus": 0,
+  "ProjectPath": "/data/compose/12",
+  "CreationDate": 1730366747,
+  "CreatedBy": "admin",
+  "UpdateDate": 1772783959,
+  "UpdatedBy": "admin",
+  "AdditionalFiles": null,
+  "AutoUpdate": null,
+  "Option": {
+   "Prune": false,
+   "HelmAtomic": false
+  },
+  "FromAppTemplate": false,
+  "Namespace": "",
+  "CreatedByUserId": "",
+  "Webhook": "",
+  "SupportRelativePath": false,
+  "HelmChartPath": "",
+  "HelmValuesFiles": null,
+  "FilesystemPath": "",
+  "StackFileVersion": 9,
+  "PreviousDeploymentInfo": {
+   "Version": 0,
+   "FileVersion": 8
+  },
+  "IsDetachedFromGit": false,
+  "Registries": [],
+  "GitConfig": null
+ },
+ {
+  "Id": 24,
+  "Name": "watchtower",
+  "Type": 2,
+  "EndpointId": 4,
+  "SwarmId": "",
+  "EntryPoint": "docker-compose.yml",
+  "Env": [],
+  "ResourceControl": {
+   "Id": 55,
+   "ResourceId": "4_watchtower",
+   "SubResourceIds": [],
+   "Type": 6,
+   "UserAccesses": [],
+   "TeamAccesses": [],
+   "Public": false,
+   "AdministratorsOnly": true,
+   "System": false
+  },
+  "Status": 1,
+  "DeploymentStartStatus": 0,
+  "ProjectPath": "/data/compose/24",
+  "CreationDate": 1737658991,
+  "CreatedBy": "admin",
+  "UpdateDate": 1737659084,
+  "UpdatedBy": "admin",
+  "AdditionalFiles": null,
+  "AutoUpdate": null,
+  "Option": null,
+  "FromAppTemplate": false,
+  "Namespace": "",
+  "CreatedByUserId": "",
+  "Webhook": "",
+  "SupportRelativePath": false,
+  "HelmChartPath": "",
+  "HelmValuesFiles": null,
+  "FilesystemPath": "",
+  "StackFileVersion": 2,
+  "PreviousDeploymentInfo": {
+   "Version": 0,
+   "FileVersion": 1
+  },
+  "IsDetachedFromGit": false,
+  "Registries": null,
+  "GitConfig": null
+ },
+ {
+  "Id": 147,
+  "Name": "nginx",
+  "Type": 2,
+  "EndpointId": 3,
+  "SwarmId": "",
+  "EntryPoint": "docker-compose.yml",
+  "Env": [
+   {
+    "name": "HOSTREGEXP",
+    "value": "value-0"
+   },
+   {
+    "name": "ENTRYPOINTS",
+    "value": "value-1"
+   },
+   {
+    "name": "MIDDLEWARES",
+    "value": "value-2"
+   },
+   {
+    "name": "PROXY_DISABLE_DEFAULTS",
+    "value": "value-3"
+   },
+   {
+    "name": "LOADBALANCER_SERVER_PORT",
+    "value": "value-4"
+   }
+  ],
+  "ResourceControl": {
+   "Id": 159,
+   "ResourceId": "3_nginx",
+   "SubResourceIds": [],
+   "Type": 6,
+   "UserAccesses": [],
+   "TeamAccesses": [],
+   "Public": false,
+   "AdministratorsOnly": true,
+   "System": false
+  },
+  "Status": 1,
+  "DeploymentStartStatus": 0,
+  "ProjectPath": "/data/compose/147",
+  "CreationDate": 1760126959,
+  "CreatedBy": "admin",
+  "UpdateDate": 1772783817,
+  "UpdatedBy": "admin",
+  "AdditionalFiles": null,
+  "AutoUpdate": null,
+  "Option": {
+   "Prune": false,
+   "HelmAtomic": false
+  },
+  "FromAppTemplate": false,
+  "Namespace": "",
+  "CreatedByUserId": "",
+  "Webhook": "",
+  "SupportRelativePath": false,
+  "HelmChartPath": "",
+  "HelmValuesFiles": null,
+  "FilesystemPath": "",
+  "StackFileVersion": 12,
+  "PreviousDeploymentInfo": {
+   "Version": 0,
+   "FileVersion": 11
+  },
+  "IsDetachedFromGit": false,
+  "Registries": [],
+  "GitConfig": null
+ },
+ {
+  "Id": 237,
+  "Name": "statsapp",
+  "Type": 2,
+  "EndpointId": 5,
+  "SwarmId": "",
+  "EntryPoint": "docker-compose.yml",
+  "Env": [],
+  "ResourceControl": {
+   "Id": 226,
+   "ResourceId": "5_statsapp",
+   "SubResourceIds": [],
+   "Type": 6,
+   "UserAccesses": [],
+   "TeamAccesses": [],
+   "Public": false,
+   "AdministratorsOnly": true,
+   "System": false
+  },
+  "Status": 1,
+  "DeploymentStartStatus": 2,
+  "ProjectPath": "/data/compose/237",
+  "CreationDate": 1777445404,
+  "CreatedBy": "admin",
+  "UpdateDate": 1793405901,
+  "UpdatedBy": "admin",
+  "AdditionalFiles": null,
+  "AutoUpdate": null,
+  "Option": {
+   "Prune": false,
+   "HelmAtomic": false
+  },
+  "FromAppTemplate": false,
+  "Namespace": "",
+  "DeploymentStatus": [
+   {
+    "Status": 3,
+    "Time": 1793405901
+   },
+   {
+    "Status": 1,
+    "Time": 1793406026
+   }
+  ],
+  "CreatedByUserId": "",
+  "Webhook": "",
+  "SupportRelativePath": false,
+  "HelmChartPath": "",
+  "HelmValuesFiles": null,
+  "FilesystemPath": "",
+  "StackFileVersion": 3,
+  "PreviousDeploymentInfo": {
+   "Version": 0,
+   "FileVersion": 2
+  },
+  "IsDetachedFromGit": false,
+  "Registries": [],
+  "GitConfig": null
+ },
+ {
+  "Id": 238,
+  "Name": "statsapp",
+  "Type": 2,
+  "EndpointId": 5,
+  "SwarmId": "",
+  "EntryPoint": "docker-compose.yml",
+  "Env": [],
+  "ResourceControl": {
+   "Id": 226,
+   "ResourceId": "5_statsapp",
+   "SubResourceIds": [],
+   "Type": 6,
+   "UserAccesses": [],
+   "TeamAccesses": [],
+   "Public": false,
+   "AdministratorsOnly": true,
+   "System": false
+  },
+  "Status": 1,
+  "DeploymentStartStatus": 0,
+  "ProjectPath": "/data/compose/238",
+  "CreationDate": 1777445534,
+  "CreatedBy": "admin",
+  "UpdateDate": 0,
+  "UpdatedBy": "admin",
+  "AdditionalFiles": null,
+  "AutoUpdate": null,
+  "Option": null,
+  "FromAppTemplate": false,
+  "Namespace": "",
+  "CreatedByUserId": "",
+  "Webhook": "",
+  "SupportRelativePath": false,
+  "HelmChartPath": "",
+  "HelmValuesFiles": null,
+  "FilesystemPath": "",
+  "StackFileVersion": 1,
+  "PreviousDeploymentInfo": null,
+  "IsDetachedFromGit": false,
+  "Registries": [],
+  "GitConfig": null
+ },
+ {
+  "Id": 252,
+  "Name": "monitor-agent",
+  "Type": 2,
+  "EndpointId": 3,
+  "SwarmId": "",
+  "EntryPoint": "docker-compose.yml",
+  "Env": [
+   {
+    "name": "MONITOR_HOST",
+    "value": "value-0"
+   },
+   {
+    "name": "MONITOR_TOKEN",
+    "value": "value-1"
+   }
+  ],
+  "ResourceControl": {
+   "Id": 243,
+   "ResourceId": "3_monitor-agent",
+   "SubResourceIds": [],
+   "Type": 6,
+   "UserAccesses": [],
+   "TeamAccesses": [],
+   "Public": false,
+   "AdministratorsOnly": true,
+   "System": false
+  },
+  "Status": 1,
+  "DeploymentStartStatus": 1,
+  "ProjectPath": "/data/compose/252",
+  "CreationDate": 1788339536,
+  "CreatedBy": "admin",
+  "UpdateDate": 1788345246,
+  "UpdatedBy": "admin",
+  "AdditionalFiles": null,
+  "AutoUpdate": null,
+  "Option": {
+   "Prune": false,
+   "HelmAtomic": false
+  },
+  "FromAppTemplate": false,
+  "Namespace": "",
+  "DeploymentStatus": [
+   {
+    "Status": 3,
+    "Time": 1788345246
+   },
+   {
+    "Status": 1,
+    "Time": 1788345250
+   }
+  ],
+  "CreatedByUserId": "1",
+  "Webhook": "",
+  "SupportRelativePath": false,
+  "HelmChartPath": "",
+  "HelmValuesFiles": null,
+  "FilesystemPath": "",
+  "StackFileVersion": 3,
+  "PreviousDeploymentInfo": {
+   "Version": 0,
+   "FileVersion": 2
+  },
+  "IsDetachedFromGit": false,
+  "Registries": [],
+  "GitConfig": null
+ },
+ {
+  "Id": 259,
+  "Name": "webapp",
+  "Type": 2,
+  "EndpointId": 2,
+  "SwarmId": "",
+  "EntryPoint": "compose.yaml",
+  "Env": [
+   {
+    "name": "API_KEY",
+    "value": "value-0"
+   },
+   {
+    "name": "API_SECRET",
+    "value": "value-1"
+   }
+  ],
+  "ResourceControl": {
+   "Id": 253,
+   "ResourceId": "2_webapp",
+   "SubResourceIds": [],
+   "Type": 6,
+   "UserAccesses": [],
+   "TeamAccesses": [],
+   "Public": false,
+   "AdministratorsOnly": true,
+   "System": false
+  },
+  "Status": 1,
+  "DeploymentStartStatus": 1,
+  "ProjectPath": "/data/compose/259",
+  "CreationDate": 1792851375,
+  "CreatedBy": "admin",
+  "UpdateDate": 1793190986,
+  "UpdatedBy": "admin",
+  "AdditionalFiles": null,
+  "AutoUpdate": {
+   "Interval": "5m",
+   "Webhook": "11111111-2222-4333-8444-555555555555",
+   "ForceUpdate": false,
+   "ForcePullImage": false
+  },
+  "Option": {
+   "Prune": false,
+   "HelmAtomic": false
+  },
+  "WorkflowID": 1,
+  "CurrentDeploymentInfo": {
+   "Version": 0,
+   "FileVersion": 0,
+   "ConfigHash": "8d57806679ae4f22ddc4ac693fde4066ef93325e",
+   "RepositoryURL": "http://git.example.test/owner/webapp",
+   "ConfigFilePath": "compose.yaml",
+   "ReferenceName": "refs/heads/master",
+   "SourceID": 1
+  },
+  "FromAppTemplate": false,
+  "Namespace": "",
+  "DeploymentStatus": [
+   {
+    "Status": 3,
+    "Time": 1793190986
+   },
+   {
+    "Status": 1,
+    "Time": 1793191008
+   }
+  ],
+  "CreatedByUserId": "1",
+  "Webhook": "",
+  "SupportRelativePath": false,
+  "HelmChartPath": "",
+  "HelmValuesFiles": null,
+  "FilesystemPath": "",
+  "StackFileVersion": 8,
+  "PreviousDeploymentInfo": null,
+  "IsDetachedFromGit": false,
+  "Registries": null,
+  "GitConfig": {
+   "URL": "http://git.example.test/owner/webapp",
+   "ReferenceName": "refs/heads/master",
+   "ConfigFilePath": "compose.yaml",
+   "Authentication": {
+    "Username": "owner",
+    "Password": "",
+    "Provider": 6
+   },
+   "ConfigHash": "8d57806679ae4f22ddc4ac693fde4066ef93325e",
+   "TLSSkipVerify": false
+  }
+ }
+]

@@ -1,0 +1,25 @@
+[workspace]
+resolver = "3"
+members = ["crates/server"]
+
+[workspace.package]
+version = "1.0.0"
+edition = "2024"
+license = "GPL-3.0-only"
+repository = "https://github.com/freightdock/Freightdock"
+rust-version = "1.90"
+
+# Argon2 is the key of a sealed backup (64 MiB, three passes): without optimisation a debug build and the tests take
+# seconds for each.
+[profile.dev.package.argon2]
+opt-level = 3
+
+[profile.dev.package.blake2]
+opt-level = 3
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 4
+strip = true
+overflow-checks = true

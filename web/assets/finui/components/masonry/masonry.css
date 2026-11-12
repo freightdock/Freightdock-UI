@@ -1,0 +1,21 @@
+/* FinUI: masonry. Before it has measured, and without script, an ordinary grid of columns at least --fui-masonry-min
+   wide. Laid out (.is-laid), a grid of 1px rows with each item placed by masonry.js where plan.js says. With native
+   masonry (.is-native) the browser places them. The gap grows with the density. */
+.fui-masonry {
+  --fui-masonry-min: 320px; --fui-masonry-gap: calc(var(--density) * 16px);
+  display: grid; gap: var(--fui-masonry-gap); align-items: start; min-width: 0;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--fui-masonry-min)), 1fr));
+}
+.fui-masonry > * { min-width: 0; }
+.fui-masonry.is-laid {
+  position: relative; row-gap: 0; grid-auto-rows: 1px;
+  grid-template-columns: repeat(var(--fui-masonry-cols, 1), minmax(0, 1fr));
+}
+.fui-masonry.is-laid > * {
+  grid-column: var(--fui-masonry-col, auto) / span var(--fui-masonry-span, 1);
+  grid-row: var(--fui-masonry-row, auto) / span var(--fui-masonry-rows, 1);
+}
+.fui-masonry.is-native { grid-template-rows: masonry; }
+.fui-masonry.is-native > [data-span="2"] { grid-column: span 2; }
+.fui-masonry__demo { display: grid; gap: 6px; padding: 14px; }
+.fui-masonry__demo p { margin: 0; color: var(--text-muted); }

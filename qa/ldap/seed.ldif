@@ -1,0 +1,49 @@
+# The directory the end-to-end suite signs in against (qa/run.sh loads it into a throwaway OpenLDAP): three people and
+# two groups. ola is an administrator by group, kari a user and a developer, nils in no group of Freightdock's.
+
+dn: ou=people,dc=example,dc=org
+objectClass: organizationalUnit
+ou: people
+
+dn: ou=groups,dc=example,dc=org
+objectClass: organizationalUnit
+ou: groups
+
+dn: uid=ola,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: ola
+cn: Ola Nordmann
+sn: Nordmann
+mail: ola@example.org
+userPassword: ola-directory-password
+
+dn: uid=kari,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: kari
+cn: Kari Nordmann
+sn: Nordmann
+mail: kari@example.org
+userPassword: kari-directory-password
+
+dn: uid=nils,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: nils
+cn: Nils
+sn: Nilsen
+userPassword: nils-directory-password
+
+dn: cn=freightdock-admins,ou=groups,dc=example,dc=org
+objectClass: groupOfUniqueNames
+cn: freightdock-admins
+uniqueMember: uid=ola,ou=people,dc=example,dc=org
+
+dn: cn=freightdock-users,ou=groups,dc=example,dc=org
+objectClass: groupOfUniqueNames
+cn: freightdock-users
+uniqueMember: uid=kari,ou=people,dc=example,dc=org
+
+dn: cn=devs,ou=groups,dc=example,dc=org
+objectClass: groupOfUniqueNames
+cn: devs
+uniqueMember: uid=kari,ou=people,dc=example,dc=org
+uniqueMember: uid=ola,ou=people,dc=example,dc=org

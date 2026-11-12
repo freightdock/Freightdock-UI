@@ -1,0 +1,14 @@
+# Only for working on the tunnel protocol or the agent alongside the server. Copy to .cargo/config.toml (it is not
+# committed). The server takes both from the Agent repository at a tag (crates/server/Cargo.toml), as any dependency;
+# this patch builds them from a checkout beside this one instead:
+#
+#   git clone https://github.com/freightdock/Agent ../freightdock-agent
+#
+# While it is in place Cargo.lock records the checkout: do not commit Cargo.lock then. Release the change in the Agent
+# repository with a tag, move `tag` in crates/server/Cargo.toml to it, remove this file and run `cargo update -p
+# freightdock-tunnel -p freightdock-agent`.
+#
+# Paths here are relative to the folder that holds .cargo/.
+[patch."https://github.com/freightdock/Agent"]
+freightdock-tunnel = { path = "../freightdock-agent/tunnel" }
+freightdock-agent = { path = "../freightdock-agent/agent" }

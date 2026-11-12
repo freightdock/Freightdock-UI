@@ -1,0 +1,26 @@
+services:
+  freightdock:
+    image: ghcr.io/freightdock/freightdock:latest
+    # Building from source instead? Comment the line above out and use:
+    # build: .
+    container_name: freightdock
+    restart: unless-stopped
+    ports:
+      - "7443:7443" # the web UI and API, HTTPS with a certificate Freightdock makes
+      - "7444:7444" # where agents on other hosts connect; leave it out if Freightdock manages this host alone
+    environment:
+      # The zone the log and the schedules are in.
+      TZ: Europe/London
+      # Optional: the first run's setup token (16 characters or more); else Freightdock makes one, and
+      # `docker exec freightdock freightdock setup-token` shows it.
+      # FREIGHTDOCK_SETUP_TOKEN: change-me-to-something-long
+      # Behind a reverse proxy that does TLS? Serve plain HTTP to it.
+      # FREIGHTDOCK_TLS: "off"
+      # More names for Freightdock's own certificate, beside localhost, the machine's name and its addresses.
+      # FREIGHTDOCK_TLS_NAMES: freightdock.lan,192.0.2.10
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - freightdock:/data
+
+volumes:
+  freightdock:
