@@ -541,22 +541,6 @@ impl Db {
     }
 }
 
-/// A Unix time as UTC: year, month, day, hour, minute, second (Howard Hinnant's days-to-civil, without a date library).
-pub fn utc(at: i64) -> (i64, u32, u32, u32, u32, u32) {
-    let days = at.div_euclid(86400);
-    let secs = at.rem_euclid(86400);
-    let z = days + 719_468;
-    let era = z.div_euclid(146_097);
-    let doe = z - era * 146_097;
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
-    let y = yoe + era * 400 + if m <= 2 { 1 } else { 0 };
-    (y, m, d, (secs / 3600) as u32, (secs / 60 % 60) as u32, (secs % 60) as u32)
-}
-
 pub fn now() -> i64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
 }

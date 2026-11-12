@@ -51,26 +51,9 @@ pub fn router(app: App) -> Router {
         .route("/api/settings/sso/{id}", axum::routing::put(crate::signin::providers::put_provider).delete(crate::signin::providers::remove_provider))
         .route("/api/settings/sso/{id}/ldap-test", post(crate::signin::ldap::test))
         .route("/api/settings/appearance", get(crate::appearance::get_settings).put(crate::appearance::put_settings))
-        .route("/api/settings/templates", get(crate::templates::get_settings).put(crate::templates::put_settings))
-        .route("/api/templates", get(crate::templates::list))
-        // No session: the token in the address is the credential ("Sign-in" 8).
-        .route("/api/webhooks/{token}", post(crate::webhooks::call))
-        .route("/api/templates/custom", post(crate::templates::create_custom))
-        .route("/api/templates/custom/{id}", get(crate::templates::get_custom).put(crate::templates::update_custom).delete(crate::templates::remove_custom))
-        .merge(crate::docker::api::router())
-        .merge(crate::environments::router())
-        .merge(crate::groups::router())
-        .merge(crate::registries::router())
         .merge(crate::tokens::router())
-        .merge(crate::mcp::router())
         .merge(crate::tls::router())
-        .merge(crate::history::router())
-        .merge(crate::notify::router())
-        .merge(crate::updates::router())
-        .merge(crate::backup::router())
-        .merge(crate::portainer::router())
         .merge(crate::users::router())
-        .merge(crate::access::security::router())
         .merge(crate::cluster::router())
         // Last, so it is on every route above: each is held to its rule in access::routes::RULES ("Access" 5).
         .route_layer(axum::middleware::from_fn_with_state(app.clone(), crate::access::routes::guard))
@@ -149,37 +132,6 @@ where
 
 /// A signed-in administrator.
 pub struct Admin(#[allow(dead_code)] pub Authed);
-
-/// Somebody the guard let do what an environment's route does (`access::routes`): who they are, and their access
-/// there. Every environment's route that changes something takes it; the guard is what decides.
-pub struct Allowed(pub Authed, pub crate::access::Access);
-
-impl<S> FromRequestParts<S> for Allowed
-where
-    App: FromRef<S>,
-    S: Send + Sync,
-{
-    type Rejection = ApiError;
-
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let a = Authed::from_request_parts(parts, state).await?;
-        // Without the guard's word there is no access to act on: refused, never assumed.
-        let access = parts.extensions.get::<crate::access::Access>().cloned().ok_or_else(ApiError::forbidden)?;
-        Ok(Allowed(a, access))
-    }
-}
-
-/// The access the guard found, for a route that reads (to leave out what the person may not see).
-impl<S> FromRequestParts<S> for crate::access::Access
-where
-    S: Send + Sync,
-{
-    type Rejection = ApiError;
-
-    async fn from_request_parts(parts: &mut Parts, _: &S) -> Result<Self, Self::Rejection> {
-        parts.extensions.get::<crate::access::Access>().cloned().ok_or_else(ApiError::forbidden)
-    }
-}
 
 impl<S> FromRequestParts<S> for Admin
 where
@@ -271,7 +223,6 @@ async fn setup(State(app): State<App>, peer: Peer, Json(c): Json<SetupBody>) -> 
     auth::check_password(&c.password).map_err(|e| ApiError::bad(e.to_string()).field("password"))?;
     let hash = auth::hash_password(&c.password)?;
     let name = c.name.clone();
-    let local = app.docker.url().to_string();
     let id = app
         .db
         .call(move |conn| {
@@ -282,13 +233,12 @@ async fn setup(State(app): State<App>, peer: Peer, Json(c): Json<SetupBody>) -> 
             let t = now();
             tx.execute("INSERT INTO users (name, password_hash, role, created_at) VALUES (?1, ?2, 'admin', ?3)", params![name, hash, t])?;
             let id = tx.last_insert_rowid();
-            tx.execute("INSERT OR IGNORE INTO environments (name, kind, url, created_at) VALUES ('local', 'local', ?1, ?2)", params![local, t])?;
             tx.commit()?;
             Ok(Some(id))
         })
         .await?
         .ok_or_else(|| ApiError::conflict("Freightdock is already set up."))?;
-    if let Some(dir) = app.backups.data_dir.get() {
+    if let Some(dir) = app.data_dir.get() {
         auth::forget_setup_token(dir);
     }
     let token = auth::start(&app.db, id, peer.ip.clone(), peer.user_agent).await?;
@@ -373,10 +323,7 @@ pub(crate) mod tests {
 
     pub fn app() -> App {
         let db = crate::db::Db::open_in_memory().unwrap();
-        let sockets = crate::docker::sockets::Sockets::for_test();
-        // No Compose: what needs it answers 503. `stacks::tests::app_with_compose` has a stand-in for it.
-        let stacks = crate::stacks::Stacks::new(std::env::temp_dir().join(format!("freightdock-test-{}", crate::auth::random_token())), crate::stacks::compose::Compose::none());
-        crate::state::AppState::new(db, false, crate::docker::Docker::connect("tcp://127.0.0.1:1").unwrap(), crate::secret::Sealer::for_test(), sockets, crate::agent::Agents::for_test(), stacks)
+        crate::state::AppState::new(db, false, crate::secret::Sealer::for_test())
     }
 
     pub async fn call(app: &App, req: Request<Body>) -> (StatusCode, HeaderMap, serde_json::Value) {
@@ -422,8 +369,6 @@ pub(crate) mod tests {
         let again = json!({ "name": "intruder", "password": "another long password", "token": setup_token(&app) });
         let (s, _, _) = call(&app, post("/api/setup").body(json_body(again)).unwrap()).await;
         assert_eq!(s, StatusCode::CONFLICT);
-        let envs: i64 = app.db.call(|c| Ok(c.query_row("SELECT COUNT(*) FROM environments WHERE kind = 'local'", [], |r| r.get(0))?)).await.unwrap();
-        assert_eq!(envs, 1, "the local Docker is the first environment");
     }
 
     /// The token kept in the data folder for `freightdock setup-token` opens nothing once setup is done, so it goes.
@@ -431,7 +376,7 @@ pub(crate) mod tests {
     async fn setup_done_removes_the_kept_setup_token() {
         let app = app();
         let dir = tempfile::tempdir().unwrap();
-        let _ = app.backups.data_dir.set(dir.path().to_path_buf());
+        let _ = app.data_dir.set(dir.path().to_path_buf());
         let kept = auth::kept_setup_token(dir.path()).unwrap();
         let _ = app.setup_token.set(kept);
         signed_in(&app).await;

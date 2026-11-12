@@ -53,28 +53,6 @@ pub fn internal_host(host: &url::Host<&str>) -> bool {
     }
 }
 
-/// The addresses `url`'s host has, with its port.
-pub async fn resolve(url: &url::Url) -> Result<Vec<std::net::SocketAddr>, String> {
-    let host = url.host_str().ok_or("the address names no host")?.trim_start_matches('[').trim_end_matches(']').to_string();
-    let port = url.port_or_known_default().ok_or("the address names no port")?;
-    let addrs: Vec<_> = tokio::net::lookup_host((host.as_str(), port)).await.map_err(|e| format!("{host} cannot be found: {e}"))?.collect();
-    if addrs.is_empty() {
-        return Err(format!("{host} cannot be found"));
-    }
-    Ok(addrs)
-}
-
-/// Redirects followed only on the host first asked (up to five), and never from https down to http: a host somebody
-/// else names may move a path, not send the server to another machine.
-pub fn same_host() -> reqwest::redirect::Policy {
-    reqwest::redirect::Policy::custom(|attempt| {
-        let first = attempt.previous().first().cloned();
-        let ok = attempt.previous().len() <= 5
-            && first.as_ref().is_some_and(|f| f.host_str() == attempt.url().host_str() && !(f.scheme() == "https" && attempt.url().scheme() != "https"));
-        if ok { attempt.follow() } else { attempt.stop() }
-    })
-}
-
 /// Redirects followed (up to three) only over https and, unless the first address was itself inside, never to an
 /// address written as one inside (`internal_host`). For a picture, whose host may hand off to a CDN.
 pub fn outward() -> reqwest::redirect::Policy {

@@ -23,7 +23,7 @@ use rustls::client::danger::ServerCertVerifier;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName, UnixTime, pem::PemObject};
 use time::{Duration, OffsetDateTime};
 
-use crate::agent::ca::Ca;
+use crate::ca::Ca;
 use crate::error::ApiError;
 use crate::state::App;
 
@@ -372,14 +372,14 @@ mod tests {
         let f = files(dir.path());
         let wanted = names(ip("0.0.0.0"), Some("boat"), &[ip("192.0.2.20")], Some("freightdock.lan")).unwrap();
         let ca_pem = prepare(&f, dir.path(), &wanted).unwrap().expect("a self-made certificate has its CA");
-        let ca = Ca::open_or_make(dir.path()).unwrap();
+        let ca = Ca::open_or_make_named(dir.path(), "Test CA").unwrap();
         assert_eq!(ca.pem(), ca_pem, "the CA kept beside it");
         let cert = std::fs::read_to_string(&f.cert).unwrap();
         for name in ["localhost", "127.0.0.1", "::1", "boat", "192.0.2.20", "freightdock.lan"] {
             assert!(verifies(&ca, &cert, name), "good for {name}");
         }
         assert!(!verifies(&ca, &cert, "elsewhere.example"), "and for nothing else");
-        assert!(!verifies(&Ca::generate().unwrap(), &cert, "localhost"), "and only through this CA");
+        assert!(!verifies(&Ca::generate_named("Test CA").unwrap(), &cert, "localhost"), "and only through this CA");
         let (_, p) = parse(&cert).unwrap();
         assert!(p.not_after - p.not_before <= Duration::days(DAYS), "825 days at most");
         assert!(format!("{:?}", p.distinguished_name.get(&rcgen::DnType::CommonName)).contains("boat"), "the host's name as its common name");
@@ -397,7 +397,7 @@ mod tests {
 
     #[test]
     fn it_is_made_again_when_its_names_no_longer_cover_the_host_or_it_nears_its_end() {
-        let ca = Ca::generate().unwrap();
+        let ca = Ca::generate_named("Test CA").unwrap();
         let now = OffsetDateTime::now_utc();
         let wanted = names(ip("127.0.0.1"), Some("boat"), &[], None).unwrap();
         let (cert, _) = issue(&ca, &wanted, now, DAYS).unwrap();
@@ -422,7 +422,7 @@ mod tests {
         std::fs::write(&f.cert, old.pem()).unwrap();
         std::fs::write(&f.key, "old key").unwrap();
         assert!(prepare(&f, dir.path(), &wanted).unwrap().is_some());
-        let ca = Ca::open_or_make(dir.path()).unwrap();
+        let ca = Ca::open_or_make_named(dir.path(), "Test CA").unwrap();
         assert!(verifies(&ca, &std::fs::read_to_string(&f.cert).unwrap(), "localhost"), "replaced by one from the CA");
 
         // Somebody's own certificate put at the default path: Freightdock did not make it, so it stays.
@@ -469,7 +469,7 @@ mod tests {
         let (s, _, b) = crate::api::tests::call(&app, get()).await;
         assert_eq!(s, StatusCode::NOT_FOUND, "plain HTTP, or a certificate of one's own: none");
         assert!(b["error"].as_str().unwrap().contains("no certificate authority"), "{b}");
-        let ca = Ca::generate().unwrap();
+        let ca = Ca::generate_named("Test CA").unwrap();
         app.tls_ca.set(ca.pem().to_string()).unwrap();
         let r = tower::ServiceExt::oneshot(crate::api::router(app.clone()), get()).await.unwrap();
         assert_eq!(r.status(), StatusCode::OK, "no sign-in: it is fetched before anybody trusts this server");

@@ -28,30 +28,6 @@ pub async fn record(db: &Db, user: Option<&User>, ip: Option<String>, e: Entry) 
     }
 }
 
-/// Who made a change: a person, from an address; or nobody signed in, for what Freightdock does by itself or on a call that
-/// needs no session (the Git poller, a webhook), which then says so in the entry's detail.
-#[derive(Clone, Debug, Default)]
-pub struct Who {
-    pub user: Option<User>,
-    pub ip: Option<String>,
-}
-
-impl From<&crate::api::Allowed> for Who {
-    fn from(a: &crate::api::Allowed) -> Self {
-        Who { user: Some(a.0.session.user.clone()), ip: a.0.ip.clone() }
-    }
-}
-
-impl From<&crate::api::Admin> for Who {
-    fn from(a: &crate::api::Admin) -> Self {
-        Who { user: Some(a.0.session.user.clone()), ip: a.0.ip.clone() }
-    }
-}
-
-pub async fn record_by(db: &Db, who: &Who, e: Entry) {
-    record(db, who.user.as_ref(), who.ip.clone(), e).await
-}
-
 #[derive(serde::Deserialize, Default)]
 pub struct Filter {
     /// An action, or a family of them: `login` is `login` and `login.failed`.

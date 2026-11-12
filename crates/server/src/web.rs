@@ -160,14 +160,13 @@ pub async fn serve(State(app): State<crate::state::App>, uri: Uri, headers: Head
 }
 
 /// What the page may load and who may frame it ("UI" 16). Scripts and modules only from Freightdock itself (the vendored
-/// xterm.js and CodeMirror are files here, loaded by `<script src>` and `import()`), no eval. Styles from here and
-/// inline, since xterm.js sets `style` attributes and CodeMirror adds its own sheet. Images from anywhere, as a
-/// template's logo is wherever its list says. Nothing may frame it.
+/// CodeMirror is files here, loaded by `import()`), no eval. Styles from here and inline, since CodeMirror adds its own
+/// sheet. Images from anywhere, as an avatar is wherever its provider keeps it. Nothing may frame it.
 pub const CSP: &str = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: http:; \
 font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
 
 /// Every answer, the page, its files and the API's, gets the headers that keep it from being framed, sniffed or named
-/// in a referrer elsewhere; an answer of the API's (and `/mcp`'s), when it says nothing of caching, is kept by none.
+/// in a referrer elsewhere; an answer of the API's, when it says nothing of caching, is kept by none.
 pub fn harden(router: axum::Router) -> axum::Router {
     router.layer(axum::middleware::from_fn(|req: axum::extract::Request, next: axum::middleware::Next| async move {
         let api = req.uri().path().starts_with("/api/") || req.uri().path() == "/mcp";

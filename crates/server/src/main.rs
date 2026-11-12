@@ -1,40 +1,27 @@
 //! Freightdock: one binary serving the web UI and the API, over HTTPS by default.
 
 mod access;
-mod agent;
 mod api;
 mod appearance;
 mod audit;
 mod auth;
 mod avatars;
+mod ca;
 mod authlog;
-mod backup;
 mod changelog;
 mod cluster;
 mod db;
-mod docker;
-mod environments;
-mod mcp;
 mod error;
-mod groups;
-mod history;
-mod notify;
 mod oidc;
 mod outbound;
-mod portainer;
-mod registries;
 mod replica;
 mod secret;
 mod signin;
-mod stacks;
 mod state;
-mod templates;
 mod tls;
 mod tokens;
 mod users;
-mod updates;
 mod web;
-mod webhooks;
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -52,14 +39,6 @@ struct Config {
     tls: Option<tls::Files>,
     /// `FREIGHTDOCK_TLS_NAMES`: more names for the certificate Freightdock makes, comma-separated.
     tls_names: Option<String>,
-    docker: String,
-    /// The agent endpoint's listener; `None` when it is off.
-    agent_bind: Option<SocketAddr>,
-    /// Where agents are told to dial, when not this server's name with the endpoint's port.
-    agent_address: Option<String>,
-    agent_image: String,
-    /// The Compose binary, when `FREIGHTDOCK_COMPOSE` names it; else it is looked for where Docker puts it.
-    compose: Option<String>,
     /// `FREIGHTDOCK_SETUP_TOKEN`: the first run's setup token, given rather than made (automated installs, `qa/`).
     setup_token: Option<String>,
     /// `FREIGHTDOCK_CLUSTER_API`, `FREIGHTDOCK_CLUSTER_TOKEN_FILE` and `FREIGHTDOCK_CLUSTER_CA_FILE`: the managers whose
@@ -84,14 +63,6 @@ impl Config {
             }
             Some(other) => anyhow::bail!("FREIGHTDOCK_TLS is on or off, not \"{other}\""),
         };
-        let docker = get("FREIGHTDOCK_DOCKER_HOST").or_else(|| get("DOCKER_HOST")).unwrap_or_else(|| "unix:///var/run/docker.sock".into());
-        let agent_bind = match get("FREIGHTDOCK_AGENT_BIND").as_deref().map(str::trim) {
-            Some("off" | "0" | "false" | "no") => None,
-            None | Some("") => Some(SocketAddr::from(([0, 0, 0, 0], 7444))),
-            Some(a) => Some(a.parse().with_context(|| format!("FREIGHTDOCK_AGENT_BIND \"{a}\" is not an address and port, or off"))?),
-        };
-        let agent_address = get("FREIGHTDOCK_AGENT_ADDRESS").map(|a| a.trim().to_string()).filter(|a| !a.is_empty());
-        let agent_image = get("FREIGHTDOCK_AGENT_IMAGE").map(|a| a.trim().to_string()).filter(|a| !a.is_empty()).unwrap_or_else(|| "freightdock-agent:latest".into());
         let tls_names = get("FREIGHTDOCK_TLS_NAMES").filter(|n| !n.trim().is_empty());
         let setup_token = get("FREIGHTDOCK_SETUP_TOKEN").map(|t| t.trim().to_string()).filter(|t| !t.is_empty());
         if setup_token.as_ref().is_some_and(|t| t.chars().count() < 16) {
@@ -101,7 +72,7 @@ impl Config {
             let token = get("FREIGHTDOCK_CLUSTER_TOKEN_FILE").filter(|t| !t.trim().is_empty()).unwrap_or_else(|| "/var/lib/freightdock-manager/admin.token".into());
             (api, PathBuf::from(token.trim()), get("FREIGHTDOCK_CLUSTER_CA_FILE").map(|c| c.trim().to_string()).filter(|c| !c.is_empty()).map(PathBuf::from))
         });
-        Ok(Config { data_dir, bind, tls, tls_names, docker, agent_bind, agent_address, agent_image, compose: get("FREIGHTDOCK_COMPOSE"), setup_token, cluster })
+        Ok(Config { data_dir, bind, tls, tls_names, setup_token, cluster })
     }
 }
 
@@ -125,14 +96,9 @@ fn main() -> Result<()> {
         }
         Command::Healthcheck => return healthcheck(),
         Command::SetupToken => return print_setup_token(),
-        Command::Restore(archive) => return restore_offline(archive.map(PathBuf::from)),
     }
     let config = Config::from(|k| std::env::var(k).ok())?;
-    let restart = tokio::runtime::Builder::new_multi_thread().enable_all().build()?.block_on(run(config))?;
-    if restart {
-        return Err(start_again());
-    }
-    Ok(())
+    tokio::runtime::Builder::new_multi_thread().enable_all().build()?.block_on(run(config))
 }
 
 const USAGE: &str = "\
@@ -142,7 +108,6 @@ With no command, Freightdock serves (configured by FREIGHTDOCK_* in the environm
 
 Commands:
   setup-token        print the first run's setup token, while nobody is set up yet
-  restore <archive>  stage a backup for the next start, while Freightdock is stopped
   healthcheck        whether Freightdock answers on its port (the image's HEALTHCHECK)
   --version          the version
   --help             this
@@ -156,7 +121,6 @@ enum Command {
     Help,
     Healthcheck,
     SetupToken,
-    Restore(Option<String>),
 }
 
 /// Reads the command line. Anything it does not know is refused: started as a server instead, a mistyped command
@@ -169,48 +133,8 @@ fn command(args: &[String]) -> Result<Command> {
         ["--help" | "-h" | "help"] => Command::Help,
         ["healthcheck"] => Command::Healthcheck,
         ["setup-token"] => Command::SetupToken,
-        ["restore"] => Command::Restore(None),
-        ["restore", archive] => Command::Restore(Some(archive.to_string())),
         _ => anyhow::bail!("freightdock does not know `{}`.\n\n{USAGE}", a.join(" ")),
     })
-}
-
-/// Runs this binary anew in this process (same id, arguments and environment), so a restore staged in the data folder
-/// is put in place as it starts. Answers only if that could not be done.
-fn start_again() -> anyhow::Error {
-    tracing::info!("starting again, to put the restored backup in place");
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        // /proc/self/exe is this very binary even when the file was replaced since it started.
-        let exe = if std::path::Path::new("/proc/self/exe").exists() { PathBuf::from("/proc/self/exe") } else { std::env::current_exe().unwrap_or_default() };
-        let e = std::process::Command::new(exe).args(std::env::args_os().skip(1)).exec();
-        anyhow::anyhow!("could not start again ({e}); start Freightdock by hand and the restore is put in place")
-    }
-    #[cfg(not(unix))]
-    anyhow::anyhow!("start Freightdock again: the restore is put in place as it starts")
-}
-
-/// `freightdock restore <archive>`: while Freightdock is stopped, stages a backup (the passphrase from
-/// `FREIGHTDOCK_BACKUP_PASSPHRASE`, else the first line of standard input) for its next start.
-fn restore_offline(archive: Option<PathBuf>) -> Result<()> {
-    let archive = archive.context("say which archive: freightdock restore <file>")?;
-    let config = Config::from(|k| std::env::var(k).ok())?;
-    let data = std::fs::read(&archive).with_context(|| format!("reading {}", archive.display()))?;
-    let passphrase = match std::env::var("FREIGHTDOCK_BACKUP_PASSPHRASE") {
-        Ok(p) if !p.is_empty() => p,
-        _ => {
-            eprintln!("The backup's passphrase:");
-            let mut line = String::new();
-            std::io::stdin().read_line(&mut line)?;
-            line.trim_end_matches(['\r', '\n']).to_string()
-        }
-    };
-    std::fs::create_dir_all(&config.data_dir)?;
-    let from = archive.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
-    let m = backup::stage(&config.data_dir, &data, &passphrase, "freightdock restore", &from)?;
-    println!("Staged the backup made {} by Freightdock {}; it is put in place when Freightdock next starts with FREIGHTDOCK_DATA_DIR={}.", notify::utc_text(m.made_at), m.freightdock, config.data_dir.display());
-    Ok(())
 }
 
 /// `freightdock setup-token` (in a container, `docker exec freightdock freightdock setup-token`): the first run's setup token,
@@ -239,13 +163,9 @@ fn healthcheck() -> Result<()> {
     Ok(())
 }
 
-/// Serves until Freightdock stops; answers whether it is to start again (a restore was staged).
-async fn run(config: Config) -> Result<bool> {
+/// Serves until Freightdock stops.
+async fn run(config: Config) -> Result<()> {
     std::fs::create_dir_all(&config.data_dir).with_context(|| format!("making the data folder {}", config.data_dir.display()))?;
-    let restored = backup::apply_staged(&config.data_dir).context("putting a staged restore in place")?;
-    if let Some(r) = &restored {
-        tracing::info!("restored a backup {r}");
-    }
     // In a cluster the database is the managers' ("Cluster" 9): loaded from them before it is opened, and every write
     // sent to them after.
     let cluster = match &config.cluster {
@@ -279,12 +199,6 @@ async fn run(config: Config) -> Result<bool> {
             }
         });
     }
-    let docker = docker::Docker::connect(&config.docker)?;
-    docker.negotiate().await;
-    match docker.client().version().await {
-        Ok(v) => tracing::info!("Docker {} (API {}) at {}", v.version.unwrap_or_default(), v.api_version.unwrap_or_default(), config.docker),
-        Err(e) => tracing::warn!("Docker at {} does not answer yet: {e}", config.docker),
-    }
     let (acceptor, tls_ca) = match &config.tls {
         Some(files) => {
             let names = tls::names(config.bind.ip(), tls::hostname().as_deref(), &tls::interfaces(), config.tls_names.as_deref())?;
@@ -293,23 +207,10 @@ async fn run(config: Config) -> Result<bool> {
         }
         None => (None, None),
     };
-    let sockets = docker::sockets::Sockets::new(&config.data_dir.join("run"))?;
-    let ca = agent::ca::Ca::open_or_make(&config.data_dir.join("ca"))?;
-    let agents = agent::Agents::new(ca, config.agent_address.clone(), config.agent_bind.map(|b| b.port()), config.agent_image.clone())?;
-    let compose = stacks::compose::Compose::find(config.compose.as_deref());
-    match compose.path() {
-        Some(p) => tracing::info!("Docker Compose at {}", p.display()),
-        None => tracing::warn!("no Docker Compose found: stacks can be written but not deployed (set FREIGHTDOCK_COMPOSE)"),
-    }
-    let stacks = stacks::Stacks::new(config.data_dir.join("stacks"), compose);
-    let app = state::AppState::new(db, acceptor.is_some(), docker, sealer, sockets, agents, stacks);
-    let _ = app.backups.data_dir.set(config.data_dir.clone());
+    let app = state::AppState::new(db, acceptor.is_some(), sealer);
+    let _ = app.data_dir.set(config.data_dir.clone());
     if let Some(ca) = tls_ca {
         let _ = app.tls_ca.set(ca);
-    }
-    if let Some(own) = docker::own::detect(&app.docker).await {
-        tracing::info!("Freightdock runs in container {}: a console there is an administrator's alone", &own[..12.min(own.len())]);
-        let _ = app.own_container.set(own);
     }
     // The token waits in the data folder while nobody exists, the same across restarts, for `freightdock setup-token`
     // ("Sign-in" 16); one given in FREIGHTDOCK_SETUP_TOKEN is never written down.
@@ -328,45 +229,19 @@ async fn run(config: Config) -> Result<bool> {
     if let Some(c) = cluster {
         let _ = app.cluster.set(c);
     }
-    if let Some(r) = restored {
-        audit::record(&app.db, None, None, audit::Entry { action: "backup.restored", target: None, detail: Some(r) }).await;
-    }
-    stacks::spawn_poller(app.clone());
     let ui = axum::Router::new().fallback(web::serve).with_state(app.clone());
     let router = web::harden(api::router(app.clone()).route("/api/health", get(|| async { "ok" })).fallback_service(ui));
     let listener = tokio::net::TcpListener::bind(config.bind).await.with_context(|| format!("listening on {}", config.bind))?;
     tracing::info!("Freightdock {} on {}://{}", env!("CARGO_PKG_VERSION"), if acceptor.is_some() { "https" } else { "http" }, config.bind);
     let stop = tokio_util::sync::CancellationToken::new();
-    let agents = match config.agent_bind {
-        Some(bind) => {
-            let l = tokio::net::TcpListener::bind(bind).await.with_context(|| format!("listening for agents on {bind}"))?;
-            tracing::info!("the agent endpoint on {bind} (TLS from Freightdock's own CA)");
-            let tls = Some(tokio_rustls::TlsAcceptor::from(app.agents.tls.clone()));
-            Some(tokio::spawn(serve(l, agent::endpoint::router(app.clone()), tls, stop.clone().cancelled_owned())))
-        }
-        None => None,
-    };
-    tokio::spawn(environments::watch(app.clone(), stop.clone()));
-    tokio::spawn(history::watch(app.clone(), stop.clone()));
-    tokio::spawn(notify::watch(app.clone(), stop.clone()));
-    tokio::spawn(updates::watch(app.clone(), stop.clone()));
-    tokio::spawn(backup::watch(app.clone(), stop.clone()));
     tokio::spawn(authlog::watch(app.clone(), stop.clone()));
     let s = stop.clone();
-    let restart = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let (a, r) = (app.clone(), restart.clone());
     tokio::spawn(async move {
-        tokio::select! {
-            _ = shutdown() => {}
-            _ = a.backups.restart.notified() => r.store(true, std::sync::atomic::Ordering::SeqCst),
-        }
+        shutdown().await;
         s.cancel();
     });
     serve(listener, router, acceptor, stop.cancelled_owned()).await;
-    if let Some(a) = agents {
-        let _ = a.await;
-    }
-    Ok(restart.load(std::sync::atomic::Ordering::SeqCst))
+    Ok(())
 }
 
 async fn shutdown() {
@@ -426,11 +301,9 @@ async fn serve_with(listener: tokio::net::TcpListener, app: axum::Router, tls: O
         };
         keepalive(&stream);
         let app = app.clone();
-        // The certificate a client showed, for the agent endpoint (the web server asks for none).
-        let service = move |cert: agent::endpoint::ClientCert| {
+        let service = move || {
             hyper::service::service_fn(move |mut req: axum::http::Request<hyper::body::Incoming>| {
                 req.extensions_mut().insert(axum::extract::ConnectInfo(peer));
-                req.extensions_mut().insert(cert.clone());
                 tower_service::Service::call(&mut app.clone(), req.map(|b| axum::body::Body::new(IdleBody::new(b, body_idle))))
             })
         };
@@ -440,8 +313,8 @@ async fn serve_with(listener: tokio::net::TcpListener, app: axum::Router, tls: O
         tokio::spawn(async move {
             let _permit = permit;
             macro_rules! drive {
-                ($io:expr, $cert:expr) => {{
-                    let conn = builder.serve_connection(TokioIo::new($io), service($cert)).with_upgrades();
+                ($io:expr) => {{
+                    let conn = builder.serve_connection(TokioIo::new($io), service()).with_upgrades();
                     tokio::pin!(conn);
                     tokio::select! {
                         _ = conn.as_mut() => return,
@@ -453,11 +326,10 @@ async fn serve_with(listener: tokio::net::TcpListener, app: axum::Router, tls: O
             match tls {
                 Some(acceptor) => {
                     if let Ok(Ok(s)) = tokio::time::timeout(HEAD_WITHIN, acceptor.accept(stream)).await {
-                        let cert = s.get_ref().1.peer_certificates().and_then(|c| c.first()).map(|c| freightdock_tunnel::sha256_hex(c));
-                        drive!(s, agent::endpoint::ClientCert(cert))
+                        drive!(s)
                     }
                 }
-                None => drive!(stream, agent::endpoint::ClientCert(None)),
+                None => drive!(stream),
             }
         });
     }
@@ -520,7 +392,7 @@ where
     }
 }
 
-/// TCP keepalive, so a peer that vanished (an agent's host switched off) is noticed within about a minute, not hours.
+/// TCP keepalive, so a peer that vanished (a browser's machine switched off) is noticed within about a minute, not hours.
 fn keepalive(stream: &tokio::net::TcpStream) {
     let k = socket2::TcpKeepalive::new().with_time(Duration::from_secs(30)).with_interval(Duration::from_secs(10));
     #[cfg(any(target_os = "linux", target_os = "macos"))]
@@ -537,7 +409,7 @@ mod tests {
         assert_eq!(parse(&["setup-token"]).unwrap(), super::Command::SetupToken);
         assert_eq!(parse(&["healthcheck"]).unwrap(), super::Command::Healthcheck);
         assert_eq!(parse(&["--version"]).unwrap(), super::Command::Version);
-        assert_eq!(parse(&["restore", "a.backup"]).unwrap(), super::Command::Restore(Some("a.backup".into())));
+        assert!(parse(&["restore", "a.backup"]).is_err(), "backups are the managers' now");
         assert_eq!(parse(&["--help"]).unwrap(), super::Command::Help);
         let e = parse(&["setup-tokn"]).unwrap_err().to_string();
         assert!(e.contains("setup-tokn") && e.contains("setup-token"), "{e}");
@@ -551,16 +423,12 @@ mod tests {
     }
 
     #[test]
-    fn the_defaults_are_https_on_7443_with_the_local_docker() {
+    fn the_defaults_are_https_on_7443() {
         let c = Config::from(env(&[])).unwrap();
         assert_eq!(c.bind, "0.0.0.0:7443".parse().unwrap());
         assert_eq!(c.data_dir, PathBuf::from("/data"));
         assert_eq!(c.tls, Some(tls::Files { cert: PathBuf::from("/data/tls/cert.pem"), key: PathBuf::from("/data/tls/key.pem"), own: false }), "Freightdock's own, made and kept");
         assert_eq!(c.tls_names, None);
-        assert_eq!(c.docker, "unix:///var/run/docker.sock");
-        assert_eq!(c.agent_bind, Some("0.0.0.0:7444".parse().unwrap()), "agents dial 7444, on its own TLS");
-        assert_eq!(c.agent_address, None);
-        assert_eq!(c.agent_image, "freightdock-agent:latest");
         assert_eq!(c.setup_token, None, "made at start");
     }
 
@@ -579,15 +447,6 @@ mod tests {
         assert_eq!(Config::from(env(&[("FREIGHTDOCK_SETUP_TOKEN", "a-token-for-the-installer")])).unwrap().setup_token.as_deref(), Some("a-token-for-the-installer"));
         assert!(Config::from(env(&[("FREIGHTDOCK_SETUP_TOKEN", "short")])).is_err());
         assert_eq!(Config::from(env(&[("FREIGHTDOCK_SETUP_TOKEN", " ")])).unwrap().setup_token, None);
-    }
-
-    #[test]
-    fn the_agent_endpoint_can_be_moved_or_turned_off() {
-        let c = Config::from(env(&[("FREIGHTDOCK_AGENT_BIND", "127.0.0.1:9444"), ("FREIGHTDOCK_AGENT_ADDRESS", "agents.example.com:443")])).unwrap();
-        assert_eq!(c.agent_bind, Some("127.0.0.1:9444".parse().unwrap()));
-        assert_eq!(c.agent_address.as_deref(), Some("agents.example.com:443"));
-        assert_eq!(Config::from(env(&[("FREIGHTDOCK_AGENT_BIND", "off")])).unwrap().agent_bind, None);
-        assert!(Config::from(env(&[("FREIGHTDOCK_AGENT_BIND", "nowhere")])).is_err());
     }
 
     #[test]
@@ -627,11 +486,5 @@ mod tests {
         tokio::time::timeout(Duration::from_secs(5), c.read_to_end(&mut got)).await.unwrap().unwrap();
         let got = String::from_utf8_lossy(&got);
         assert!(got.starts_with("HTTP/1.1 200") && got.ends_with("abcd"), "{got}");
-    }
-
-    #[test]
-    fn freightdock_s_own_docker_host_wins_over_docker_s() {
-        let c = Config::from(env(&[("DOCKER_HOST", "tcp://a:2375"), ("FREIGHTDOCK_DOCKER_HOST", "unix:///b.sock")])).unwrap();
-        assert_eq!(c.docker, "unix:///b.sock");
     }
 }

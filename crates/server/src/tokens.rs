@@ -281,39 +281,28 @@ pub(crate) mod tests {
         let app = app();
         let (cookie, csrf) = signed_in(&app).await;
         let t = token(&app, &cookie, &csrf, json!({ "name": "look", "read_only": true })).await;
-        let (s, _, _) = call(&app, with(&t, Request::get("/api/environments"))).await;
+        let (s, _, _) = call(&app, with(&t, Request::get("/api/users"))).await;
         assert_eq!(s, StatusCode::OK);
-        let (s, _, _) = call(&app, with(&t, Request::post("/api/envs/1/containers/x/stop"))).await;
-        assert_eq!(s, StatusCode::FORBIDDEN, "an administrator's read-only token may not stop a container");
-        let (s, _, _) = call(&app, with(&t, Request::delete("/api/environments/1"))).await;
+        let (s, _, _) = call(&app, with(&t, Request::post("/api/cluster/join-tokens"))).await;
+        assert_eq!(s, StatusCode::FORBIDDEN, "an administrator's read-only token may not change the cluster");
+        let (s, _, _) = call(&app, with(&t, Request::delete("/api/users/1"))).await;
         assert_eq!(s, StatusCode::FORBIDDEN);
-        let console = Request::get("/api/envs/1/containers/x/exec/ws")
-            .header(header::HOST, "freightdock.test")
-            .header(header::AUTHORIZATION, format!("Bearer {t}"))
-            .header(header::CONNECTION, "upgrade")
-            .header(header::UPGRADE, "websocket")
-            .header(header::SEC_WEBSOCKET_VERSION, "13")
-            .header(header::SEC_WEBSOCKET_KEY, "dGhlIHNhbXBsZSBub25jZQ==")
-            .body(Body::empty())
-            .unwrap();
-        let (s, _, _) = call(&app, console).await;
-        assert_eq!(s, StatusCode::FORBIDDEN, "a console is a change, though it opens with a GET");
     }
 
     #[tokio::test]
     async fn a_user_s_token_is_refused_what_the_user_is_refused() {
         let app = app();
         signed_in(&app).await;
-        app.db.call(|c| Ok(c.execute_batch("INSERT INTO users (id, name, password_hash, role, created_at) VALUES (9, 'deckhand', 'x', 'user', 0); INSERT INTO grants (user_id, env_id, role) VALUES (9, 1, 'helpdesk');")?)).await.unwrap();
+        app.db.call(|c| Ok(c.execute_batch("INSERT INTO users (id, name, password_hash, role, created_at) VALUES (9, 'deckhand', 'x', 'user', 0);")?)).await.unwrap();
         let s = auth::start(&app.db, 9, None, None).await.unwrap();
         let cookie = format!("freightdock_session={s}");
         let (_, _, me) = call(&app, Request::get("/api/me").header(header::COOKIE, &cookie).body(Body::empty()).unwrap()).await;
         let t = token(&app, &cookie, me["csrf"].as_str().unwrap(), json!({ "name": "mine" })).await;
-        let (s, _, _) = call(&app, with(&t, Request::get("/api/environments"))).await;
+        let (s, _, _) = call(&app, with(&t, Request::get("/api/me"))).await;
         assert_eq!(s, StatusCode::OK);
         let (s, _, _) = call(&app, with(&t, Request::get("/api/audit"))).await;
         assert_eq!(s, StatusCode::FORBIDDEN);
-        let (s, _, _) = call(&app, with(&t, Request::post("/api/envs/1/containers/x/stop"))).await;
+        let (s, _, _) = call(&app, with(&t, Request::post("/api/cluster/join-tokens"))).await;
         assert_eq!(s, StatusCode::FORBIDDEN);
     }
 

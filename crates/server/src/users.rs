@@ -1,5 +1,4 @@
-//! People and teams, and who has which role where: `/api/users`, `/api/teams`, the access of an environment and of a
-//! group, and a person's own password ("Access" in DECISIONS.md). Only an Administrator manages people; anybody
+//! People and teams: `/api/users`, `/api/teams`, and a person's own password ("Access" in DECISIONS.md). Only an Administrator manages people; anybody
 //! changes their own password in Account.
 
 use axum::extract::{Path, State};
@@ -9,7 +8,6 @@ use axum::{Json, Router};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use crate::access::Role;
 use crate::api::{Admin, Authed};
 use crate::audit::{self, Entry};
 use crate::auth;
@@ -25,8 +23,6 @@ pub fn router() -> Router<App> {
         .route("/api/me/password", put(own_password))
         .route("/api/teams", get(list_teams).post(create_team))
         .route("/api/teams/{id}", put(update_team).delete(remove_team))
-        .route("/api/environments/{id}/access", get(env_access).put(set_env_access))
-        .route("/api/environment-groups/{id}/access", get(group_access).put(set_group_access))
 }
 
 async fn log(app: &App, a: &Authed, action: &'static str, target: String, detail: Option<String>) {
@@ -183,7 +179,7 @@ async fn update(State(app): State<App>, admin: Admin, Path(id): Path<i64>, Json(
     Ok(Json(json!({ "id": id })))
 }
 
-/// `DELETE /api/users/{id}`: gone, with their sessions, tokens, grants and team places. Never yourself, never the last
+/// `DELETE /api/users/{id}`: gone, with their sessions, tokens and team places. Never yourself, never the last
 /// administrator.
 async fn remove(State(app): State<App>, admin: Admin, Path(id): Path<i64>) -> ApiResult<StatusCode> {
     if id == admin.0.session.user.id {
@@ -385,13 +381,12 @@ async fn update_team(State(app): State<App>, admin: Admin, Path(id): Path<i64>, 
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// `DELETE /api/teams/{id}`: its grants go with it; what was shared with it is the administrators' again.
+/// `DELETE /api/teams/{id}`: its members stay; only the team goes.
 async fn remove_team(State(app): State<App>, admin: Admin, Path(id): Path<i64>) -> ApiResult<StatusCode> {
     let name = app
         .db
         .call(move |c| {
             let name = c.query_row("SELECT name FROM teams WHERE id = ?1", [id], |r| r.get::<_, String>(0)).optional()?;
-            c.execute("DELETE FROM resource_access WHERE level = 'team' AND team_id = ?1", [id])?;
             c.execute("DELETE FROM teams WHERE id = ?1", [id])?;
             Ok(name)
         })
@@ -399,113 +394,6 @@ async fn remove_team(State(app): State<App>, admin: Admin, Path(id): Path<i64>) 
         .ok_or_else(|| ApiError::not_found("team"))?;
     log(&app, &admin.0, "team.remove", name, None).await;
     Ok(StatusCode::NO_CONTENT)
-}
-
-// ---------------------------------------------------------------- grants
-
-#[derive(Clone, Copy)]
-enum Scope {
-    Env,
-    Group,
-}
-
-impl Scope {
-    fn column(self) -> &'static str {
-        match self {
-            Scope::Env => "env_id",
-            Scope::Group => "group_id",
-        }
-    }
-    fn table(self) -> &'static str {
-        match self {
-            Scope::Env => "environments",
-            Scope::Group => "environment_groups",
-        }
-    }
-}
-
-async fn read_access(app: &App, scope: Scope, id: i64) -> ApiResult<Value> {
-    let r = app
-        .db
-        .call(move |c| {
-            let exists: bool = c.query_row(&format!("SELECT EXISTS (SELECT 1 FROM {} WHERE id = ?1)", scope.table()), [id], |r| r.get(0))?;
-            if !exists {
-                return Ok(None);
-            }
-            let col = scope.column();
-            let mut st = c.prepare(&format!("SELECT u.id, u.name, g.role FROM grants g JOIN users u ON u.id = g.user_id WHERE g.{col} = ?1 ORDER BY u.name COLLATE NOCASE"))?;
-            let users = st.query_map([id], |r| Ok(json!({ "id": r.get::<_, i64>(0)?, "name": r.get::<_, String>(1)?, "role": r.get::<_, String>(2)? })))?.collect::<Result<Vec<_>, _>>()?;
-            let mut st = c.prepare(&format!("SELECT t.id, t.name, g.role FROM grants g JOIN teams t ON t.id = g.team_id WHERE g.{col} = ?1 ORDER BY t.name COLLATE NOCASE"))?;
-            let teams = st.query_map([id], |r| Ok(json!({ "id": r.get::<_, i64>(0)?, "name": r.get::<_, String>(1)?, "role": r.get::<_, String>(2)? })))?.collect::<Result<Vec<_>, _>>()?;
-            Ok(Some(json!({ "users": users, "teams": teams })))
-        })
-        .await?;
-    r.ok_or_else(|| ApiError::not_found(match scope {
-        Scope::Env => "environment",
-        Scope::Group => "group",
-    }))
-}
-
-#[derive(Deserialize)]
-struct GrantTo {
-    id: i64,
-    role: String,
-}
-
-#[derive(Deserialize)]
-struct Grants {
-    #[serde(default)]
-    users: Vec<GrantTo>,
-    #[serde(default)]
-    teams: Vec<GrantTo>,
-}
-
-/// Every grant on the environment or group, replaced by those given: one role each per user and team.
-async fn write_access(app: &App, admin: &Admin, scope: Scope, id: i64, g: Grants) -> ApiResult<StatusCode> {
-    for x in g.users.iter().chain(&g.teams) {
-        Role::parse(&x.role).ok_or_else(|| ApiError::bad("A role is env_admin, operator, helpdesk, standard or read_only.").field("role"))?;
-    }
-    let (n_users, n_teams) = (g.users.len(), g.teams.len());
-    let r = app
-        .db
-        .call(move |c| {
-            let tx = c.transaction()?;
-            let Some(name) = tx.query_row(&format!("SELECT name FROM {} WHERE id = ?1", scope.table()), [id], |r| r.get::<_, String>(0)).optional()? else { return Ok(Err(ApiError::not_found("environment or group"))) };
-            let col = scope.column();
-            tx.execute(&format!("DELETE FROM grants WHERE {col} = ?1"), [id])?;
-            for (who, list) in [("user_id", &g.users), ("team_id", &g.teams)] {
-                for x in list {
-                    let table = if who == "user_id" { "users" } else { "teams" };
-                    if !tx.query_row(&format!("SELECT EXISTS (SELECT 1 FROM {table} WHERE id = ?1)"), [x.id], |r| r.get::<_, bool>(0))? {
-                        return Ok(Err(ApiError::bad(format!("There is no such {}.", &table[..table.len() - 1]))));
-                    }
-                    tx.execute(&format!("INSERT OR REPLACE INTO grants ({who}, {col}, role) VALUES (?1, ?2, ?3)"), params![x.id, id, x.role])?;
-                }
-            }
-            tx.commit()?;
-            Ok(Ok(name))
-        })
-        .await?;
-    let name = r?;
-    let what = match scope {
-        Scope::Env => "environment",
-        Scope::Group => "group",
-    };
-    log(app, &admin.0, "access.update", format!("{what} {name}"), Some(format!("{n_users} users, {n_teams} teams"))).await;
-    Ok(StatusCode::NO_CONTENT)
-}
-
-async fn env_access(State(app): State<App>, _: Admin, Path(id): Path<i64>) -> ApiResult<Json<Value>> {
-    Ok(Json(read_access(&app, Scope::Env, id).await?))
-}
-async fn set_env_access(State(app): State<App>, admin: Admin, Path(id): Path<i64>, Json(g): Json<Grants>) -> ApiResult<StatusCode> {
-    write_access(&app, &admin, Scope::Env, id, g).await
-}
-async fn group_access(State(app): State<App>, _: Admin, Path(id): Path<i64>) -> ApiResult<Json<Value>> {
-    Ok(Json(read_access(&app, Scope::Group, id).await?))
-}
-async fn set_group_access(State(app): State<App>, admin: Admin, Path(id): Path<i64>, Json(g): Json<Grants>) -> ApiResult<StatusCode> {
-    write_access(&app, &admin, Scope::Group, id, g).await
 }
 
 #[cfg(test)]
@@ -633,37 +521,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn teams_are_made_with_members_and_a_team_s_grant_on_a_group_reaches_its_environments() {
+    async fn teams_are_made_with_members_and_a_member_sees_their_own_teams_without_the_members() {
         let w = World::new().await;
-        let (s, b) = w.as_("admin", "POST", "/api/teams", Some(json!({ "name": "Support", "members": [15] }))).await;
+        let nobody = w.people.iter().position(|p| p.0 == "nobody").unwrap() as i64 + 10;
+        let (s, b) = w.as_("admin", "POST", "/api/teams", Some(json!({ "name": "Support", "members": [nobody] }))).await;
         assert_eq!(s, StatusCode::CREATED, "{b}");
         let team = b["id"].as_i64().unwrap();
         let (s, _) = w.as_("admin", "POST", "/api/teams", Some(json!({ "name": "support" }))).await;
         assert_eq!(s, StatusCode::CONFLICT);
-        let (_, b) = w.as_("admin", "POST", "/api/environment-groups", Some(json!({ "name": "prod", "environments": [1] }))).await;
-        let group = b["id"].as_i64().unwrap();
-        let (_, envs) = w.as_("nobody", "GET", "/api/environments", None).await;
-        assert_eq!(envs, json!([]), "nobody has no role anywhere");
-        let (s, _) = w.as_("admin", "PUT", &format!("/api/environment-groups/{group}/access"), Some(json!({ "teams": [{ "id": team, "role": "helpdesk" }] }))).await;
-        assert_eq!(s, StatusCode::NO_CONTENT);
-        let (_, envs) = w.as_("nobody", "GET", "/api/environments", None).await;
-        assert_eq!(envs, json!([]), "the read-only user is in the team, not they");
-        let nobody = w.people.iter().position(|p| p.0 == "nobody").unwrap() as i64 + 10;
-        w.as_("admin", "PUT", &format!("/api/teams/{team}"), Some(json!({ "members": [nobody] }))).await;
-        let (_, envs) = w.as_("nobody", "GET", "/api/environments", None).await;
-        assert_eq!(envs[0]["role"], "helpdesk", "the team's grant on the group: {envs}");
-        let (s, _) = w.as_("nobody", "POST", "/api/envs/1/containers/web/stop", None).await;
-        assert_eq!(s, StatusCode::FORBIDDEN, "Helpdesk only reads");
+        let (s, _) = w.as_("nobody", "POST", "/api/teams", Some(json!({ "name": "Mine" }))).await;
+        assert_eq!(s, StatusCode::FORBIDDEN, "only an Administrator makes teams");
         let (_, teams) = w.as_("nobody", "GET", "/api/teams", None).await;
         assert_eq!((teams[0]["name"].as_str(), teams[0]["members"].is_null()), (Some("Support"), true), "their own teams, without the members");
-        let (_, access) = w.as_("admin", "GET", &format!("/api/environment-groups/{group}/access"), None).await;
-        assert_eq!(access["teams"][0]["role"], "helpdesk");
-        let (s, _) = w.as_("admin", "PUT", "/api/environments/1/access", Some(json!({ "users": [{ "id": nobody, "role": "boss" }] }))).await;
-        assert_eq!(s, StatusCode::BAD_REQUEST);
+        let (_, teams) = w.as_("helpdesk", "GET", "/api/teams", None).await;
+        assert_eq!(teams, json!([]), "not in it");
         let (s, _) = w.as_("admin", "DELETE", &format!("/api/teams/{team}"), None).await;
         assert_eq!(s, StatusCode::NO_CONTENT);
-        let (_, envs) = w.as_("nobody", "GET", "/api/environments", None).await;
-        assert_eq!(envs, json!([]), "the team's grant went with it");
+        let (_, teams) = w.as_("nobody", "GET", "/api/teams", None).await;
+        assert_eq!(teams, json!([]), "the team is gone");
     }
 
     #[tokio::test]
