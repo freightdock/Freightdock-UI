@@ -1,9 +1,12 @@
 // The cluster's stacks ("Cluster" 4): each stack with its workloads, where each runs and how it is, asked of the manager
 // again every few seconds. An administrator deploys a stack from a Compose file (or changes one by deploying it
 // again), starts, stops or restarts it, or removes it. Placement and the containers themselves are the manager's.
+// Each stack says how each of its services is reached from outside the cluster ("Cluster" 17): on a pool address (an
+// exposure, chosen here, never in the Compose file), on every node's own address (the Compose file's ports), or not at
+// all (internal only); an administrator sets the exposures.
 
 import { h, mount, ago, when, shortId } from '../dom.js';
-import { get, post, del } from '../api.js';
+import { get, post, put, del } from '../api.js';
 import { isAdmin } from '../state.js';
 import { loadInto, table } from '../view.js';
 import { confirm } from '../confirm.js';
@@ -68,6 +71,7 @@ function stackCard(s, reload) {
       : button({ size: 'sm', onClick: () => act(s.name, 'stop', reload) }, t('pages.cluster_stacks.stop')),
     s.stopped ? null : button({ size: 'sm', onClick: () => act(s.name, 'restart', reload) }, t('pages.cluster_stacks.restart')),
     button({ size: 'sm', onClick: () => deployDialog(s.name, reload) }, t('pages.cluster_stacks.edit')),
+    button({ size: 'sm', onClick: () => exposeDialog(s, reload) }, t('pages.cluster_stacks.exposures')),
     button({ size: 'sm', variant: 'danger', onClick: () => removeStack(s.name, reload) }, t('common.remove'))) : null;
   const services = Object.entries(s.services || {}).map(([k, v]) => `${k} (${v.image}, ${v.replicas}x)`).join(', ');
   return card({
@@ -75,7 +79,76 @@ function stackCard(s, reload) {
     sub: h('span', null, h('span', { title: when(sec(s.updated_at)) }, t('pages.cluster_stacks.updated', { when: ago(sec(s.updated_at)), services })),
       s.subnet ? h('span', { class: 'mono' }, ` · ${t('pages.cluster_stacks.network', { subnet: s.subnet })}`) : null),
     actions,
-    body: workloadTable(w),
+    body: h('div', { class: 'stack' }, workloadTable(w), reachTable(s)),
+  });
+}
+
+/** How each service is reached from outside the cluster: its exposures on the pool, the Compose file's ports on every
+ *  node's own address, or nothing (internal only). */
+export function reachOf(s) {
+  return Object.entries(s.services || {}).map(([name, svc]) => {
+    const pool = (s.exposures || []).filter((e) => e.service === name).map((e) => ({ kind: 'pool', text: `${e.address}:${e.port} → ${e.container_port}/${e.protocol}` }));
+    const nodes = (svc.ports || []).filter((p) => p.host_port).map((p) => ({ kind: 'nodes', text: `:${p.host_port} → ${p.container_port}/${p.protocol || 'tcp'}` }));
+    return { name, ways: [...pool, ...nodes] };
+  });
+}
+
+function reachTable(s) {
+  return table({
+    rows: reachOf(s), filter: false, dense: true, label: t('pages.cluster_stacks.reach'),
+    columns: [
+      { label: t('pages.cluster_stacks.service'), cell: (r) => h('span', { class: 'mono' }, r.name), sort: (r) => r.name },
+      { label: t('pages.cluster_stacks.reach'), cell: (r) => (r.ways.length
+        ? h('div', { class: 'row wrap' }, r.ways.map((w) => h('span', { title: t(`pages.cluster_stacks.reach_${w.kind}_help`) }, status({ tone: w.kind === 'pool' ? 'good' : 'info' }, t(`pages.cluster_stacks.reach_${w.kind}`, { what: w.text })))))
+        : h('span', { class: 'sub', title: t('pages.cluster_stacks.reach_internal_help') }, t('pages.cluster_stacks.reach_internal'))) },
+    ],
+  });
+}
+
+/** The stack's exposures on the pool, all of them, edited as rows; the managers check them whole. */
+async function exposeDialog(s, reload) {
+  let pool;
+  try { pool = await get('/api/cluster/floating'); } catch (e) { toast({ text: e.message, tone: 'critical' }); return; }
+  const services = Object.keys(s.services || {});
+  const firstPort = (svc) => (((s.services || {})[svc] || {}).ports || [])[0];
+  const rows = h('div', { class: 'stack' });
+  const err = h('p', { class: 'fui-field__error', role: 'alert' });
+  const field = (label, input, wide) => h('label', { class: ['fui-field', 'fd-expose__field', wide && 'fd-expose__field--wide'] }, h('span', { class: 'fui-field__label' }, label), input);
+  const select = (options, value) => h('select', { class: 'fui-field__input' }, options.map((o) => h('option', { value: o, selected: o === value }, o)));
+  const row = (e = {}) => {
+    const svc = select(services, e.service || services[0]);
+    const cport = h('input', { class: 'fui-field__input mono', type: 'number', min: 1, max: 65535, value: e.container_port || (firstPort(svc.value) || {}).container_port || '' });
+    svc.addEventListener('change', () => { if (!cport.value && firstPort(svc.value)) cport.value = firstPort(svc.value).container_port; });
+    const proto = select(['tcp', 'udp'], e.protocol || 'tcp');
+    const addr = select(pool.map((p) => p.address), e.address);
+    const port = h('input', { class: 'fui-field__input mono', type: 'number', min: 1, max: 65535, value: e.port || '' });
+    const el = h('div', { class: 'fd-expose' },
+      field(t('pages.cluster_stacks.service'), svc), field(t('pages.cluster_stacks.container_port'), cport), field(t('pages.cluster_stacks.protocol'), proto),
+      h('span', { class: 'fd-expose__arrow', 'aria-hidden': 'true' }, '←'),
+      field(t('pages.cluster.floating_address'), addr, true), field(t('pages.cluster_stacks.outside_port'), port),
+      button({ size: 'sm', variant: 'danger', onClick: () => el.remove() }, t('common.remove')));
+    el.read = () => ({ service: svc.value, container_port: Number(cport.value), protocol: proto.value, address: addr.value, port: Number(port.value) });
+    return el;
+  };
+  for (const e of s.exposures || []) rows.append(row(e));
+  const add = button({ size: 'sm', disabled: !pool.length, onClick: () => rows.append(row()) }, t('pages.cluster_stacks.add_exposure'));
+  const go = button({ variant: 'primary', type: 'submit' }, t('common.save'));
+  const form = h('form', { class: 'stack', novalidate: true },
+    h('p', null, t('pages.cluster_stacks.exposures_text')),
+    pool.length ? null : h('p', { class: 'sub' }, t('pages.cluster_stacks.no_pool')),
+    rows, h('div', null, add), err, h('div', { class: 'row row--end' }, go));
+  const m = openModal({ title: t('pages.cluster_stacks.exposures_of', { name: s.name }), body: form, wide: true });
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const exposures = [...rows.children].map((r) => r.read());
+    if (exposures.some((x) => !x.container_port || !x.port || !x.address)) { err.textContent = t('pages.cluster_stacks.exposure_incomplete'); return; }
+    go.disabled = true;
+    try {
+      await put(`/api/cluster/stacks/${encodeURIComponent(s.name)}/exposures`, { exposures });
+      m.close();
+      toast({ text: t('pages.cluster_stacks.exposures_saved', { name: s.name }), tone: 'good' });
+      reload();
+    } catch (x) { go.disabled = false; err.textContent = x.message; }
   });
 }
 

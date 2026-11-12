@@ -838,8 +838,8 @@
       "online": "Pålogget",
       "online_yes": "pålogget",
       "online_no": "ikke hørt",
-      "floating": "Flytende adresser",
-      "floating_sub": "Adresser i ditt lokalnett som én arbeider holder om gangen. Alle publiserte porter svarer på dem; en adresse flyttes til en annen arbeider når den som holder den er fencet.",
+      "floating": "Adressepool",
+      "floating_sub": "Flytende adresser i lokalnettet ditt. En pooladresse svarer bare på det en stabel eksponerer på den (settes på Klyngestabler-siden), på hvilken som helst port, uansett hvilken arbeider som kjører tjenesten; hver arbeider kan ta over en adresse om en svikter.",
       "floating_address": "Adresse",
       "floating_holder": "Holdes av",
       "floating_since": "Siden",
@@ -851,7 +851,9 @@
       "floating_added": "{address} lagt til",
       "floating_remove_title": "Fjerne {address}?",
       "floating_remove_body": "Den som holder den slipper den, og ingenting svarer på den lenger.",
-      "floating_removed": "{address} fjernet"
+      "floating_removed": "{address} fjernet",
+      "floating_exposes": "Eksponerer",
+      "floating_exposes_nothing": "Ingenting ennå"
     },
     "cluster_stacks": {
       "title": "Klyngestabler",
@@ -921,7 +923,25 @@
       "stopping": "{name} stopper",
       "address": "Adresse",
       "no_address": "ingen ennå",
-      "network": "nettverk {subnet}"
+      "network": "nettverk {subnet}",
+      "exposures": "Eksponeringer",
+      "exposures_of": "Hva {name} eksponerer",
+      "exposures_text": "Bare det du legger til her kan nås på poolens adresser, og det følger tjenesten til den arbeideren som kjører den. Porter i Compose-filen svarer i stedet på hver arbeiders egen adresse. Alt annet blir inne i klyngen og nås med navn innenfor stabelen.",
+      "no_pool": "Poolen har ingen adresser ennå: legg til en på Klynge-siden først.",
+      "add_exposure": "Legg til eksponering",
+      "exposure_incomplete": "Hver eksponering trenger en containerport, en adresse og en port.",
+      "exposures_saved": "Eksponeringene til {name} er lagret",
+      "service": "Tjeneste",
+      "container_port": "Containerport",
+      "protocol": "Protokoll",
+      "outside_port": "Port utenfra",
+      "reach": "Nås utenfra",
+      "reach_pool": "Pool {what}",
+      "reach_pool_help": "En eksponering på en pooladresse: svarer bare på den adressen.",
+      "reach_nodes": "Alle arbeidere {what}",
+      "reach_nodes_help": "En port i Compose-filen: svarer på hver arbeiders egen adresse, aldri på en pooladresse.",
+      "reach_internal": "Bare internt",
+      "reach_internal_help": "Ikke publisert: de andre tjenestene i stabelen når den med navn."
     },
     "cluster_node": {
       "title": "Node",

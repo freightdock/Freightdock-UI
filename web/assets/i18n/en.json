@@ -838,8 +838,8 @@
       "online": "Online",
       "online_yes": "online",
       "online_no": "not heard",
-      "floating": "Floating addresses",
-      "floating_sub": "Addresses of your LAN held by one worker at a time. Every published port answers on them; one moves to another worker once its holder is fenced.",
+      "floating": "Address pool",
+      "floating_sub": "Floating addresses of your LAN. A pool address answers only what a stack exposes on it (set on the Cluster stacks page), on any port, whichever worker runs the service; each worker can take an address over if one fails.",
       "floating_address": "Address",
       "floating_holder": "Held by",
       "floating_since": "Since",
@@ -851,7 +851,9 @@
       "floating_added": "{address} added",
       "floating_remove_title": "Remove {address}?",
       "floating_remove_body": "Its holder lets it go, and nothing answers on it any more.",
-      "floating_removed": "{address} removed"
+      "floating_removed": "{address} removed",
+      "floating_exposes": "Exposes",
+      "floating_exposes_nothing": "Nothing yet"
     },
     "cluster_stacks": {
       "title": "Cluster stacks",
@@ -921,7 +923,25 @@
       "stopping": "{name} is stopping",
       "address": "Address",
       "no_address": "none yet",
-      "network": "network {subnet}"
+      "network": "network {subnet}",
+      "exposures": "Exposures",
+      "exposures_of": "What {name} exposes",
+      "exposures_text": "Only what you add here is reachable on the pool's addresses, and it follows the service to whichever worker runs it. Ports in the Compose file answer on every worker's own address instead. Everything else stays inside the cluster, reached by name within the stack.",
+      "no_pool": "The pool has no addresses yet: add one on the Cluster page first.",
+      "add_exposure": "Add exposure",
+      "exposure_incomplete": "Every exposure needs a container port, an address and a port.",
+      "exposures_saved": "Exposures of {name} saved",
+      "service": "Service",
+      "container_port": "Container port",
+      "protocol": "Protocol",
+      "outside_port": "Port outside",
+      "reach": "Reached from outside",
+      "reach_pool": "Pool {what}",
+      "reach_pool_help": "An exposure on a pool address: answered on that address only.",
+      "reach_nodes": "Every worker {what}",
+      "reach_nodes_help": "A port in the Compose file: answered on every worker's own address, never on a pool address.",
+      "reach_internal": "Internal only",
+      "reach_internal_help": "Not published: other services of the stack reach it by name."
     },
     "cluster_node": {
       "title": "Node",

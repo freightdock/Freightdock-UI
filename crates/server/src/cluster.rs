@@ -172,6 +172,7 @@ pub fn router() -> Router<App> {
         .route("/api/cluster/stacks", get(stacks).post(deploy_stack))
         .route("/api/cluster/stacks/{name}", get(stack).delete(remove_stack))
         .route("/api/cluster/stacks/{name}/{action}", post(stack_action))
+        .route("/api/cluster/stacks/{name}/exposures", axum::routing::put(set_exposures))
         .route("/api/cluster/floating", get(floating).post(add_floating))
         .route("/api/cluster/traffic", get(traffic))
         .route("/api/cluster/floating/{address}", axum::routing::delete(remove_floating))
@@ -438,6 +439,16 @@ async fn remove_stack(State(app): State<App>, a: Authed, Path(name): Path<String
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// What a stack exposes on the pool's floating addresses (G10.5), all of it; the managers check it.
+async fn set_exposures(State(app): State<App>, a: Authed, Path(name): Path<String>, Json(b): Json<Value>) -> ApiResult<Json<Value>> {
+    stack_or_404(&name)?;
+    let list = b.get("exposures").cloned().unwrap_or_else(|| json!([]));
+    let detail = list.as_array().into_iter().flatten().map(|e| format!("{}:{} to {}:{}/{}", e["address"].as_str().unwrap_or(""), e["port"], e["service"].as_str().unwrap_or(""), e["container_port"], e["protocol"].as_str().unwrap_or(""))).collect::<Vec<_>>().join(", ");
+    let (_, v) = cluster(&app)?.call(reqwest::Method::PUT, &format!("/v1/stacks/{name}/exposures"), Some(json!({ "exposures": list }))).await?;
+    audit::record(&app.db, Some(&a.session.user), a.ip, Entry { action: "cluster.stack.expose", target: Some(name), detail: Some(if detail.is_empty() { "nothing".into() } else { detail }) }).await;
+    Ok(Json(v))
+}
+
 async fn stack_action(State(app): State<App>, a: Authed, Path((name, action)): Path<(String, String)>) -> ApiResult<Json<Value>> {
     stack_or_404(&name)?;
     let what = match action.as_str() {
@@ -489,6 +500,7 @@ mod tests {
                     "POST /v1/stacks/web/restart" => (StatusCode::OK, json!({ "restarting": 1, "busy": 0 }).to_string()),
                     "DELETE /v1/stacks/web" => (StatusCode::NO_CONTENT, String::new()),
                     "GET /v1/nodes/6f1c7c2e-0000-4000-8000-000000000001" => (StatusCode::OK, json!({ "id": "6f1c7c2e-0000-4000-8000-000000000001", "hostname": "docker", "containers": [] }).to_string()),
+                    "PUT /v1/stacks/web/exposures" => (StatusCode::OK, json!({ "name": "web", "exposures": [{ "service": "nginx", "container_port": 80, "protocol": "tcp", "address": "192.0.2.10", "port": 443 }] }).to_string()),
                     "GET /v1/traffic" => (StatusCode::OK, json!({ "reporting": ["6f1c7c2e-0000-4000-8000-000000000001"], "workloads": [], "flows": [{ "from": { "kind": "outside" }, "to": { "kind": "workload", "id": "web.nginx.1" }, "port": 80, "out_bps": 10 }] }).to_string()),
                     "GET /v1/floating" => (StatusCode::OK, json!([{ "address": "192.0.2.10", "holder": "6f1c7c2e-0000-4000-8000-000000000001", "since": 1 }]).to_string()),
                     "POST /v1/floating" => (StatusCode::CREATED, String::new()),
@@ -584,6 +596,20 @@ mod tests {
         let c = app.cluster.get().unwrap();
         let e = c.call(reqwest::Method::GET, "/v1/nodes/broken", None).await.unwrap_err();
         assert_eq!(e.status, StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[tokio::test]
+    async fn a_stack_s_exposures_are_an_administrator_s_and_go_to_the_log() {
+        let (app, asked, _d) = connected("t0k3n").await;
+        let (cookie, csrf) = signed_in(&app).await;
+        let body = json!({ "exposures": [{ "service": "nginx", "container_port": 80, "protocol": "tcp", "address": "192.0.2.10", "port": 443 }] });
+        let put = |name: &str| Request::put(format!("/api/cluster/stacks/{name}/exposures")).header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).header(header::CONTENT_TYPE, "application/json").body(Body::from(body.to_string())).unwrap();
+        let (s, _, b) = call(&app, put("web")).await;
+        assert_eq!((s, b["exposures"][0]["port"].clone()), (StatusCode::OK, json!(443)));
+        assert_eq!(call(&app, put("..%2Fnodes")).await.0, StatusCode::NOT_FOUND, "only a stack's name goes into the path");
+        let (action, target, detail): (String, String, String) = app.db.call(|c| Ok(c.query_row("SELECT action, target, detail FROM audit ORDER BY id DESC LIMIT 1", [], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?)).await.unwrap();
+        assert_eq!((action.as_str(), target.as_str(), detail.as_str()), ("cluster.stack.expose", "web", "192.0.2.10:443 to nginx:80/tcp"));
+        assert_eq!(asked.lock().unwrap().iter().filter(|l| l.starts_with("PUT")).count(), 1);
     }
 
     #[tokio::test]

@@ -323,3 +323,9 @@
 .fd-net.is-focus .fd-net__end:not(.is-on) { opacity: 0.45; }
 @keyframes fd-net-move { to { stroke-dashoffset: -18; } }
 @media (prefers-reduced-motion: reduce) { .fd-net__flow { animation: none; stroke-dasharray: none; } }
+
+/* A stack's exposure on the pool ("Cluster" 17): the service side, an arrow, the outside side, on one line when it fits. */
+.fd-expose { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border-soft); }
+.fd-expose__field { flex: 1 1 110px; min-width: 0; margin: 0; }
+.fd-expose__field--wide { flex: 2 1 170px; }
+.fd-expose__arrow { align-self: center; padding-top: 18px; color: var(--text-muted); }

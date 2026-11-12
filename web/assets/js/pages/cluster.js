@@ -267,6 +267,9 @@ function floatingTable(list, nodes, reload) {
     columns: [
       { label: t('pages.cluster.floating_address'), cell: (x) => h('span', { class: 'mono' }, x.address), sort: (x) => x.address.split('.').map((p) => p.padStart(3, '0')).join('.') },
       { label: t('pages.cluster.floating_holder'), cell: holder, sort: (x) => (x.holder && byId.get(x.holder) ? nodeName(byId.get(x.holder)) : '') },
+      { label: t('pages.cluster.floating_exposes'), cell: (x) => ((x.exposures || []).length
+        ? h('div', { class: 'row wrap' }, x.exposures.map((e) => h('span', { class: 'mono nowrap' }, `${e.port}/${e.protocol} → ${e.stack}.${e.service}:${e.container_port}`)))
+        : h('span', { class: 'sub' }, t('pages.cluster.floating_exposes_nothing'))) },
       { label: t('pages.cluster.floating_since'), cell: (x) => (x.since ? h('span', { class: 'nowrap', title: when(sec(x.since)) }, ago(sec(x.since))) : '') },
       ...(isAdmin() ? [{ label: '', nosort: true, cell: (x) => h('div', { class: 'row row--end' }, button({ size: 'sm', variant: 'danger', onClick: () => removeFloating(x.address, reload) }, t('common.remove'))) }] : []),
     ],

@@ -96,6 +96,7 @@ pub const RULES: &[(&str, &str, Rule)] = &[
     ("GET", "/api/cluster/stacks/{name}", Session),
     ("DELETE", "/api/cluster/stacks/{name}", Admin),
     ("POST", "/api/cluster/stacks/{name}/{action}", Admin),
+    ("PUT", "/api/cluster/stacks/{name}/exposures", Admin),
     ("GET", "/api/cluster/floating", Session),
     ("GET", "/api/cluster/traffic", Session),
     ("POST", "/api/cluster/floating", Admin),

@@ -190,6 +190,8 @@ The landing page is the dashboard (`/dashboard`, `pages/dashboard.js`, "Cluster"
 and beside it the cluster (`/cluster`): its managers, nodes with their labels
 and state, the floating addresses with their holders, recoveries, events and the commands sent, and for an
 administrator the join tokens, a node's commands and adding or removing a floating address ("Cluster" 15).
+Each stack on `/cluster/stacks` has a "Reached from outside" table (its exposures on the pool, its Compose ports on
+every worker, or internal only) and, for an administrator, an editor of its exposures ("Cluster" 17).
 `/cluster/network` (`pages/cluster-network.js`, "Cluster" 16) draws the traffic live as an SVG: outside, a column per
 node with its workloads, a line per pair of ends sized by its bytes per second, and the flows as a table under it.
 `/cluster/stacks` lists the cluster's Compose stacks with their workloads, and an administrator writes, deploys,

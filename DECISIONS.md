@@ -1353,3 +1353,10 @@ pointer to what replaced it.
     node, so a line is never drawn twice; a client outside the cluster is never named. Pointing at an end shows only
     its lines and a click keeps that, across redraws. The same flows are a table under it, for exact numbers and for
     screen readers; the lines stand still for whoever asks for reduced motion.
+17. A stack says how each service is reached from outside the cluster (owner, 2026-11-13, G10.5): on a pool address
+    (an exposure, set on the Cluster stacks page by an Administrator, `PUT /api/cluster/stacks/{name}/exposures`,
+    written to the activity log as `cluster.stack.expose`, never in the Compose file), on every worker's own address
+    (the Compose file's `ports:`), or not at all ("Internal only"). A pool address answers only its exposures and a
+    port is its own on each address, so two stacks may use one port on two addresses; the managers check that and
+    Freightdock passes their refusal on. The pool card on the Cluster page lists what each address exposes. Saying
+    which is which is the point: what leaves the cluster is only what somebody meant to let out.
