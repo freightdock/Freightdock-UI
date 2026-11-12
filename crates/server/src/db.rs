@@ -438,6 +438,13 @@ pub(crate) const MIGRATIONS: &[&str] = &[
         name    TEXT NOT NULL
     );
     "#,
+    // 22: the names managers are given in Freightdock, by raft id, shown instead of their address ("Cluster" 14).
+    r#"
+    CREATE TABLE manager_names (
+        raft_id TEXT PRIMARY KEY,
+        name    TEXT NOT NULL
+    );
+    "#,
 ];
 
 impl Db {

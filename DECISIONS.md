@@ -1334,4 +1334,10 @@ pointer to what replaced it.
     managers' gauge is green with all online, yellow while one more could go and quorum hold, orange when one more
     would lose it, red without it; the workers' green with all healthy, yellow with some down, orange with one left,
     red with none (FinUI has no orange: its warning and critical mixed).
+14. A manager can be given a name in Freightdock too (owner's wish, 2026-11-12), by its raft id, the one thing about
+    it that never changes (its address can): shown instead of its address wherever a manager is named here, the
+    managers keeping their raft ids and addresses. As 12: an Administrator's (`PUT /api/cluster/managers/{id}/name`,
+    the id digits only), 64 characters on one line, empty takes it away, kept in `manager_names` and written to the
+    activity log (`cluster.manager.rename`). Each manager has a page (`/cluster/managers/{id}`): its address, raft id,
+    role, whether it is heard, the worker on its host if any and the workers whose stream it holds.
 

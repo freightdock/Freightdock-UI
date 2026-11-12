@@ -161,6 +161,7 @@ pub fn router() -> Router<App> {
         .route("/api/cluster/nodes", get(nodes))
         .route("/api/cluster/nodes/{id}", get(node).delete(remove_node))
         .route("/api/cluster/nodes/{id}/name", axum::routing::put(rename_node))
+        .route("/api/cluster/managers/{id}/name", axum::routing::put(rename_manager))
         .route("/api/cluster/nodes/{id}/commands", post(command))
         .route("/api/cluster/nodes/{id}/labels", axum::routing::put(set_labels))
         .route("/api/cluster/nodes/{id}/authorize", post(authorize))
@@ -180,7 +181,13 @@ fn cluster(app: &App) -> ApiResult<&Cluster> {
 /// Whether there is a cluster, and when there is, the manager's view of it.
 async fn overview(State(app): State<App>, _a: Authed) -> ApiResult<Json<Value>> {
     let Some(c) = app.cluster.get() else { return Ok(Json(json!({ "connected": false }))) };
-    let (_, v) = c.call(reqwest::Method::GET, "/v1/cluster", None).await?;
+    let (_, mut v) = c.call(reqwest::Method::GET, "/v1/cluster", None).await?;
+    let names = names_in(&app, "manager_names").await?;
+    for m in v["raft"].as_array_mut().into_iter().flatten() {
+        if let Some(name) = m["raft_id"].as_str().and_then(|id| names.get(id)) {
+            m["name"] = json!(name);
+        }
+    }
     Ok(Json(json!({ "connected": true, "cluster": v })))
 }
 
@@ -207,7 +214,12 @@ async fn node(State(app): State<App>, _a: Authed, Path(id): Path<String>) -> Api
 
 /// The names nodes were given in Freightdock ("Cluster" 12), by node id.
 async fn node_names(app: &App) -> ApiResult<std::collections::HashMap<String, String>> {
-    Ok(app.db.call(|c| Ok(c.prepare("SELECT node_id, name FROM node_names")?.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<Result<_, _>>()?)).await?)
+    names_in(app, "node_names").await
+}
+
+/// A table of names given here: `node_names` by node id or `manager_names` by raft id (its first column).
+async fn names_in(app: &App, table: &'static str) -> ApiResult<std::collections::HashMap<String, String>> {
+    Ok(app.db.call(move |c| Ok(c.prepare(&format!("SELECT * FROM {table}"))?.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<Result<_, _>>()?)).await?)
 }
 
 #[derive(Deserialize)]
@@ -219,22 +231,34 @@ struct NameBody {
 /// empty name takes it away.
 async fn rename_node(State(app): State<App>, a: Authed, Path(id): Path<String>, Json(b): Json<NameBody>) -> ApiResult<Json<Value>> {
     id_or_404(&id, "node")?;
-    let name = b.name.trim().to_string();
+    give_name(&app, a, "node_names", "node_id", "cluster.node.rename", id, b.name).await
+}
+
+/// The same for a manager, by its raft id (a number): shown instead of its address ("Cluster" 14).
+async fn rename_manager(State(app): State<App>, a: Authed, Path(id): Path<String>, Json(b): Json<NameBody>) -> ApiResult<Json<Value>> {
+    if id.is_empty() || id.len() > 20 || !id.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(ApiError::not_found("manager"));
+    }
+    give_name(&app, a, "manager_names", "raft_id", "cluster.manager.rename", id, b.name).await
+}
+
+async fn give_name(app: &App, a: Authed, table: &'static str, key: &'static str, action: &'static str, id: String, name: String) -> ApiResult<Json<Value>> {
+    let name = name.trim().to_string();
     if name.chars().count() > 64 || name.chars().any(char::is_control) {
         return Err(ApiError::bad("A name is at most 64 characters, on one line.").field("name"));
     }
-    let (node, n) = (id.clone(), name.clone());
+    let (k, n) = (id.clone(), name.clone());
     app.db
         .call(move |c| {
             if n.is_empty() {
-                c.execute("DELETE FROM node_names WHERE node_id = ?1", [&node])?;
+                c.execute(&format!("DELETE FROM {table} WHERE {key} = ?1"), [&k])?;
             } else {
-                c.execute("INSERT INTO node_names (node_id, name) VALUES (?1, ?2) ON CONFLICT (node_id) DO UPDATE SET name = excluded.name", [&node, &n])?;
+                c.execute(&format!("INSERT INTO {table} ({key}, name) VALUES (?1, ?2) ON CONFLICT ({key}) DO UPDATE SET name = excluded.name"), [&k, &n])?;
             }
             Ok(())
         })
         .await?;
-    audit::record(&app.db, Some(&a.session.user), a.ip, Entry { action: "cluster.node.rename", target: Some(id.clone()), detail: Some(name.clone()) }).await;
+    audit::record(&app.db, Some(&a.session.user), a.ip, Entry { action, target: Some(id.clone()), detail: Some(name.clone()) }).await;
     Ok(Json(json!({ "id": id, "name": if name.is_empty() { Value::Null } else { json!(name) } })))
 }
 
@@ -418,7 +442,7 @@ mod tests {
                     return (StatusCode::UNAUTHORIZED, "no".to_string());
                 }
                 match line.as_str() {
-                    "GET /v1/cluster" => (StatusCode::OK, json!({ "cluster_id": "c1", "raft": [{ "addr": "192.0.2.1:7450", "leader": true }] }).to_string()),
+                    "GET /v1/cluster" => (StatusCode::OK, json!({ "cluster_id": "c1", "raft": [{ "raft_id": "5271529257891035005", "addr": "192.0.2.1:7450", "leader": true }] }).to_string()),
                     "GET /v1/nodes" => (StatusCode::OK, json!([{ "id": "6f1c7c2e-0000-4000-8000-000000000001", "liveness": { "health": "healthy" } }]).to_string()),
                     "GET /v1/events?after=4" => (StatusCode::OK, json!([{ "seq": 5, "kind": "connected" }]).to_string()),
                     "POST /v1/nodes/6f1c7c2e-0000-4000-8000-000000000001/commands" => (StatusCode::ACCEPTED, json!({ "id": "cmd-1", "status": "pending" }).to_string()),
@@ -591,6 +615,27 @@ mod tests {
         assert_eq!((s, b["name"].clone()), (StatusCode::OK, Value::Null), "an empty name gives the hostname back");
         let (_, _, b) = call(&app, get("/api/cluster/nodes", &cookie)).await;
         assert_eq!(b[0].get("name"), None);
+    }
+
+    #[tokio::test]
+    async fn a_manager_s_name_is_freightdock_s_own_too_given_by_its_raft_id() {
+        let (app, asked, _d) = connected("t0k3n").await;
+        let (cookie, csrf) = signed_in(&app).await;
+        let rename = |id: &str, name: &str| Request::put(format!("/api/cluster/managers/{id}/name")).header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).header(header::HOST, "freightdock.test").header(header::CONTENT_TYPE, "application/json").body(json_body(json!({ "name": name }))).unwrap();
+        let (s, _, b) = call(&app, rename("5271529257891035005", " core 1 ")).await;
+        assert_eq!((s, b["name"].clone()), (StatusCode::OK, json!("core 1")));
+        assert_eq!(asked.lock().unwrap().len(), 0, "the managers are not told");
+        let (_, _, b) = call(&app, get("/api/cluster", &cookie)).await;
+        assert_eq!(b["cluster"]["raft"][0]["name"], "core 1", "shown with the managers' members");
+        let (action, detail): (String, String) = app.db.call(|c| Ok(c.query_row("SELECT action, detail FROM audit ORDER BY id DESC LIMIT 1", [], |r| Ok((r.get(0)?, r.get(1)?)))?)).await.unwrap();
+        assert_eq!((action.as_str(), detail.as_str()), ("cluster.manager.rename", "core 1"));
+
+        assert_eq!(call(&app, rename("5271529257891035005", &"x".repeat(65))).await.0, StatusCode::BAD_REQUEST, "64 characters at most");
+        assert_eq!(call(&app, rename("not-a-raft-id", "x")).await.0, StatusCode::NOT_FOUND, "a raft id is a number");
+        let (s, _, b) = call(&app, rename("5271529257891035005", "")).await;
+        assert_eq!((s, b["name"].clone()), (StatusCode::OK, Value::Null), "an empty name gives the address back");
+        let (_, _, b) = call(&app, get("/api/cluster", &cookie)).await;
+        assert_eq!(b["cluster"]["raft"][0].get("name"), None);
     }
 
     #[tokio::test]

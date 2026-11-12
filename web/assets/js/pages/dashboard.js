@@ -11,7 +11,7 @@ import { status } from '../../finui/components/badge/badge.js';
 import { meter } from '../../finui/components/meter/meter.js';
 import { emptyState } from '../../finui/components/empty/empty.js';
 import { t, tOr } from '../i18n.js';
-import { nodeName, nodeHost, hostOf } from './cluster.js';
+import { nodeName, nodeHost, managerHosts, managerLink } from './cluster.js';
 
 const EVERY_MS = 3000;
 const HEALTH_TONES = { healthy: 'good', suspect: 'warning', unreachable: 'critical' };
@@ -74,14 +74,13 @@ function topRow(cl, raft, nodes) {
   const voters = raft.filter((m) => m.voter).length;
   const votersUp = raft.filter((m) => m.voter && m.online).length;
   const leader = raft.find((m) => m.leader);
-  const leaderNode = leader && nodes.find((x) => nodeHost(x) === hostOf(leader.addr));
   const healthy = nodes.filter((x) => (x.liveness || {}).health === 'healthy').length;
   return h('div', { class: 'fd-dash-row' },
     card({ title: t('pages.dashboard.managers'), body: gauge(raft.length ? up / raft.length : 0, managerTone(votersUp, voters, cl.quorate), t('pages.dashboard.n_of', { n: up, of: raft.length }), t('pages.dashboard.online')) }),
     card({ title: t('pages.dashboard.quorum'), body: h('div', { class: 'fd-gauge' },
       h('div', { class: 'fd-dash-quorum' }, cl.quorate ? status({ tone: managerTone(votersUp, voters, true) === 'good' ? 'good' : 'warning' }, t('pages.dashboard.quorate')) : status({ tone: 'critical' }, t('pages.dashboard.not_quorate'))),
       h('div', { class: 'fd-gauge__caption' }, t('pages.dashboard.voters', { n: voters })),
-      h('div', { class: 'fd-gauge__value' }, leader ? (leaderNode ? h('a', { href: `/cluster/nodes/${encodeURIComponent(leaderNode.id)}` }, nodeName(leaderNode)) : h('span', { class: 'mono' }, leader.addr)) : t('pages.dashboard.no_leader')),
+      h('div', { class: 'fd-gauge__value' }, leader ? managerLink(leader) : t('pages.dashboard.no_leader')),
       h('div', { class: 'fd-gauge__caption' }, t('pages.dashboard.leader'))) }),
     card({ title: t('pages.dashboard.workers'), body: gauge(nodes.length ? healthy / nodes.length : 0, workerTone(healthy, nodes.length), t('pages.dashboard.n_of', { n: healthy, of: nodes.length }), t('pages.dashboard.healthy')) }));
 }
@@ -105,7 +104,7 @@ function bar(share, text) {
 }
 
 function nodeRows(nodes, stacks, raft) {
-  const hosts = new Set(raft.map((m) => hostOf(m.addr)));
+  const hosts = managerHosts(raft);
   const work = {};
   for (const st of stacks) for (const w of st.workloads || []) {
     if (!w.node_id) continue;

@@ -15,7 +15,7 @@ import { openModal } from '../../finui/components/modal/modal.js';
 import { formField } from '../../finui/components/field/field.js';
 import { toast } from '../../finui/components/toast/toast.js';
 import { t, tOr } from '../i18n.js';
-import { nodeName, nodeHost, managerHosts } from './cluster.js';
+import { nodeName, nodeHost, managerHosts, heardBy, managerLink } from './cluster.js';
 
 const EVERY_MS = 3000;
 const HEALTH_TONES = { healthy: 'good', suspect: 'warning', unreachable: 'critical' };
@@ -37,7 +37,8 @@ export function clusterNodePage({ el, params, signal }) {
       return { n, c, st };
     },
     draw: ({ n, c, st }) => {
-      const manager = managerHosts(((c || {}).cluster || {}).raft || []).has(nodeHost(n));
+      const raft = ((c || {}).cluster || {}).raft || [];
+      const manager = managerHosts(raft).has(nodeHost(n));
       mount(head, pageHeader(nodeName(n), n.name ? t('pages.cluster_node.sub_named', { hostname: n.hostname || '' }) : t('pages.cluster_node.sub'),
         h('div', { class: 'row' },
           button({ size: 'sm', href: '/cluster' }, t('pages.cluster_node.back')),
@@ -45,7 +46,7 @@ export function clusterNodePage({ el, params, signal }) {
       const placed = [];
       for (const s of st || []) for (const w of s.workloads || []) if (w.node_id === n.id) placed.push({ ...w, stack: s.name, image: ((s.services || {})[w.service] || {}).image });
       return h('div', { class: 'stack' },
-        card({ title: t('pages.cluster_node.details'), body: details(n, manager) }),
+        card({ title: t('pages.cluster_node.details'), body: details(n, manager, raft) }),
         card({ title: t('pages.cluster_node.workloads'), body: workloadTable(placed) }),
         card({ title: t('pages.cluster_node.containers'), body: n.containers ? containerTable(n.containers) : emptyState(t('pages.cluster_node.no_report'), t('pages.cluster_node.no_report_text')) }));
     },
@@ -54,7 +55,7 @@ export function clusterNodePage({ el, params, signal }) {
   signal.addEventListener('abort', () => clearInterval(timer));
 }
 
-function details(n, manager) {
+function details(n, manager, raft) {
   const r = n.report || {}, l = n.liveness || {}, f = n.fencing || {};
   const hl = l.health || 'unreachable';
   const labels = Object.entries(n.all_labels || r.labels || {}).map(([k, v]) => `${k}=${v}`).join(', ');
@@ -64,7 +65,7 @@ function details(n, manager) {
     [t('pages.cluster.role'), manager ? t('pages.cluster.role_manager') : t('pages.cluster.role_worker')],
     [t('pages.cluster.health'), status({ tone: HEALTH_TONES[hl] || 'info', line: true }, tOr(`pages.cluster.health_word.${hl}`, hl))],
     [t('pages.cluster_node.address'), h('span', { class: 'mono' }, nodeHost(n) || '')],
-    [t('pages.cluster.via'), l.via ? h('span', { class: 'mono' }, l.via) : (l.last_heard_ms_ago == null ? '' : t('pages.cluster.this_manager'))],
+    [t('pages.cluster.via'), managerLink(heardBy(n, raft))],
     [t('pages.cluster.fencing'), tOr(`pages.cluster.fence.${f.state || 'none'}`, f.state || 'none')],
     [t('pages.cluster.docker'), r.docker_version || ''],
     [t('pages.cluster_node.system'), [r.os, r.kernel, r.arch].filter(Boolean).join(' · ')],
@@ -100,18 +101,26 @@ function containerTable(rows) {
 }
 
 function rename(n, reload) {
-  const f = formField({ id: 'cl-node-name', label: t('pages.cluster_node.name'), autocomplete: 'off', placeholder: n.hostname || '', help: t('pages.cluster_node.name_help') });
-  f.input.value = n.name || '';
+  nameDialog({
+    title: t('pages.cluster_node.rename_title', { name: nodeName(n) }), value: n.name, placeholder: n.hostname, help: t('pages.cluster_node.name_help'),
+    save: (name) => put(`/api/cluster/nodes/${encodeURIComponent(n.id)}/name`, { name }), saved: t('pages.cluster_node.renamed'), reload,
+  });
+}
+
+/** A dialog for a name given in Freightdock only, to a node or a manager. */
+export function nameDialog({ title, value, placeholder, help, save, saved, reload }) {
+  const f = formField({ id: 'cl-name', label: t('pages.cluster_node.name'), autocomplete: 'off', placeholder: placeholder || '', help });
+  f.input.value = value || '';
   const go = button({ variant: 'primary', type: 'submit' }, t('common.save'));
   const form = h('form', { class: 'stack', novalidate: true }, f.el, h('div', { class: 'row row--end' }, go));
-  const m = openModal({ title: t('pages.cluster_node.rename_title', { name: nodeName(n) }), body: form, initialFocus: f.input });
+  const m = openModal({ title, body: form, initialFocus: f.input });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     go.disabled = true;
     try {
-      await put(`/api/cluster/nodes/${encodeURIComponent(n.id)}/name`, { name: f.input.value });
+      await save(f.input.value);
       m.close();
-      toast({ text: t('pages.cluster_node.renamed'), tone: 'good' });
+      toast({ text: saved, tone: 'good' });
       reload();
     } catch (x) { go.disabled = false; f.setError(x.message); }
   });

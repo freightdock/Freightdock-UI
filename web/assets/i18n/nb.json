@@ -752,11 +752,9 @@
       "no_nodes": "Ingen noder ennå",
       "no_nodes_text": "Legg til en node for å kjøre arbeidslaster på den.",
       "no_events": "Ingen hendelser ennå",
-      "address": "Adresse",
       "role": "Rolle",
       "raft_id": "Raft-id",
       "this_one": "denne",
-      "this_manager": "denne manageren",
       "leader": "Leder",
       "voter": "Stemmer",
       "learner": "Lærling",
@@ -833,7 +831,11 @@
       "workers": "Arbeidere",
       "role_manager": "Manager og arbeider",
       "role_worker": "Arbeider",
-      "no_worker": "Ingen arbeider hørt på denne verten"
+      "no_worker": "Ingen arbeider hørt på denne verten",
+      "manager": "Manager",
+      "online": "Pålogget",
+      "online_yes": "pålogget",
+      "online_no": "ikke hørt"
     },
     "cluster_stacks": {
       "title": "Klyngestabler",
@@ -959,6 +961,24 @@
       "nodes": "Noder",
       "workloads_n": "{n} av {of} arbeidslaster kjører",
       "containers_n": "{n} containere kjører"
+    },
+    "cluster_manager": {
+      "title": "Manager",
+      "sub": "En manager i klyngen: plassen i Raft og arbeiderne den hører.",
+      "sub_named": "Adressen er {addr}; navnet finnes bare i Freightdock.",
+      "gone": "Ikke en manager nå",
+      "gone_text": "Ingen manager i klyngen har denne raft-id-en.",
+      "workers": "Arbeidere koblet hit",
+      "no_workers": "Ingen arbeider har strømmen sin hos denne manageren.",
+      "quorum": "Klyngens quorum",
+      "answering": "Svarer Freightdock",
+      "answering_yes": "ja, Freightdock spør denne",
+      "answering_no": "nei",
+      "version": "Versjon",
+      "applied": "Brukt indeks",
+      "worker_here": "Arbeider på verten",
+      "name_help": "Vises i Freightdock i stedet for adressen. Managerne beholder raft-id og adresse. Tomt gir adressen tilbake.",
+      "renamed": "Managerens navn er lagret."
     }
   },
   "components": {

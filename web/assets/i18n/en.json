@@ -752,11 +752,9 @@
       "no_nodes": "No nodes yet",
       "no_nodes_text": "Add a node to run workloads on it.",
       "no_events": "No events yet",
-      "address": "Address",
       "role": "Role",
       "raft_id": "Raft id",
       "this_one": "this one",
-      "this_manager": "this manager",
       "leader": "Leader",
       "voter": "Voter",
       "learner": "Learner",
@@ -833,7 +831,11 @@
       "workers": "Workers",
       "role_manager": "Manager and worker",
       "role_worker": "Worker",
-      "no_worker": "No worker heard on this host"
+      "no_worker": "No worker heard on this host",
+      "manager": "Manager",
+      "online": "Online",
+      "online_yes": "online",
+      "online_no": "not heard"
     },
     "cluster_stacks": {
       "title": "Cluster stacks",
@@ -959,6 +961,24 @@
       "nodes": "Nodes",
       "workloads_n": "{n} of {of} workloads running",
       "containers_n": "{n} containers running"
+    },
+    "cluster_manager": {
+      "title": "Manager",
+      "sub": "A manager of the cluster: its place in Raft and the workers it hears.",
+      "sub_named": "Its address is {addr}; the name is Freightdock's only.",
+      "gone": "Not a manager now",
+      "gone_text": "No manager of the cluster has this raft id.",
+      "workers": "Workers connected here",
+      "no_workers": "No worker holds its stream with this manager.",
+      "quorum": "Cluster quorum",
+      "answering": "Answering Freightdock",
+      "answering_yes": "yes, Freightdock asks this one",
+      "answering_no": "no",
+      "version": "Version",
+      "applied": "Applied index",
+      "worker_here": "Worker on its host",
+      "name_help": "Shown in Freightdock instead of the address. The managers keep its raft id and address. Empty gives the address back.",
+      "renamed": "The manager's name is saved."
     }
   },
   "components": {

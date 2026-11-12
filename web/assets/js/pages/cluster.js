@@ -45,8 +45,7 @@ export function theClusterPage({ el, signal }) {
       mount(head, pageHeader(t('nav.the_cluster'), t('pages.cluster.id', { id: cl.cluster_id || '' }), isAdmin() ? h('div', { class: 'row' },
         button({ size: 'sm', onClick: () => joinToken('worker') }, t('pages.cluster.add_node')),
         button({ size: 'sm', onClick: () => joinToken('manager') }, t('pages.cluster.add_manager'))) : null));
-      const hosts = managerHosts(cl.raft || []);
-      mount(nodes, card({ title: t('pages.cluster.workers'), body: n ? nodeTable(n, hosts, reload) : emptyState(t('pages.cluster.no_answer'), '') }));
+      mount(nodes, card({ title: t('pages.cluster.workers'), body: n ? nodeTable(n, cl.raft || [], reload) : emptyState(t('pages.cluster.no_answer'), '') }));
       mount(events, card({ title: t('pages.cluster.events'), body: e ? eventTable(e) : emptyState(t('pages.cluster.no_answer'), '') }));
       return card({ title: t('pages.cluster.managers'), body: managerTable(cl.raft || [], n || []) });
     },
@@ -76,6 +75,24 @@ export function nodeHost(n) {
   return h0;
 }
 
+/** What a manager is shown by: the name given it in Freightdock ("Cluster" 14), else its host. */
+export function managerName(m) {
+  return m.name || hostOf(m.addr);
+}
+
+/** The manager a node's worker is heard by: the one named in `via`, else (heard, no `via`) the one answering. */
+export function heardBy(n, raft) {
+  const l = n.liveness || {};
+  if (l.last_heard_ms_ago == null && !l.via) return null;
+  return l.via ? raft.find((m) => hostOf(m.addr) === hostOf(l.via)) || { addr: l.via } : raft.find((m) => m.me) || null;
+}
+
+/** A link to the manager's page, or its address when it is not a member known. */
+export function managerLink(m) {
+  if (!m) return '';
+  return m.raft_id ? h('a', { href: `/cluster/managers/${encodeURIComponent(m.raft_id)}` }, managerName(m)) : h('span', { class: 'mono sub' }, m.addr);
+}
+
 /** The managers' hosts, to tell which nodes run a manager too. */
 export function managerHosts(raft) {
   return new Set(raft.map((m) => hostOf(m.addr)));
@@ -86,7 +103,8 @@ function managerTable(raft, list) {
   return table({
     rows: raft, filter: false, dense: true, empty: [t('pages.cluster.no_managers'), ''],
     columns: [
-      { label: t('pages.cluster.address'), cell: (m) => h('span', { class: 'mono' }, m.addr) },
+      { label: t('pages.cluster.manager'), cell: (m) => h('div', { class: 'name-cell' }, managerLink(m), m.name ? h('span', { class: 'sub mono' }, m.addr) : null), sort: (m) => managerName(m) },
+      { label: t('pages.cluster.online'), cell: (m) => status({ tone: m.online ? 'good' : 'critical', line: true }, m.online ? t('pages.cluster.online_yes') : t('pages.cluster.online_no')) },
       { label: t('pages.cluster.node'), cell: (m) => { const n = onNode(m); return n ? h('a', { href: `/cluster/nodes/${encodeURIComponent(n.id)}` }, nodeName(n)) : h('span', { class: 'sub' }, t('pages.cluster.no_worker')); } },
       { label: t('pages.cluster.role'), cell: (m) => status({ tone: m.leader ? 'good' : m.voter ? 'info' : 'warning' }, m.leader ? t('pages.cluster.leader') : m.voter ? t('pages.cluster.voter') : t('pages.cluster.learner')) },
       { label: t('pages.cluster.raft_id'), cell: (m) => h('span', { class: 'mono sub' }, String(m.raft_id)) },
@@ -100,7 +118,8 @@ function labels(n) {
   return Object.entries(l).map(([k, v]) => `${k}=${v}`).join(', ');
 }
 
-function nodeTable(list, hosts, reload) {
+function nodeTable(list, raft, reload) {
+  const hosts = managerHosts(raft);
   return table({
     rows: list, empty: [t('pages.cluster.no_nodes'), t('pages.cluster.no_nodes_text')], label: t('pages.cluster.nodes'),
     columns: [
@@ -108,7 +127,7 @@ function nodeTable(list, hosts, reload) {
       { label: t('pages.cluster.role'), cell: (n) => hosts.has(nodeHost(n)) ? status({ tone: 'info' }, t('pages.cluster.role_manager')) : h('span', { class: 'sub' }, t('pages.cluster.role_worker')), sort: (n) => (hosts.has(nodeHost(n)) ? 0 : 1) },
       { label: t('pages.cluster.health'), cell: (n) => { const hl = (n.liveness || {}).health || 'unreachable'; return status({ tone: HEALTH_TONES[hl] || 'info', line: true }, tOr(`pages.cluster.health_word.${hl}`, hl)); }, sort: (n) => (n.liveness || {}).health || '' },
       { label: t('pages.cluster.heard'), cell: (n) => { const ms = (n.liveness || {}).last_heard_ms_ago; return ms == null ? '' : h('span', { class: 'nowrap' }, t('pages.cluster.seconds', { n: (ms / 1000).toFixed(1) })); } },
-      { label: t('pages.cluster.via'), cell: (n) => { const l = n.liveness || {}; return l.via ? h('span', { class: 'mono sub' }, l.via) : h('span', { class: 'sub' }, l.last_heard_ms_ago == null ? '' : t('pages.cluster.this_manager')); } },
+      { label: t('pages.cluster.via'), cell: (n) => managerLink(heardBy(n, raft)) },
       { label: t('pages.cluster.fencing'), cell: (n) => { const f = n.fencing || {}; const st = f.state || 'none'; return st === 'none' ? h('span', { class: 'sub' }, t('pages.cluster.fence.none')) : h('span', { title: f.message || '' }, status({ tone: FENCE_TONES[st] || 'info' }, tOr(`pages.cluster.fence.${st}`, st))); }, sort: (n) => (n.fencing || {}).state || '' },
       { label: t('pages.cluster.docker'), cell: (n) => (n.report && n.report.docker_version) || '' },
       { label: t('pages.cluster.labels'), cell: (n) => h('span', { class: 'truncate sub' }, labels(n)) },

@@ -92,7 +92,7 @@ SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md   reporting a vulnerability; ho
 README.md                  what it is, how a cluster's UI is started, links into docs/
 ```
 
-## Tables (migrations 1 to 20)
+## Tables (migrations 1 to 22)
 
 Migrations are never edited ("Database" 2), so the tables of what was set aside are still made; nothing reads them,
 and the managers replicate them as they replicate the rest (empty). The ones in use:
@@ -108,6 +108,7 @@ and the managers replicate them as they replicate the rest (empty). The ones in 
 | `auth_log` | every sign-in, failure and sign-out: at, event, method, ok, user, name tried, ip, user agent |
 | `api_tokens` | user, name (unique per user, case-blind), SHA-256 of the token, `hint` (its last four), read_only, created/expires/last used, last used ip |
 | `teams`, `team_members` | a team's name (unique, case-blind); who is in which (both sides cascade), and `synced_by`: the provider whose groups put them there (NULL: by hand, and a sign-in never takes them out) |
+| `node_names`, `manager_names` | the names nodes (by node id) and managers (by raft id) are shown by in Freightdock only ("Cluster" 12, 14) |
 | `_replog` | in a cluster: each change since the last push, written by the `_rep_*` triggers ("Cluster" 9); never replicated itself |
 
 ## API
@@ -123,6 +124,7 @@ read-only token only reads.
 | `POST /api/cluster/nodes/{id}/commands` | admin | `{op, ...}` to the node; 202 and the command |
 | `GET /api/cluster/nodes/{id}` | session | one node, with the containers it reports and its name here |
 | `PUT /api/cluster/nodes/{id}/name` | admin | `{name}`: the name it is shown by in Freightdock only; empty takes it away ("Cluster" 12) |
+| `PUT /api/cluster/managers/{id}/name` | admin | `{name}`, by raft id: a manager's name in Freightdock only; empty takes it away ("Cluster" 14) |
 | `DELETE /api/cluster/nodes/{id}` | admin | the node out of the cluster |
 | `PUT /api/cluster/nodes/{id}/labels` | admin | `{labels}`: the node's cluster labels, all of them |
 | `POST /api/cluster/nodes/{id}/authorize` | admin | a node that came back fenced runs workloads again |

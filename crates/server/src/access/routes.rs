@@ -83,6 +83,7 @@ pub const RULES: &[(&str, &str, Rule)] = &[
     ("GET", "/api/cluster/nodes/{id}", Session),
     ("DELETE", "/api/cluster/nodes/{id}", Admin),
     ("PUT", "/api/cluster/nodes/{id}/name", Admin),
+    ("PUT", "/api/cluster/managers/{id}/name", Admin),
     ("POST", "/api/cluster/nodes/{id}/commands", Admin),
     ("PUT", "/api/cluster/nodes/{id}/labels", Admin),
     ("POST", "/api/cluster/nodes/{id}/authorize", Admin),

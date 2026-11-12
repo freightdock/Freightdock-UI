@@ -21,6 +21,7 @@ import { signinsPage } from './pages/signins.js';
 import { theClusterPage } from './pages/cluster.js';
 import { clusterStacksPage } from './pages/cluster-stacks.js';
 import { clusterNodePage } from './pages/cluster-node.js';
+import { clusterManagerPage } from './pages/cluster-manager.js';
 import { dashboardPage } from './pages/dashboard.js';
 import { t } from './i18n.js';
 
@@ -33,6 +34,7 @@ route('/dashboard', dashboardPage, { title: t('pages.dashboard.title') });
 route('/cluster', theClusterPage, { title: t('nav.the_cluster') });
 route('/cluster/stacks', clusterStacksPage, { title: t('nav.cluster_stacks') });
 route('/cluster/nodes/:id', clusterNodePage, { title: t('pages.cluster_node.title') });
+route('/cluster/managers/:id', clusterManagerPage, { title: t('pages.cluster_manager.title') });
 route('/account', accountPage, { title: t('nav.account') });
 route('/activity', activityPage, { title: t('nav.activity') });
 route('/users', usersPage, { title: t('nav.users') });
