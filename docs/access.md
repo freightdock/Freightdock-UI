@@ -1,92 +1,36 @@
-# Users, teams, roles and ownership
-
-Who may do what, as Portainer Business Edition has it, for free.
+# Users, teams and roles
 
 ## Administrators and users
 
 Everybody is an **Administrator** or a **user**:
 
-- An Administrator may do everything everywhere, Freightdock's own settings included.
-- A user has, on each environment, a role (below), or none, and then that environment does not exist for them: it is
-  not on Home, not in the lists, and its pages answer "not found".
+- An Administrator changes the cluster (deploys, starts, stops and removes stacks; joins, labels, commands,
+  authorizes and removes nodes; makes join tokens) and Freightdock's own settings, users and teams.
+- A user reads the cluster: its managers, nodes, stacks, events and recoveries. Every change is refused.
 
 **Users** (administrators): make a local user with a name and a password (at least 12 characters), set the role, rename,
 disable and enable, give a new password, remove. Disabling and a new password end that person's sessions at once.
 The last administrator who is not disabled cannot be demoted, disabled or removed, and nobody can demote, disable or
 remove themselves.
 
-Anybody changes their own password in **Account**, with the one it replaces; their other sessions end.
+Anybody changes their own password in **Account**, with the one it replaces; their other sessions end, and their API
+tokens are revoked.
 
-People who sign in through single sign-on are users too ([sso.md](sso.md)); they have no password here.
-
-## Roles on an environment
-
-| Role | May |
-|---|---|
-| **Environment administrator** | everything on that environment: read, operate, console, create, manage, administer |
-| **Operator** | read everything; start, stop, restart, kill, pause containers, stop and start stacks; open a console |
-| **Helpdesk** | read everything, change nothing |
-| **Standard user** | create containers and stacks; read, operate, open a console on and manage only what they can see (below) |
-| **Read-only user** | read only what they can see |
-
-What the actions are:
-
-- **read**: lists, inspect, logs, stats, events.
-- **operate**: start, stop, restart, kill, pause; stop and start a stack.
-- **console**: a console, an attach, a command run.
-- **create**: a container, a stack, a volume, a network; pull, build or load an image; deploy a template.
-- **manage**: edit, recreate, rename or remove a container or stack, redeploy it, its webhook, its sharing; connect it
-  to a network.
-- **administer**: prune; remove, tag or push images; remove volumes and networks; browse a volume's files; every Swarm
-  change; adopt a project started elsewhere.
-
-A console is root in the container, and a create can bind the host's root and run privileged. An Operator or a
-Standard user is trusted that far: there are no per-environment limits on privileged containers or bind mounts yet.
-
-### Giving a role
-
-On **Environments**, the people icon (**Access**) beside an environment, or beside a group: add users or teams, each
-with a role. A role on a group holds for every environment in it.
-
-A person's role on an environment is the first of these that exists, and the highest within it:
-
-1. their own grant on the environment;
-2. their own grant on its group;
-3. their teams' grants on the environment;
-4. their teams' grants on its group.
-
-So a grant to one person is a deliberate exception that wins over their teams', and of several teams the highest
-applies. An environment is in one group at most, so there are never two groups to weigh.
+People who sign in through single sign-on or a directory are users too ([sso.md](sso.md)); they have no password here,
+and their provider's groups can make them Administrators.
 
 ## Teams
 
-**Users**, the teams part: make a team, name its members. Give the team a role on environments or groups. A person
-sees the names of the teams they are in, to share things with them.
+**Users**, the teams part: make a team, name its members. A person sees the names of the teams they are in. A sign-in
+provider can put people in teams from its groups ([sso.md](sso.md)).
 
-Teams are not taken from the single sign-on provider's groups yet: put SSO users in teams by hand.
+Teams give no rights of their own yet: finer roles (per stack or per node) come with the features that need them.
 
-## Ownership
+## API tokens
 
-Containers and stacks belong to somebody:
-
-| | Who sees and reaches it (Standard and Read-only users) |
-|---|---|
-| **Public** | everybody with a role on the environment |
-| **A team's** | that team's members |
-| **Private** | its owner |
-| **The administrators'** (no record) | nobody below Helpdesk |
-
-- What you make through Freightdock is private to you unless you choose otherwise in the form. A container made through
-  Freightdock also gets a `freightdock.owner` label with your name, for whoever looks with Docker's own tools.
-- What was made on the command line, or before roles, is the administrators' until an administrator shares it.
-- A container without a record of its own belongs as its stack does.
-- Change it on the container's or the stack's page, in the **Access** card. A Standard user may share what they manage
-  with everybody or a team they are in, or keep it; an Administrator or Environment administrator may give it to
-  anybody.
-- Helpdesk, Operators and Environment administrators see everything on the environment.
-
-Volumes, networks and images are not owned (as in Portainer): a Standard or Read-only user sees all of them on an
-environment they have a role on.
+In **Account**, anybody makes API tokens for scripts: shown once, good for 30, 90 or 365 days or until revoked, and
+read-only if you like. A token may do what its owner may, as they are now; a read-only one only reads. See
+[reference/api.md](reference/api.md).
 
 ## Logs
 

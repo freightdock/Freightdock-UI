@@ -5,7 +5,7 @@ Zitadel, Google and the rest. The password sign-in always stays beside it, for w
 is down.
 
 How it decides who comes in: the **groups** claim. A member of an administrator group is an Administrator, a member of a
-user group is a user (with the roles given to them per environment, [access.md](access.md)), and anybody else is turned
+user group is a user (who reads the cluster, [access.md](access.md)), and anybody else is turned
 away. The role is set again at every sign-in, so taking somebody out of the group at the provider takes them out here at
 their next sign-in.
 

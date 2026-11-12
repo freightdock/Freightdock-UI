@@ -1,8 +1,8 @@
 # Security
 
-Freightdock holds the keys to Docker hosts. Whoever can use Docker's socket is root on that host, and so is anybody who
-signs in to Freightdock as an administrator. A hole in Freightdock is a hole in every host it manages, so reports are welcome
-and taken seriously.
+Freightdock holds an admin token to a cluster's managers, and an administrator who signs in to it runs what they like
+on every node. A hole in Freightdock is a hole in every node of the cluster, so reports are welcome and taken
+seriously.
 
 ## Reporting a vulnerability
 
@@ -29,15 +29,16 @@ Freightdock is young. Only the latest release gets security fixes; upgrade to it
 
 ## What is in scope
 
-- Signing in, sessions, CSRF and `Origin` checks, roles and ownership, API tokens, the MCP server, webhooks.
-- The agent and its endpoint (enrolment, the tunnel, the certificates), TLS hosts.
-- Secrets at rest (`secret.key`, sealed values), backups and restore.
+- Signing in, sessions, CSRF and `Origin` checks, roles, API tokens.
+- How it reaches the managers (the cluster CA, the API token) and the database it replicates through them.
+- Secrets at rest (`secret.key`, sealed values).
 - Anything that reaches the DOM as HTML instead of text.
 
-Out of scope: what an administrator can do on purpose (they are root on the host by design), and attacks that need
-somebody's `secret.key`, data folder or Docker socket already.
+Out of scope: what an administrator can do on purpose (they are root on the nodes by design), and attacks that need
+somebody's `secret.key`, data folder or the UI's API token already. The managers and workers have their own
+repositories and their own reports.
 
 ## Hardening notes
 
-How to run Freightdock safely (TLS, the agent port, the socket, backups) is in
+How to run Freightdock safely (TLS, the token, who is an administrator) is in
 [docs/security.md](docs/security.md).

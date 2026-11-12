@@ -136,3 +136,8 @@ First light
 
 ### Stability
 - A webhook whose caller hangs up before the redeploy ends, or an edit, recreate or update whose page goes away, still runs to its end: the old container is no longer left stopped under another name, and the webhook no longer answers "running" until Freightdock restarts.
+
+### Removed
+- **Freightdock is now the UI of a Freightdock cluster, and only that**: the pages for one Docker host (containers, images, volumes, networks, events, the console), Home with its list of hosts, agents and TLS hosts, Swarm, Freightdock's own stacks, app templates, webhooks, registries, image updates, notifications, resource history, backups, the MCP server and the import from Portainer are gone. A one-node cluster does all a single host did, so there is one product to keep right instead of two; what of them comes back comes through the managers.
+- **Roles per environment, ownership and security settings**: an Administrator changes the cluster, anybody else signed in reads it, until finer roles come with what needs them.
+- **The Docker socket, the agent port 7444 and the Docker CLI and Compose in the image**: the UI talks to the managers only.

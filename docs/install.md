@@ -1,88 +1,56 @@
 # Install
 
-Freightdock is one container. It needs Docker's socket (to manage the Docker it runs on) and a volume for its data.
+Freightdock is the UI of a Freightdock cluster, so a cluster comes first: a manager and a worker on one node is a
+whole cluster (the Manager repository's README, `install-node.sh first <host>`). The UI runs beside a manager, as a
+container, and talks to the managers' admin API.
 
-## Docker run
+## On a manager's node
+
+The UI signs in to the managers with an API token and trusts the cluster CA alone. On the manager's node, as root:
 
 ```sh
-docker run -d --name freightdock --restart unless-stopped \
-  -p 7443:7443 \
-  -p 7444:7444 \
-  -v /var/run/docker.sock:/var/run/docker.sock \
+mkdir -p /var/lib/freightdock-ui
+freightdock-manager api-token create ui admin > /var/lib/freightdock-ui/api.token
+freightdock-manager ca > /var/lib/freightdock-ui/ca.pem
+chmod 600 /var/lib/freightdock-ui/api.token
+```
+
+Then the UI:
+
+```sh
+docker run -d --name freightdock --restart unless-stopped --network host \
+  -e TZ=Europe/London \
+  -e FREIGHTDOCK_CLUSTER_API=https://127.0.0.1:7452 \
+  -e FREIGHTDOCK_CLUSTER_TOKEN_FILE=/run/freightdock/api.token \
+  -e FREIGHTDOCK_CLUSTER_CA_FILE=/run/freightdock/ca.pem \
+  -v /var/lib/freightdock-ui:/run/freightdock:ro \
   -v freightdock:/data \
-  -e TZ=Etc/UTC \
   ghcr.io/freightdock/freightdock:latest
 ```
 
-| Tag | What it is |
-|---|---|
-| `latest` | the newest release |
-| `X.Y.Z`, `X.Y` | a release, or the newest of a series |
-| `edge` | the newest build from `main`, untested by a release |
+- `--network host`, so `127.0.0.1:7452` is the manager on this node, and the UI listens on 7443.
+- `FREIGHTDOCK_CLUSTER_API` may list several managers, comma separated (`https://192.0.2.11:7452,https://192.0.2.12:7452`):
+  the UI goes on to the next only when one cannot be reached, so a change is never sent twice.
+- No Docker socket: the UI has no Docker of its own.
 
-Each is built for amd64 and arm64. Until the first release is published, build the image yourself
-([Building from source](#building-from-source)) and use `freightdock:latest` instead.
-
-What each part is for:
-
-| | |
-|---|---|
-| `-p 7443:7443` | The web UI and the API, over HTTPS. |
-| `-p 7444:7444` | The agent endpoint, which agents on other hosts dial ([agent.md](agent.md)). Leave it out if you will not use agents. |
-| `-v /var/run/docker.sock:...` | The Docker this host runs. Freightdock adds it as the `local` environment at setup. |
-| `-v freightdock:/data` | The database, the keys, the certificates and the stacks' files. Back it up ([backups.md](backups.md)). |
-| `-e TZ=...` | The zone the log's times are written in. |
-
-Open `https://<host>:7443`. The browser warns about the certificate until you trust Freightdock's own certificate
-authority once ([HTTPS](#https)).
-
-**Mind the socket.** Whoever can use Docker's socket is root on that host, and so is anybody who signs in to Freightdock as
-an administrator. Keep Freightdock off the open internet, or behind a proxy that asks who you are first.
-
-## Docker Compose
-
-```yaml
-services:
-  freightdock:
-    image: ghcr.io/freightdock/freightdock:latest
-    container_name: freightdock
-    restart: unless-stopped
-    ports:
-      - "7443:7443"   # the web UI and the API
-      - "7444:7444"   # the agent endpoint (agents on other hosts dial it)
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - freightdock:/data
-    environment:
-      TZ: Etc/UTC
-
-volumes:
-  freightdock:
-```
-
-```sh
-docker compose up -d
-docker compose logs -f freightdock
-```
-
-The repository's [`docker-compose.yml`](../docker-compose.yml) is the same with the optional settings written out, and
-a commented `build: .` to build the image from the source.
+With Compose, the repository's [`docker-compose.yml`](../docker-compose.yml) is the same line written out.
 
 ## First start and setup
 
-On its first start Freightdock makes, in `/data`:
+On its first start Freightdock loads its database from the managers (none there: this one becomes the first), and
+makes in `/data`:
 
-- `freightdock.db`, the database;
-- `secret.key`, the key that seals the secrets it keeps (passwords, tokens). Without it no sealed secret opens again;
-- `ca/`, its own certificate authority, which signs the agents' certificates;
+- `freightdock.db`, the database, a copy of the managers';
+- `secret.key`, the key that seals the secrets it keeps (sign-in providers' secrets, two-factor seeds). It travels to
+  the managers with the database, so a UI on another node opens the same secrets;
 - `tls/`, a small certificate authority of Freightdock's own (`ca.pem`, `ca.key`) and the HTTPS certificate it signed
   (`cert.pem`, `key.pem`), unless you give a certificate of your own.
 
-The log says where each went and the address it serves:
+The log says the address it serves and the managers it uses:
 
 ```
+INFO freightdock: the UI of the cluster whose managers are at https://127.0.0.1:7452
 INFO freightdock: Freightdock 1.0.0 on https://0.0.0.0:7443
-INFO freightdock: the agent endpoint on 0.0.0.0:7444 (TLS from Freightdock's own CA)
 ```
 
 Until there is an administrator, Freightdock wants a **setup token** that only somebody who can reach the server has, so
@@ -97,17 +65,17 @@ It prints 32 letters and digits, the same across restarts until setup is done (i
 more).
 
 Then open it in a browser. Every page sends you to **Set up** until there is an administrator: paste the token, and
-choose a name and a password of at least 12 characters. That makes the first administrator, adds this host's Docker as
-the `local` environment, and signs you in. Setup works once; after that it is refused.
+choose a name and a password of at least 12 characters. That makes the first administrator and signs you in. Setup
+works once; after that it is refused. You land on **The cluster**.
 
-You land on **Home**, the list of every host. Choose `local` to work on it.
+Next: more people ([access.md](access.md)) and single sign-on ([sso.md](sso.md)).
 
-Next, depending on what you need:
+## A UI on another node
 
-- Other Docker hosts: [agent.md](agent.md).
-- More people: [access.md](access.md), and single sign-on: [sso.md](sso.md).
-- Scheduled backups of Freightdock itself: [backups.md](backups.md).
-- Coming from Portainer: [portainer.md](portainer.md).
+Start the same container on another manager's node (its own token, or a copy of the first). It loads the same
+database from the managers, so the same people, settings and sessions. Only one UI writes at a time: when another has
+written since this one loaded, this one stops (exit code 75) and Docker's restart policy starts it again, loading the
+latest. Put both behind one address (a proxy, or DNS) if people should not care which answers.
 
 ## HTTPS
 
@@ -133,11 +101,11 @@ curl -fsSk -o freightdock-ca.pem https://freightdock.example.com:7443/api/tls/ca
 | macOS | `sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain freightdock-ca.pem` |
 | Windows (PowerShell as administrator) | `Import-Certificate -FilePath freightdock-ca.pem -CertStoreLocation Cert:\LocalMachine\Root` |
 | Firefox | Settings, Privacy & Security, Certificates, View Certificates, Authorities, Import |
-| Node tools (Claude Code) | `NODE_EXTRA_CA_CERTS="$HOME/freightdock-ca.pem" claude` |
+| Node tools | `NODE_EXTRA_CA_CERTS="$HOME/freightdock-ca.pem" node ...` |
 | curl | `curl --cacert freightdock-ca.pem ...`, or trust it system-wide as above |
 
 Trusting it means trusting whatever this Freightdock's CA key signs, for any name: keep the data folder to yourself. It is
-not the agents' CA ([agent.md](agent.md)); trusting one says nothing about the other.
+not the cluster CA (the managers' and workers'); trusting one says nothing about the other.
 
 ### The names on the certificate
 
@@ -145,7 +113,7 @@ Tools check that the certificate names the address you typed. Freightdock's name
 machine's host name, and the address it listens on (every interface's but loopback and link-local when it listens on
 `0.0.0.0` or `[::]`).
 
-In a container that is the container's own name and address, not the Docker host's. Add the names people and tools
+With `--network host` those are the node's; in a container on a network of its own, the container's. Add the names people and tools
 use with `FREIGHTDOCK_TLS_NAMES`, comma-separated host names and addresses:
 
 ```sh
@@ -179,16 +147,14 @@ CA did not sign is left alone too, with a warning. With your own certificate the
 A proxy that does TLS in front (Traefik, Caddy, nginx) can talk plain HTTP to Freightdock:
 
 ```sh
-docker run ... -e FREIGHTDOCK_TLS=off ghcr.io/freightdock/freightdock:latest
+docker run ... -e FREIGHTDOCK_TLS=off -e FREIGHTDOCK_BIND=127.0.0.1:7080 ghcr.io/freightdock/freightdock:latest
 ```
 
 What the proxy must do:
 
 - **Pass the `Host` header through unchanged.** Every change and every WebSocket is refused unless its `Origin` is the
   address the request came to, which Freightdock reads from `Host`.
-- **Pass WebSockets.** Logs, stats, consoles and events are WebSockets.
-- **Allow long requests and large bodies.** A pull, a build or a stack's deploy answers as it goes and can take
-  minutes; an upload to a volume can be 256 MB, a backup to restore 1 GB.
+- **Allow bodies of a few megabytes.** A stack's Compose file is sent whole.
 - **Redirect plain HTTP to HTTPS.** With `FREIGHTDOCK_TLS=off` the session cookie is not marked `Secure`, so it must never
   be offered over plain HTTP.
 
@@ -197,9 +163,6 @@ Things to know:
 - Freightdock sees the proxy's address as everybody's. The activity log and the auth log show it, and the sign-in limit
   (five misses in 15 minutes from one address) counts everybody together: one person guessing locks the sign-in for all
   for the rest of the window. Names are counted on their own as well.
-- **The agent endpoint does not go through the proxy.** Agents sign in with a client certificate, which a proxy that
-  ends TLS cannot pass on. Publish port 7444 directly, or through a proxy that passes TCP through untouched, and tell
-  Freightdock where agents should dial with `FREIGHTDOCK_AGENT_ADDRESS` ([agent.md](agent.md#behind-nat-or-a-proxy)).
 
 A Caddy example:
 
@@ -209,8 +172,7 @@ freightdock.example.com {
 }
 ```
 
-Caddy passes `Host` and WebSockets as they are. For nginx, set `proxy_set_header Host $host;`, the `Upgrade` and
-`Connection` headers, `proxy_read_timeout 3600s;` and `client_max_body_size 1g;`.
+Caddy passes `Host` as it is. For nginx, set `proxy_set_header Host $host;` and `client_max_body_size 8m;`.
 
 ## Environment variables
 
@@ -218,18 +180,18 @@ The full list is in [reference/environment.md](reference/environment.md). The on
 
 | Variable | Default | What |
 |---|---|---|
+| `FREIGHTDOCK_CLUSTER_API` | | The managers' admin API, `https://<manager>:7452`, several comma separated. |
+| `FREIGHTDOCK_CLUSTER_TOKEN_FILE` | `/var/lib/freightdock-manager/admin.token` | The file with the API token, read at each call. |
+| `FREIGHTDOCK_CLUSTER_CA_FILE` | | The cluster CA (`freightdock-manager ca`), needed for `https://`. |
 | `FREIGHTDOCK_SETUP_TOKEN` | made at first start | The first run's setup token, 16 characters or more. |
 | `FREIGHTDOCK_TLS` | `on` | `off`: plain HTTP, behind a proxy that does TLS. |
 | `FREIGHTDOCK_TLS_CERT`, `FREIGHTDOCK_TLS_KEY` | | Your own certificate and key, only ever read. |
 | `FREIGHTDOCK_TLS_NAMES` | | More names and addresses for Freightdock's own certificate: `freightdock.example.com,192.0.2.10`. |
-| `FREIGHTDOCK_AGENT_BIND` | `0.0.0.0:7444` | Where the agent endpoint listens, or `off`. |
-| `FREIGHTDOCK_AGENT_ADDRESS` | | What agents dial, when not this server's name and port 7444. |
-| `FREIGHTDOCK_DOCKER_HOST` | `DOCKER_HOST`, else the socket | The local environment's Docker. |
 | `TZ` | | The log's time zone. |
 
 ## Upgrading
 
-Your data is in the volume, so an upgrade is a new container on the same volume:
+The data is in the volume and at the managers, so an upgrade is a new container on the same volume:
 
 ```sh
 docker pull ghcr.io/freightdock/freightdock:latest
@@ -237,37 +199,27 @@ docker rm -f freightdock
 docker run -d --name freightdock ...   # the same line as before
 ```
 
-With Compose: `docker compose pull && docker compose up -d`.
+On start a newer Freightdock brings the database up to date by itself (the log says `applied database migration N`)
+and sends the new schema to the managers as a snapshot. There is no way back down: an older Freightdock refuses a
+database a newer one has changed. Upgrade every UI of a cluster together.
 
-On start a newer Freightdock brings the database up to date by itself (the log says `applied database migration N`).
-There is no way back down: an older Freightdock refuses a database a newer one has changed, and leaves it untouched. So
-**make a backup before you upgrade** ([backups.md](backups.md)); going back is the older image with that backup.
-
-Read the **Patch notes** page (a dot in the menu says there are new ones) for what changed. After an upgrade, update
-the agents too ([agent.md](agent.md#upgrading-the-agent)): Home marks an agent older than Freightdock as outdated.
-
-## Backups and restore
-
-Backups of Freightdock itself (the database, its keys, the agents' CA, the stacks' files), sealed with a passphrase, to a
-folder or S3, on a schedule: [backups.md](backups.md).
+Read the **Patch notes** page (a dot in the menu says there are new ones) for what changed.
 
 ## Building from source
 
-You need Rust (1.90 or newer) and Git. Cargo fetches the tunnel protocol from the
-[Agent](https://github.com/freightdock/Agent) repository itself:
+You need Rust (1.90 or newer):
 
 ```sh
-git clone https://github.com/freightdock/Freightdock
-cd Freightdock
+git clone https://github.com/freightdock/Freightdock-UI
+cd Freightdock-UI
 cargo build --release -p freightdock    # target/release/freightdock
 docker build -t freightdock .
 ```
 
-The agent is built from [its own repository](https://github.com/freightdock/Agent).
-
-The binary runs without Docker too. It needs the Compose plugin for stacks (`FREIGHTDOCK_COMPOSE`, else where Docker's
-packages put it), `git` for Git stacks and `docker` (the CLI) for Swarm stacks:
+The binary runs outside a container too:
 
 ```sh
-FREIGHTDOCK_DATA_DIR=./data FREIGHTDOCK_BIND=127.0.0.1:7443 ./target/release/freightdock
+FREIGHTDOCK_DATA_DIR=./data FREIGHTDOCK_BIND=127.0.0.1:7443 FREIGHTDOCK_CLUSTER_API=http://127.0.0.1:7451 ./target/release/freightdock
 ```
+
+(`http://127.0.0.1:7451` is the manager's admin API on the same machine, with its admin token.)

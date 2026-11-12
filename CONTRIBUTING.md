@@ -1,8 +1,8 @@
 # Contributing
 
-Thank you for helping. Freightdock is one Rust binary (axum, tokio, SQLite, bollard) with a vanilla JavaScript UI built
-in. The agent for remote hosts, with the tunnel protocol both ends speak, is the
-[freightdock-agent](https://github.com/freightdock/Agent) repository. This page is how work is done here. The map of the code is [CONTEXT.md](CONTEXT.md), how it fits together
+Thank you for helping. Freightdock is the web UI of a Freightdock cluster: one Rust binary (axum, tokio, SQLite) with a
+vanilla JavaScript UI built in, over the managers' admin API. The managers and workers are the Freightdock-Manager and
+Freightdock-Worker repositories. This page is how work is done here. The map of the code is [CONTEXT.md](CONTEXT.md), how it fits together
 [ARCHITECTURE.md](ARCHITECTURE.md), and every rule with its reason [DECISIONS.md](DECISIONS.md). Read the sections your
 change touches before you start.
 
@@ -11,12 +11,6 @@ change touches before you start.
 ```sh
 git config core.hooksPath .githooks
 ```
-
-The agent and its tunnel protocol come from the Agent repository at its release tag, which Cargo fetches like any
-other dependency. To change the protocol, clone that repository beside this one (`../freightdock-agent`) and copy
-`.cargo/config.toml.example` to `.cargo/config.toml`, which builds both from the checkout instead (Cargo.lock then
-records the checkout, so do not commit it). Make the change there, release it with a tag, move `tag` in
-`crates/server/Cargo.toml` to it, and remove `.cargo/config.toml` (the file says how).
 
 This turns on the pre-commit hook (`.githooks/pre-commit`). It refuses a commit that stages a database, a key, a
 certificate, a `.env` file or a data folder, or adds a line with a token, a private key or a private address, then runs
@@ -49,8 +43,8 @@ Where tests go:
 - Pure logic: a `#[cfg(test)]` module beside the code.
 - Endpoints: in process, with `tower::ServiceExt::oneshot` (`api::tests` has the helpers: `app`, `call`, `post`,
   `json_body`, `signed_in`).
-- Against a real Docker: the end-to-end suite, `crates/server/tests/qa.rs`, which `qa/run.sh` runs against a
-  throwaway `docker:dind`.
+- Against the managers: a fake manager in process (`cluster::tests`, `replica::tests`); the real cluster is checked by
+  hand on a test cluster until an end-to-end suite exists (TODO.md).
 
 A bug fixed is a bug that first gets a test that shows it. Never delete a test to make the bar green.
 
@@ -61,13 +55,11 @@ cargo test                                   # unit and in-process API tests
 cargo test -p freightdock oidc::                # one module's tests
 cargo clippy --all-targets -- -D warnings    # keep it clean
 qa/js-check.sh                               # node --check on every UI module, in a node container
-qa/run.sh                                    # end to end, against a throwaway docker:dind
 FREIGHTDOCK_DATA_DIR=./data FREIGHTDOCK_TLS=off FREIGHTDOCK_BIND=127.0.0.1:7080 cargo run   # serve, plain HTTP
 ```
 
 A debug build reads `web/` from disk, so a UI change needs only a refresh. The UI has no build step, no npm and no CDN.
 `web/assets/finui/` and `web/assets/finmotion/` are copies of FinUI and FinMotion: change them upstream first, then copy.
-`qa/run.sh` needs Docker; it never touches the containers already on your machine.
 
 ## The documents go with the code
 

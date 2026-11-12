@@ -42,6 +42,7 @@ pointer to what replaced it.
    does not show what it is about. Hand-made ones carried the old name and the owner's own registry into the
    repository; a generated one shows only what the tool made, and is made again whenever the UI changes.
 
+   **Superseded** by "Cluster" 10: `qa/screenshots.sh` drove the single-host product and went with it; screenshots of the cluster UI are taken on the test cluster until a script makes them again.
 ## Database
 
 1. One SQLite file in WAL mode; every transaction IMMEDIATE, so a transaction that reads and then writes is never refused
@@ -78,6 +79,7 @@ pointer to what replaced it.
    refused while it runs and for 10 seconds after. A webhook can only redeploy what it was made for: a stack (fetched again first when it
    is from Git, images pulled again unless `?pull=false`) or a container (its image pulled, recreated with the same
    settings); a container in a Compose project gets the stack's instead.
+   **Superseded** by "Cluster" 10: there are no webhooks in the cluster UI, so every change needs a session.
 9. A request may come with an API token, `Authorization: Bearer fdk_...`, instead of the cookie (from 1.0.0), and then
    needs neither the CSRF token (3) nor the same `Origin` (4). Both guard against a browser sending its ambient
    credential, the cookie, on a request another site made; a browser never adds an `Authorization` header on its own,
@@ -304,6 +306,8 @@ pointer to what replaced it.
 
 ## Access
 
+**Superseded in part** by 23 (G8.3): the roles per environment, ownership and security settings (1 to 4, 6 to 21) went with the single-host product; the rest still holds.
+
 1. Roles are Portainer Business Edition's (from 1.0.0, M4). An Administrator (`users.role = 'admin'`) may do
    everything everywhere, Freightdock's own settings included. Everybody else (`role = 'user'`) has, on each environment,
    one of Environment administrator, Operator, Helpdesk, Standard user and Read-only user, given to them or to a team
@@ -479,6 +483,11 @@ pointer to what replaced it.
    password is how an account is taken back, and it must take everything made under the old one. The activity log says
    how many went. Disabling still only stops tokens while the account is disabled ("Sign-in" 10): it is undone on
    purpose, and the person's tokens come back with it.
+23. The cluster UI has two roles (G8.3, owner's decision, 2026-11-12): an Administrator changes the cluster and
+    Freightdock's own settings, users and teams; anybody else signed in reads the cluster. Every route's rule is one of
+    Public, Session and Admin (`access::routes::RULES`). Finer roles (per stack, per node) come back with what needs
+    them, and are not guessed at before: a role table for features that are not there would be rules that hold nothing.
+
 
 ## HTTPS
 
@@ -548,22 +557,27 @@ pointer to what replaced it.
 10. Home is the landing page, and after sign-in no host is chosen (from 1.0.0): with many hosts, the first thing is
    which of them needs looking at, and a page about one host should never quietly be about the last one somebody used.
    A page about one host waits on Home until one is chosen; a row on Home chooses it (only Home, from "UI" 14).
+   **Superseded** by "Cluster" 10: there are no hosts to choose; the cluster page is the landing page.
 11. Home never waits on a host ("UI" 6 for hosts): it draws at once from what Freightdock keeps, asks every host on its own,
    and fills each row as its answer comes. A host that is down or slow shows its last known numbers, greyed, with when
    they are from ("Environments" 8), rather than a spinner or nothing.
+   **Superseded** by "Cluster" 10: there are no hosts to choose; the cluster page is the landing page.
 12. The menu lists under the chosen host's name only what is about that host (its dashboard, containers, stacks,
    templates, images, volumes, networks, events); what is Freightdock's own, the same whichever host is chosen, sits under
    Freightdock, and is there while no host is chosen: environments, registries ("Registries" 1: saved once for every
    host), the activity log, settings. The registry browser offers to pull a tag only while a host is chosen, onto that
    host; with none it only browses.
+   **Superseded** by "Cluster" 10: there are no hosts to choose; the cluster page is the landing page.
 13. The Swarm pages are in the menu only while the host shown is a swarm manager ("Swarm" 1): on any other host they
    would only say there is nothing there. The menu is made again when that changes, from the answer of `GET .../swarm`,
    asked at most every 30 s per host; a Swarm page reached anyway says what the host is instead. A service's or a
    stack's page goes back to its list when the host changes, as a container's does ("Environments" 4).
+   **Superseded** by "Cluster" 10: there are no hosts to choose; the cluster page is the landing page.
 14. The host is changed on Home and nowhere else (owner's decision, 2026-11-09): there is no switcher above the pages.
    Changing hosts is a step back to the overview, where every host's health is in front of you, not a list that can
    quietly put the page you are on onto another machine. The menu names the host shown ("Host: <name>"), and Home is
    always the first entry.
+   **Superseded** by "Cluster" 10: there are no hosts to choose; the cluster page is the landing page.
 15. Appearance in Settings is FinStats' (from 1.0.0): one row that takes a FinUI preset code (or the FinUI create
    address or install line holding one), what the code picks listed under it, and a link to FinUI create to make or
    change one. Freightdock offers no looks of its own to pick from: FinUI create is where a look is chosen, so there is
@@ -597,6 +611,8 @@ pointer to what replaced it.
    text is asked for, and a string that looks like words outside `t()` fails unless `ON_PURPOSE` says why.
 
 ## Endpoints
+
+**Set aside** (G8.3, 2026-11-12, "Cluster" 10): the feature these items are about is not in the cluster UI. They are kept, numbered, for when it comes back through the managers; until then they describe nothing in this repository.
 
 1. Every environment is one Docker endpoint that bollard and the `docker compose` CLI reach alike; an agent's tunnel is
    offered as a local unix socket, so there is no second code path for remote hosts.
@@ -640,6 +656,8 @@ pointer to what replaced it.
 
 ## Environments
 
+**Set aside** (G8.3, 2026-11-12, "Cluster" 10): the feature these items are about is not in the cluster UI. They are kept, numbered, for when it comes back through the managers; until then they describe nothing in this repository.
+
 1. An environment is `local` (made at setup, from `FREIGHTDOCK_DOCKER_HOST`; it cannot be removed), `agent` or `tls`. Only
    an administrator adds, edits or removes one, with the CSRF token, and each is in the activity log
    (`environment.create`, `.update`, `.remove`, `.join`); everybody signed in sees the list, to switch between hosts
@@ -672,6 +690,8 @@ pointer to what replaced it.
    answers. A summary that answers marks the host up, as its version would.
 
 ## Agent
+
+**Set aside** (G8.3, 2026-11-12, "Cluster" 10): the feature these items are about is not in the cluster UI. They are kept, numbered, for when it comes back through the managers; until then they describe nothing in this repository.
 
 1. A host Freightdock cannot reach runs `freightdock-agent`, which dials out: nothing on that host is opened to the network,
    and it works from behind NAT. One WebSocket carries yamux, and each yamux stream is one connection to that host's
@@ -739,6 +759,8 @@ pointer to what replaced it.
    changes, so a fork or a public Agent repository needs nothing.
 
 ## Stacks
+
+**Set aside** (G8.3, 2026-11-12, "Cluster" 10): the feature these items are about is not in the cluster UI. They are kept, numbered, for when it comes back through the managers; until then they describe nothing in this repository.
 
 1. A stack's files live in the data folder, `<data>/stacks/<id>/`, not in the database: they are what Compose reads,
    and an administrator can look at them, back them up and diff them with the tools they already know. The database
@@ -819,6 +841,8 @@ pointer to what replaced it.
 
 ## Templates
 
+**Set aside** (G8.3, 2026-11-12, "Cluster" 10): the feature these items are about is not in the cluster UI. They are kept, numbered, for when it comes back through the managers; until then they describe nothing in this repository.
+
 1. App templates are read in Portainer's own JSON (v2, v3, and v1's bare list) from addresses in the settings, so
    every community list works unchanged; Portainer's list is the default. An entry that cannot be read is left out, not
    the whole list. A template's note, which Portainer writes as HTML, is shown as text.
@@ -828,6 +852,8 @@ pointer to what replaced it.
 3. A stack template from a repository is deployed as a Git stack, as Portainer does it, so it can be redeployed from
    its repository later; a container template goes through the same create path as a container made by hand.
 ## Registries
+
+**Set aside** (G8.3, 2026-11-12, "Cluster" 10): the feature these items are about is not in the cluster UI. They are kept, numbered, for when it comes back through the managers; until then they describe nothing in this repository.
 
 1. A registry is saved for the whole instance by an administrator, with the CSRF token, and each change is in the
    activity log (`registry.create`, `.update`, `.remove`); everybody signed in sees the list and browses, as they may
@@ -862,6 +888,8 @@ pointer to what replaced it.
 
 ## Containers
 
+**Set aside** (G8.3, 2026-11-12, "Cluster" 10): the feature these items are about is not in the cluster UI. They are kept, numbered, for when it comes back through the managers; until then they describe nothing in this repository.
+
 1. Until roles come (M4), a signed-in user may look at everything and only an administrator may change anything. A
    change on Docker's socket is root on the host. **Superseded** by "Access" 2 (from 1.0.0, M4).
 2. A container is made from Docker's own create body, as Docker documents it, so every option Docker has is reachable
@@ -887,6 +915,8 @@ pointer to what replaced it.
 
 ## Streams
 
+**Set aside** (G8.3, 2026-11-12, "Cluster" 10): the feature these items are about is not in the cluster UI. They are kept, numbered, for when it comes back through the managers; until then they describe nothing in this repository.
+
 1. Pulls, pushes, builds and image loads answer as NDJSON lines as they go, the last `{"done":true}` or an `error`; they
    are POSTs, so they carry the CSRF token. Each is driven by a task of its own that stops when nobody reads, so closing
    the page stops the pull.
@@ -911,6 +941,8 @@ pointer to what replaced it.
    then the newest at each tick, and the page reckons network speed over the real time between samples.
 
 ## Swarm
+
+**Set aside** (G8.3, 2026-11-12, "Cluster" 10): the feature these items are about is not in the cluster UI. They are kept, numbered, for when it comes back through the managers; until then they describe nothing in this repository.
 
 1. The Swarm pages and routes are for an environment whose Docker is a swarm manager, told from its `/info`
    (`Swarm.LocalNodeState` active and `ControlAvailable`); `GET .../swarm` says the role. A worker cannot answer for its
@@ -969,6 +1001,8 @@ pointer to what replaced it.
 
 ## QA
 
+**Set aside** (G8.3, 2026-11-12, "Cluster" 10): the feature these items are about is not in the cluster UI. They are kept, numbered, for when it comes back through the managers; until then they describe nothing in this repository.
+
 1. What only a real Docker can show (pull, create, logs, console, edit and its rollback, build) is checked end to end by
    `qa/run.sh`, in CI, against a throwaway `docker:dind`, never the Docker of the machine it runs on: the suite removes
    what it made, and a test that went wrong must not be able to touch somebody's containers. It refuses to go on when
@@ -992,6 +1026,8 @@ pointer to what replaced it.
    zones meet. The image has tzdata, so `-e TZ=...` is all a container needs.
 
 ## MCP
+
+**Set aside** (G8.3, 2026-11-12, "Cluster" 10): the feature these items are about is not in the cluster UI. They are kept, numbered, for when it comes back through the managers; until then they describe nothing in this repository.
 
 1. Freightdock is an MCP server at `/mcp` (from 1.0.0), so an AI agent can manage its Docker hosts: the Streamable HTTP
    transport, JSON-RPC 2.0, one message a POST answered as plain JSON, `Mcp-Session-Id` from `initialize` on (a session
@@ -1025,6 +1061,8 @@ pointer to what replaced it.
 
 ## History
 
+**Set aside** (G8.3, 2026-11-12, "Cluster" 10): the feature these items are about is not in the cluster UI. They are kept, numbered, for when it comes back through the managers; until then they describe nothing in this repository.
+
 1. Each running container's use is sampled into SQLite every `every_s` seconds (60 by default, 10 to 3600), for every
    environment that answers, and kept `keep_days` (7 by default, 1 to 365); an administrator sets both, or turns it
    off, in Settings. The rows are the database's own, so history needs nothing else installed and goes with a backup.
@@ -1035,6 +1073,8 @@ pointer to what replaced it.
    than a spike or a made-up line. An answer has at most 360 points, averaged over equal stretches of time.
 
 ## Notifications
+
+**Set aside** (G8.3, 2026-11-12, "Cluster" 10): the feature these items are about is not in the cluster UI. They are kept, numbered, for when it comes back through the managers; until then they describe nothing in this repository.
 
 1. Freightdock tells through channels an administrator sets up: a webhook, e-mail over SMTP, an ntfy topic, a Gotify
    server, each with the events it wants. Each channel has at most one secret (a webhook's signing key, an ntfy or
@@ -1056,6 +1096,8 @@ pointer to what replaced it.
    remove that fails is said on the page that asked and in the activity log, and nobody waits on it later.
 
 ## Updates
+
+**Set aside** (G8.3, 2026-11-12, "Cluster" 10): the feature these items are about is not in the cluster UI. They are kept, numbered, for when it comes back through the managers; until then they describe nothing in this repository.
 
 1. A newer image is found by digest, never by pulling: the tag's digest in its registry (a HEAD on the manifest,
    which Docker Hub does not count as a pull) against the image's own registry digests. An index (a multi-arch image)
@@ -1083,6 +1125,8 @@ pointer to what replaced it.
 
 ## Volume files
 
+**Set aside** (G8.3, 2026-11-12, "Cluster" 10): the feature these items are about is not in the cluster UI. They are kept, numbered, for when it comes back through the managers; until then they describe nothing in this repository.
+
 1. A volume's files are reached through a short-lived helper container that mounts it, through Docker's own API (the
    archive endpoints and a command in the helper), not a second kind of stream through the agent's tunnel as the plan
    first said: the helper works the same on the local Docker, a TLS host and an agent's host, needs nothing new in the
@@ -1098,6 +1142,8 @@ pointer to what replaced it.
    no limit. A listing shows at most 5000 entries and says when there were more.
 
 ## Backups
+
+**Set aside** (G8.3, 2026-11-12, "Cluster" 10): the feature these items are about is not in the cluster UI. They are kept, numbered, for when it comes back through the managers; until then they describe nothing in this repository.
 
 1. A backup is Freightdock's own data, all that is needed to stand it up again: the database (copied with SQLite's online
    backup API, so nothing stops), `secret.key` (without it no sealed secret in the database opens), the agents' CA
@@ -1124,6 +1170,8 @@ pointer to what replaced it.
    is left as it is, and what it points at is never touched.
 
 ## Portainer
+
+**Set aside** (G8.3, 2026-11-12, "Cluster" 10): the feature these items are about is not in the cluster UI. They are kept, numbered, for when it comes back through the managers; until then they describe nothing in this repository.
 
 1. Importing from Portainer is for administrators, with the CSRF token, and each step is in the activity log
    (`portainer.connect`, `.forget`, `.import`, `.people`, and each thing made under its own action, `stack.adopt` with
@@ -1258,4 +1306,11 @@ pointer to what replaced it.
    never `INSERT OR REPLACE` (it would cascade deletes). The key that seals secrets travels with the snapshot: the
    managers hold both, readable only with an admin token. The tables of one host (statistics, the single-host
    environments) are not replicated. A write the managers did not take fails, though it stays here and is sent again.
+10. Freightdock is the cluster's UI and nothing else (G8.3, owner's decision, 2026-11-12): no Docker of its own, no
+    agents, no stacks, templates, webhooks, registries, image updates, notifications, resource history, backups, MCP
+    server or import from Portainer of its own. A one-node cluster does everything a single host did ("Cluster" 3), so
+    there is one product, not two to keep in step. What is set aside comes back, if it does, through the managers:
+    notifications, backups of the managers' state, the MCP server, the import from Portainer (last), registries, and a
+    node's Docker pages through its worker. Their DECISIONS sections stay, marked set aside, so their numbers and
+    reasons are there when they come back.
 

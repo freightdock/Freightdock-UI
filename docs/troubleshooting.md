@@ -3,62 +3,22 @@
 First look at Freightdock's log (`docker logs freightdock`); it says what it did and why it refused. `RUST_LOG=freightdock=debug`
 says more. Changes are in the **Activity log**, sign-ins and refusals in the **Auth log**.
 
-## An agent will not connect
+## The cluster page says it is not connected
 
-Look at the agent's log on its host: `docker logs freightdock-agent`.
+The UI could not reach any manager in `FREIGHTDOCK_CLUSTER_API`, or none took its token. The log says which:
 
-| The log says | What to do |
+| The log or the page says | What to do |
 |---|---|
-| `could not enrol ... connection refused`, `timed out` | The host cannot reach Freightdock's port 7444. Check `nc -vz freightdock.example.com 7444` from the host, Freightdock's `-p 7444:7444`, firewalls on the way, and that `FREIGHTDOCK_SERVER` is an address the host can reach (not `127.0.0.1` or `localhost`, which is the host itself). |
-| `could not enrol ... certificate` or `handshake` | Something between them ends TLS (a reverse proxy). The agent endpoint must be reached directly or through a TCP passthrough ([agent.md](agent.md#behind-nat-or-a-proxy)). Or the token is from another Freightdock: its CA does not match. |
-| `could not enrol ... the join token` (spent, expired, unknown) | A token is good once, for 24 hours. Make a new one (the lock icon on Environments) and start the agent with it. |
-| `this agent has no certificate and no join token it has not spent yet` | Its volume was lost or it never enrolled: start it with a new token. |
-| `Freightdock refused this agent's certificate` | The environment was removed or given a new join token. Start the agent with the new token ([agent.md](agent.md#revoking-and-joining-again)). |
-| `FREIGHTDOCK_SERVER is not set` / `is not an address` | Give it `host:port`, as `freightdock.example.com:7444`. |
-| Docker errors (`/var/run/docker.sock`) | The socket is not mounted: `-v /var/run/docker.sock:/var/run/docker.sock`. |
+| `connection refused`, `timed out` | The manager's admin API is not listening there: `ss -ltn` on the manager for 7452 (or 7451 on loopback), and `FREIGHTDOCK_MANAGER_API_TLS_BIND`. With `--network host`, `127.0.0.1` is the node itself. |
+| a certificate error | `FREIGHTDOCK_CLUSTER_CA_FILE` is not the cluster CA (`freightdock-manager ca`), or not mounted. The UI trusts that CA alone, for the name `manager.freightdock.internal` whatever address reaches the manager. |
+| 401 | The token in `FREIGHTDOCK_CLUSTER_TOKEN_FILE` was revoked, or is not an API token of this cluster. Make another (`freightdock-manager api-token create ui admin`). |
+| 403 on a change | The token is a read token: the UI needs an admin one. |
 
-On Freightdock's side:
+## The UI keeps restarting with exit code 75
 
-- **Adding an agent is refused: "The agent endpoint is off"**: `FREIGHTDOCK_AGENT_BIND=off` and no `FREIGHTDOCK_AGENT_ADDRESS`.
-- **The `docker run` line names the wrong address**: it is built from the name your browser used. Change the address
-  in the dialog, or set `FREIGHTDOCK_AGENT_ADDRESS`.
-- **Freightdock does not start: the agent port is in use**: another Freightdock (or something else) has 7444. Set
-  `FREIGHTDOCK_AGENT_BIND` to another port, or `off`.
-- **Up, then down every so often**: a NAT or firewall that drops quiet connections. Both ends send keepalives every
-  10 seconds after 30 idle; the agent comes back by itself within a minute.
-
-## A TLS host is down
-
-The environment's health shows the error on hover. Check from Freightdock's machine with the same files:
-
-```sh
-docker --tlsverify --tlscacert ca.pem --tlscert cert.pem --tlskey key.pem -H tcp://docker.example.com:2376 version
-```
-
-A certificate whose names do not hold the address in Freightdock is refused: the daemon's certificate must name it in its
-subject alternative names ([agent.md](agent.md#a-tls-host)).
-
-## Stacks cannot be deployed: Compose is missing
-
-The log at start says `no Docker Compose found: stacks can be written but not deployed (set FREIGHTDOCK_COMPOSE)`, or
-`Docker Compose at <path>` when it found one. The image has one. A binary run on its own looks at `FREIGHTDOCK_COMPOSE`,
-then where Docker's packages put the plugin (`/usr/local/libexec/docker/cli-plugins/`, `/usr/libexec/docker/cli-plugins/`,
-`/usr/local/lib/docker/cli-plugins/`, `/usr/lib/docker/cli-plugins/`, each `docker-compose`),
-`~/.docker/cli-plugins/docker-compose`, and `docker-compose` on `PATH`. Install `docker-compose-plugin`, or set `FREIGHTDOCK_COMPOSE`.
-
-Git stacks need `git`, Swarm stacks the `docker` CLI; the image has both.
-
-## Permission denied on the Docker socket
-
-Freightdock in its image runs as root and reads the socket you mount. Run as another user (`--user`), it must be in the
-socket's group:
-
-```sh
-docker run ... --user 1000:1000 --group-add "$(stat -c %g /var/run/docker.sock)" ...
-```
-
-and own the data volume. Rootless Docker's socket is at `$XDG_RUNTIME_DIR/docker.sock`: mount that one instead.
-SELinux hosts may need `:z` on the volume mounts.
+Another Freightdock of the same cluster wrote to the database since this one loaded it, so this one stops to load the
+latest; Docker's restart policy starts it again. Once is normal when a second UI starts. Again and again means two UIs
+writing at once: run one at a time, or put them behind one address so people use one.
 
 ## Certificate warnings
 
@@ -86,10 +46,10 @@ SELinux hosts may need `:z` on the volume mounts.
 
 ## Forgot the administrator's password
 
-Another administrator can give a new one (**Users**). If there is none, stop Freightdock and restore a backup, or start
-over with a new data folder. There is no reset from the command line yet.
+Another administrator can give a new one (**Users**). If there is none, there is no reset from the command line yet:
+the database is the managers', so a new data folder loads the same one.
 
 ## The database is newer than this Freightdock
 
-An older Freightdock refuses a database a newer one changed, and leaves it untouched. Run the newer image again, or
-restore the backup made before the upgrade.
+An older Freightdock refuses a database a newer one changed, and leaves it untouched. Run the newer image again, on
+every node that runs the UI.
