@@ -186,7 +186,8 @@ kept while a refresh is on its way, and `redraw()` to draw the last answer again
 FinUI data tables, refreshed on a timer only while the tab is seen (`every`); their filter box lives outside what is
 redrawn.
 
-The landing page is the cluster (`/cluster`; `/` and the old `/home` go there): its managers, nodes with their labels
+The landing page is the dashboard (`/dashboard`, `pages/dashboard.js`, "Cluster" 13; `/` and the old `/home` go there),
+and beside it the cluster (`/cluster`): its managers, nodes with their labels
 and state, recoveries, events and the commands sent, and for an administrator the join tokens and a node's commands.
 `/cluster/stacks` lists the cluster's Compose stacks with their workloads, and an administrator writes, deploys,
 starts, stops and removes them in the code editor. `cluster.js` asks `/api/cluster` whether the managers answer, at
@@ -243,7 +244,7 @@ manager (`/v1/cluster`, `/v1/nodes`, `/v1/events`, `/v1/nodes/{id}/commands`, `/
 status and sentence ("Cluster" 2). `GET /api/cluster` answers `{connected: false}` without a cluster, so the UI can ask
 it on any Freightdock.
 
-The page is `pages/cluster.js` (`/cluster`, the landing page, under Overview): the
+The page is `pages/cluster.js` (`/cluster`, under Overview after the dashboard): the
 managers, which leads and the node each runs on (matched by host), the workers (every node, with whether it runs a
 manager too, each opening `pages/cluster-node.js` at `/cluster/nodes/{id}`: its details, the workloads placed on it
 and the containers it reports; an administrator renames it there, "Cluster" 12) with their health as the managers agree on it and which manager hears each, the

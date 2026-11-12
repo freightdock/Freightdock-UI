@@ -18,6 +18,7 @@ const MOBILE_STYLE = 'tabs';
 function pages() {
   const cluster = t('nav.overview');
   return [
+    { href: '/dashboard', label: t('pages.dashboard.title'), icon: 'gauge', group: cluster, primary: true, exact: true },
     { href: '/cluster', label: t('nav.the_cluster'), icon: 'compass', group: cluster, primary: true, exact: true },
     clusterConnected() ? { href: '/cluster/stacks', label: t('nav.cluster_stacks'), icon: 'grid', group: cluster, primary: true } : null,
     isAdmin() ? { href: '/users', label: t('nav.users'), icon: 'users', group: t('nav.freightdock') } : null,

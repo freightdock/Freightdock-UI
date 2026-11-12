@@ -20,6 +20,7 @@ First light
 - **Rolling a Swarm service back, scaling it or updating it, or draining, promoting or labelling a node, on a busy host** no longer fails with "update out of sequence": Swarm moves their versions by itself, so the change is read and sent again. An update over somebody else's change meanwhile is refused instead of overwriting it.
 
 ### Added
+- **A dashboard**, where Freightdock now opens: gauges for the managers online, the quorum and its leader, and the workers healthy; the CPU and memory used over the whole cluster; and a row per node with its CPU, memory, disk and workloads.
 - **A page for every node**: click a node on the Cluster page to see what the managers know of it, the stacks' workloads placed on it and the containers it says it runs.
 - **Managers and workers**: the Cluster page shows which node each manager runs on, and whether each node runs a manager too.
 - **Rename a node** in Freightdock only: an administrator gives it a name to be shown by, while the node and the cluster keep its hostname. Written to the activity log.

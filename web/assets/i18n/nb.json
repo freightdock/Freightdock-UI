@@ -936,6 +936,29 @@
         "paused": "pauset",
         "dead": "død"
       }
+    },
+    "dashboard": {
+      "title": "Oversikt",
+      "sub": "Klyngen med ett blikk.",
+      "managers": "Managere",
+      "quorum": "Quorum",
+      "workers": "Arbeidere",
+      "n_of": "{n} av {of}",
+      "online": "tilkoblet",
+      "healthy": "friske",
+      "quorate": "Har quorum",
+      "not_quorate": "Mangler quorum",
+      "voters": "{n} stemmeberettigede managere",
+      "leader": "leder",
+      "no_leader": "Ingen leder",
+      "cpu": "CPU",
+      "memory": "Minne",
+      "disk": "Disk",
+      "cpu_of": "over {n} CPU-er",
+      "memory_of": "{used} av {all}",
+      "nodes": "Noder",
+      "workloads_n": "{n} av {of} arbeidslaster kjører",
+      "containers_n": "{n} containere kjører"
     }
   },
   "components": {

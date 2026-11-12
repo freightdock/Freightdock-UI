@@ -44,7 +44,7 @@ function guard(url) {
     const next = path + url.search;
     return '/login' + (next && next !== '/' ? '?next=' + encodeURIComponent(next) : '');
   }
-  if (path === '/login' || path === '/' || path === '/home') return '/cluster';
+  if (path === '/login' || path === '/' || path === '/home') return '/dashboard';
   return null;
 }
 

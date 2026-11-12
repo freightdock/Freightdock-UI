@@ -936,6 +936,29 @@
         "paused": "paused",
         "dead": "dead"
       }
+    },
+    "dashboard": {
+      "title": "Dashboard",
+      "sub": "The cluster at a glance.",
+      "managers": "Managers",
+      "quorum": "Quorum",
+      "workers": "Workers",
+      "n_of": "{n} of {of}",
+      "online": "online",
+      "healthy": "healthy",
+      "quorate": "Quorate",
+      "not_quorate": "Not quorate",
+      "voters": "{n} voting managers",
+      "leader": "leads",
+      "no_leader": "No leader",
+      "cpu": "CPU",
+      "memory": "Memory",
+      "disk": "Disk",
+      "cpu_of": "over {n} CPUs",
+      "memory_of": "{used} of {all}",
+      "nodes": "Nodes",
+      "workloads_n": "{n} of {of} workloads running",
+      "containers_n": "{n} containers running"
     }
   },
   "components": {

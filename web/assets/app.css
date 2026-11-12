@@ -112,6 +112,26 @@
 /* ------------------------------------------------------------ two-factor: the QR code and the recovery codes */
 /* The tokens are light-dark(): with color-scheme light here they give their light values, so the code is dark on light
    in either theme, as some scanners read nothing else. */
+.fd-dash-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.fd-dash-row--two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 760px) { .fd-dash-row, .fd-dash-row--two { grid-template-columns: 1fr; } }
+.fd-gauge { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
+.fd-gauge__svg { width: 100%; max-width: 200px; }
+.fd-gauge__track, .fd-gauge__fill { fill: none; stroke-width: 9; stroke-linecap: round; }
+.fd-gauge__track { stroke: var(--track); }
+.fd-gauge__fill--good { stroke: var(--good); }
+.fd-gauge__fill--warning { stroke: var(--warning); }
+.fd-gauge__fill--critical { stroke: var(--critical); }
+.fd-gauge__value { font-size: 1.5rem; font-weight: 600; color: var(--text-strong); }
+.fd-gauge__caption { color: var(--text-muted); }
+.fd-dash-quorum { padding: 18px 0 6px; transform: scale(1.25); }
+.fd-dash-nodes { display: flex; flex-direction: column; }
+.fd-dash-node { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(0, 3fr) minmax(120px, 1fr); gap: 18px; align-items: center; padding: 12px 0; border-top: 1px solid var(--border-soft); }
+.fd-dash-node:first-child { border-top: 0; }
+.fd-dash-node__name, .fd-dash-node__work { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.fd-dash-node__res { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 12px; align-items: center; }
+.fd-dash-bar { display: grid; grid-template-columns: minmax(0, 1fr) 11em; gap: 10px; align-items: center; }
+@media (max-width: 760px) { .fd-dash-node { grid-template-columns: 1fr; } .fd-dash-bar { grid-template-columns: minmax(0, 1fr) 9em; } }
 .fd-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; margin: 0; }
 .fd-facts dt { color: var(--text-muted); }
 .fd-facts dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }

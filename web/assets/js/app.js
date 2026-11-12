@@ -21,6 +21,7 @@ import { signinsPage } from './pages/signins.js';
 import { theClusterPage } from './pages/cluster.js';
 import { clusterStacksPage } from './pages/cluster-stacks.js';
 import { clusterNodePage } from './pages/cluster-node.js';
+import { dashboardPage } from './pages/dashboard.js';
 import { t } from './i18n.js';
 
 motion();
@@ -28,6 +29,7 @@ animateWithin(document.body);
 
 route('/setup', setupPage, { bare: true, title: t('routes.setup') });
 route('/login', loginPage, { bare: true, title: t('routes.login') });
+route('/dashboard', dashboardPage, { title: t('pages.dashboard.title') });
 route('/cluster', theClusterPage, { title: t('nav.the_cluster') });
 route('/cluster/stacks', clusterStacksPage, { title: t('nav.cluster_stacks') });
 route('/cluster/nodes/:id', clusterNodePage, { title: t('pages.cluster_node.title') });

@@ -1327,4 +1327,8 @@ pointer to what replaced it.
     away), kept in Freightdock's database (`node_names`, replicated with the rest) and written to the activity log
     (`cluster.node.rename` with the name). Each node has a page of its own (`/cluster/nodes/{id}`): what the managers
     know of it, the stacks' workloads placed on it and the containers it reports.
+13. The dashboard (`/dashboard`, owner's wish, 2026-11-12) is where Freightdock opens: managers online, whether the
+    cluster is quorate and which node leads (the managers' `online` and `quorate`, from the reports they exchange each
+    second), workers healthy, then CPU (weighted by each node's CPUs) and memory over every node heard, then a row per
+    node with its CPU, memory, disk and workloads. It reads only what the cluster pages read, and changes nothing.
 
