@@ -16,6 +16,7 @@ import { formField } from '../../finui/components/field/field.js';
 import { toast } from '../../finui/components/toast/toast.js';
 import { t, tOr } from '../i18n.js';
 import { nodeName, nodeHost, managerHosts, heardBy, managerLink } from './cluster.js';
+import { addrKey } from './cluster-stacks.js';
 
 const EVERY_MS = 3000;
 const HEALTH_TONES = { healthy: 'good', suspect: 'warning', unreachable: 'critical' };
@@ -72,8 +73,18 @@ function details(n, manager, raft) {
     [t('pages.cluster_node.cpus'), r.cpu_count ? String(r.cpu_count) : ''],
     [t('pages.cluster_node.memory'), r.memory_total_bytes ? bytes(r.memory_total_bytes) : ''],
     [t('pages.cluster.labels'), labels],
+    [t('pages.cluster_node.overlay'), overlay(n.network)],
+    [t('pages.cluster_node.wg_key'), n.network && n.network.public_key ? h('span', { class: 'mono sub' }, n.network.public_key) : ''],
   ];
   return h('dl', { class: 'fd-facts' }, rows.flatMap(([k, v]) => [h('dt', null, k), h('dd', null, v)]));
+}
+
+/** The node's overlay as it last said (G9): applied, failing with why, or not heard of. */
+function overlay(net) {
+  if (!net) return h('span', { class: 'sub' }, t('pages.cluster_node.overlay_none'));
+  if (net.error) return h('div', { class: 'stack' }, status({ tone: 'critical', line: true }, t('pages.cluster_node.overlay_error')), h('span', { class: 'sub' }, net.error));
+  if (!net.applied_version) return status({ tone: 'warning', line: true }, t('pages.cluster_node.overlay_waiting'));
+  return status({ tone: 'good', line: true }, t('pages.cluster_node.overlay_up', { v: net.applied_version }));
 }
 
 function workloadTable(rows) {
@@ -82,6 +93,7 @@ function workloadTable(rows) {
     columns: [
       { label: t('pages.cluster.workload_id'), cell: (w) => h('span', { class: 'mono' }, w.id), sort: (w) => w.id },
       { label: t('pages.cluster_node.stack'), cell: (w) => h('a', { href: '/cluster/stacks' }, w.stack), sort: (w) => w.stack },
+      { label: t('pages.cluster_stacks.address'), cell: (w) => (w.address ? h('span', { class: 'mono' }, w.address) : ''), sort: (w) => addrKey(w.address) },
       { label: t('pages.cluster.image'), cell: (w) => h('span', { class: 'mono sub' }, w.image || '') },
       { label: t('pages.cluster_stacks.status'), cell: (w) => status({ tone: WORKLOAD_TONES[w.status] || 'info', line: true }, tOr(`pages.cluster_stacks.status_word.${w.status}`, w.status || '')), sort: (w) => w.status },
     ],

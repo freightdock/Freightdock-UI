@@ -248,7 +248,8 @@ The page is `pages/cluster.js` (`/cluster`, under Overview after the dashboard):
 managers (each opening `pages/cluster-manager.js` at `/cluster/managers/{raft id}`: its details and the workers it
 hears; an administrator renames it there, "Cluster" 14), which leads and the node each runs on (matched by host), the workers (every node, with whether it runs a
 manager too, each opening `pages/cluster-node.js` at `/cluster/nodes/{id}`: its details, the workloads placed on it
-and the containers it reports; an administrator renames it there, "Cluster" 12) with their health as the managers agree on it and which manager hears each, the
+and the containers it reports, the addresses of its workloads and its overlay as it last said, `network` in the
+managers' answer; an administrator renames it there, "Cluster" 12) with their health as the managers agree on it and which manager hears each, the
 latest events, asked again every three seconds; an administrator pings a node, runs, stops or removes a container on
 it, sets its labels (`PUT /api/cluster/nodes/{id}/labels`, "Cluster" 5; the labels column shows the worker's own and
 the cluster's merged), authorizes one that came back fenced (`POST /api/cluster/nodes/{id}/authorize`, "Cluster" 6;

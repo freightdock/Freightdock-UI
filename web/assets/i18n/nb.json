@@ -902,7 +902,10 @@
       "edit_title": "Endre {name}",
       "deployed": "{name} rullet ut",
       "starting": "{name} starter",
-      "stopping": "{name} stopper"
+      "stopping": "{name} stopper",
+      "address": "Adresse",
+      "no_address": "ingen ennå",
+      "network": "nettverk {subnet}"
     },
     "cluster_node": {
       "title": "Node",
@@ -937,7 +940,13 @@
         "restarting": "starter på nytt",
         "paused": "pauset",
         "dead": "død"
-      }
+      },
+      "overlay": "Overlay",
+      "wg_key": "WireGuard-nøkkel",
+      "overlay_none": "ikke rapportert",
+      "overlay_error": "feiler",
+      "overlay_waiting": "venter på managerne",
+      "overlay_up": "oppe, versjon {v}"
     },
     "dashboard": {
       "title": "Oversikt",

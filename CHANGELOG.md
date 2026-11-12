@@ -21,6 +21,7 @@ First light
 
 ### Added
 - **A dashboard**, where Freightdock now opens: gauges for the managers online, the quorum and its leader, and the workers healthy; the CPU and memory used over the whole cluster; and a row per node with its CPU, memory, disk and workloads.
+- **The cluster network on the pages**: every workload shows its internal address (on the Cluster stacks page and on its node's page), each stack its network, and each node whether its overlay is up, waiting or failing (and why), with its WireGuard key.
 - **Name a manager, and open its page**: click a manager on the Cluster page (or the leader on the dashboard) to see its address, its place in Raft, whether it is heard and the workers connected to it; an administrator gives it a name there, shown in Freightdock instead of its address.
 - **A page for every node**: click a node on the Cluster page to see what the managers know of it, the stacks' workloads placed on it and the containers it says it runs.
 - **Managers and workers**: the Cluster page shows which node each manager runs on, and whether each node runs a manager too.

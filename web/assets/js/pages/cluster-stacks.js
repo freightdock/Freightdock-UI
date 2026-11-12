@@ -67,10 +67,16 @@ function stackCard(s, reload) {
   const services = Object.entries(s.services || {}).map(([k, v]) => `${k} (${v.image}, ${v.replicas}x)`).join(', ');
   return card({
     title: h('span', { class: 'row' }, h('span', { class: 'mono' }, s.name), state),
-    sub: h('span', { title: when(sec(s.updated_at)) }, t('pages.cluster_stacks.updated', { when: ago(sec(s.updated_at)), services })),
+    sub: h('span', null, h('span', { title: when(sec(s.updated_at)) }, t('pages.cluster_stacks.updated', { when: ago(sec(s.updated_at)), services })),
+      s.subnet ? h('span', { class: 'mono' }, ` · ${t('pages.cluster_stacks.network', { subnet: s.subnet })}`) : null),
     actions,
     body: workloadTable(w),
   });
+}
+
+/** An IPv4 address as a key that sorts by number; none last. */
+export function addrKey(a) {
+  return a ? a.split('.').map((x) => x.padStart(3, '0')).join('.') : '~';
 }
 
 function lastLine(c) {
@@ -84,6 +90,7 @@ function workloadTable(rows) {
     columns: [
       { label: t('pages.cluster_stacks.workload'), cell: (w) => h('span', { class: 'mono' }, w.id), sort: (w) => w.id },
       { label: t('pages.cluster.node'), cell: (w) => (w.node_id ? h('div', { class: 'name-cell' }, h('span', null, w.hostname || shortId(w.node_id)), h('span', { class: 'sub mono', title: w.node_id }, shortId(w.node_id))) : h('span', { class: 'sub' }, t('pages.cluster_stacks.no_node'))) },
+      { label: t('pages.cluster_stacks.address'), cell: (w) => (w.address ? h('span', { class: 'mono' }, w.address) : h('span', { class: 'sub' }, t('pages.cluster_stacks.no_address'))), sort: (w) => addrKey(w.address) },
       { label: t('pages.cluster_stacks.status'), cell: (w) => status({ tone: TONES[w.status] || 'info', line: true }, tOr(`pages.cluster_stacks.status_word.${w.status}`, w.status)), sort: (w) => w.status },
       { label: t('pages.cluster_stacks.recovery'), cell: (w) => h('span', { class: 'sub' }, tOr(`pages.cluster_stacks.recovery_kind.${w.recovery}`, w.recovery || '')), sort: (w) => w.recovery || '' },
       { label: t('pages.cluster_stacks.container'), cell: (w) => (w.actual ? h('span', { class: 'sub' }, `${w.actual.state}${w.actual.state === 'exited' ? ` (${w.actual.exit_code})` : ''}`) : '') },
