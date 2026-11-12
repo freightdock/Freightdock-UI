@@ -84,7 +84,7 @@ function usersCard(signal) {
       rows: list, label: t('pages.users.filter'), empty: [t('pages.users.nobody'), ''], rowClass: (u) => (u.disabled ? 'is-quiet' : null),
       columns: [
         { label: t('common.name'), cell: (u) => h('div', { class: 'name-cell' }, h('span', { class: 'truncate' }, u.name), u.email ? h('span', { class: 'sub' }, u.email) : null) },
-        { label: t('pages.swarm.role'), cell: (u) => (u.role === 'admin' ? status({ tone: 'warning' }, t('common.administrator')) : h('span', null, t('pages.users.roles_per_env'))), sort: (u) => u.role },
+        { label: t('pages.swarm.role'), cell: (u) => (u.role === 'admin' ? status({ tone: 'warning' }, t('common.administrator')) : h('span', null, t('pages.users.reads_the_cluster'))), sort: (u) => u.role },
         { label: t('pages.stack_git.signs_in'), cell: (u) => h('div', { class: 'row' },
           u.kind === 'sso' ? status({ tone: 'info', line: true }, 'SSO') : u.kind === 'ldap' ? status({ tone: 'info', line: true }, t('pages.users.directory')) : status({ tone: 'good', line: true, icon: 'key' }, t('auth.password')),
           u.totp ? status({ tone: 'good', line: true, icon: 'lock' }, t('pages.users.two_factor')) : null), sort: (u) => u.kind },

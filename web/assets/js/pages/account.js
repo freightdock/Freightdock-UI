@@ -1,5 +1,5 @@
-// Who you are signed in as, signing out, your password, two-factor, linking to single sign-on, and your API tokens: for scripts and AI agents, shown once when made, with
-// the line that connects Claude Code to Freightdock's MCP server, whether an administrator has it on, and the CA to trust for Freightdock's own certificate.
+// Who you are signed in as, signing out, your password, two-factor, linking to single sign-on, your API tokens (for
+// scripts, shown once when made), and the CA to trust for Freightdock's own certificate.
 
 import { h, ago, when, num } from '../dom.js';
 import { t, LANGUAGES, storedLanguage, pickLanguage, setLanguage } from '../i18n.js';
@@ -35,34 +35,25 @@ function goToProvider(address) {
   return true;
 }
 
-/** Where an AI agent reaches Freightdock's MCP server: this address, as the browser sees it. */
-const mcpUrl = () => `${location.origin}/mcp`;
-
-/** The line that adds Freightdock to Claude Code. */
-export const claudeLine = (url, token) => `claude mcp add --transport http freightdock ${url} --header "Authorization: Bearer ${token}"`;
-
 /** The token, once: it is not shown again. */
 function showToken(made) {
   openModal({ title: t('pages.account.your_token', { name: made.name }), wide: true, body: h('div', { class: 'stack' },
     callout({ tone: 'info', body: t('pages.account.copy_now') }),
     codeLine(made.token, { label: t('pages.account.copy_token') }),
-    h('span', { class: 'faint' }, t('pages.account.connect_claude')),
-    codeLine(claudeLine(mcpUrl(), made.token), { label: t('webhook.copy_command') }),
     made.read_only ? h('p', { class: 'faint' }, t('pages.account.read_only_note')) : null) });
 }
 
 /** Where Freightdock's own certificate authority is downloaded: trusted once, it vouches for this server's certificate. */
 export const CA_URL = '/api/tls/ca.pem';
 
-/** Trusting Freightdock's CA: the download, and how Claude Code (Node) and the rest are told to trust it. With no CA (a
- *  certificate of one's own, or a proxy in front) there is nothing to trust here. */
-export function caHelp(hasCa) {
+/** Trusting Freightdock's CA: the download, and how a machine is told to trust it. With no CA (a certificate of one's
+ *  own, or a proxy in front) there is nothing to trust here. */
+function caHelp(hasCa) {
   if (!hasCa) return null;
   const how = (label, line) => h('div', { class: 'stack stack--tight' }, h('span', { class: 'faint' }, label), codeLine(line, { label: t('pages.account.copy_label', { label }) }));
   return h('div', { class: 'stack' },
     h('p', { class: 'faint' }, t('pages.account.ca_intro')),
     h('div', { class: 'row' }, button({ href: CA_URL, download: 'freightdock-ca.pem', size: 'sm' }, icon('download', 14), t('pages.account.download_ca'))),
-    how(t('pages.account.node_tool'), 'NODE_EXTRA_CA_CERTS="$HOME/freightdock-ca.pem" claude'),
     h('details', null, h('summary', null, t('pages.account.whole_machine')), h('div', { class: 'stack' },
       how('Debian, Ubuntu', 'sudo cp freightdock-ca.pem /usr/local/share/ca-certificates/freightdock-ca.crt && sudo update-ca-certificates'),
       how('Fedora, Arch', 'sudo trust anchor --store freightdock-ca.pem'),
@@ -72,21 +63,15 @@ export function caHelp(hasCa) {
       h('p', { class: 'faint' }, t('pages.account.browsers')))));
 }
 
-/** How to connect an AI agent: the MCP address, and the line for Claude Code once you have a token. */
-function agentCard(signal) {
+/** Freightdock's own CA, when it made its certificate: `GET /api/tls/ca.pem` answers it, else 404. */
+function caCard(signal) {
   const slot = h('div');
-  loadInto(slot, { signal, load: (s) => get('/api/mcp/status', { signal: s }), draw: (st) => h('div', { class: 'stack' },
-    st.enabled ? null : callout({ tone: 'warning', body: t('pages.account.mcp_off') }),
-    facts([[t('pages.account.mcp_address'), mcpUrl(), { wide: true, mono: true }], [t('pages.account.transport'), 'Streamable HTTP'], [t('pages.account.signs_in_with'), t('pages.account.signs_in_with_value')]]),
-    h('span', { class: 'faint' }, t('pages.account.make_above')),
-    codeLine(claudeLine(mcpUrl(), '<token>'), { label: t('webhook.copy_command') }),
-    h('p', { class: 'faint' }, t('pages.account.agent_may')),
-    caHelp(st.ca)) });
-  return card({ title: t('pages.account.connect_agent'), sub: t('pages.account.connect_agent_sub'), body: slot });
+  loadInto(slot, { signal, load: (s) => fetch(CA_URL, { method: 'HEAD', signal: s }).then((r) => r.ok), draw: (has) => caHelp(has) || h('p', { class: 'faint' }, t('pages.account.no_ca')) });
+  return card({ title: t('pages.account.certificate'), sub: t('pages.account.certificate_sub'), body: slot });
 }
 
 function newTokenDialog(after) {
-  const name = formField({ id: 'token-name', label: t('common.name'), placeholder: 'claude-code', autocomplete: 'off', help: t('pages.account.token_name_help') });
+  const name = formField({ id: 'token-name', label: t('common.name'), placeholder: 'backup-script', autocomplete: 'off', help: t('pages.account.token_name_help') });
   let days = '90';
   let readOnly = false;
   const lifetime = segmented({ label: t('pages.account.good_for'), value: days, options: LIFETIMES, onChange: (v) => { days = v; } });
@@ -268,7 +253,7 @@ export function accountPage({ el, signal, query }) {
   } }, icon('logout', 14), t('pages.account.sign_out'));
   el.append(pageHeader(t('nav.account'), t('pages.account.sub')),
     h('div', { class: 'stack' },
-      card({ title: me.name, body: h('div', { class: 'stack' }, facts([[t('pages.swarm.role'), h('span', { class: 'row' }, me.role === 'admin' ? t('common.administrator') : t('pages.account.role_per_host'), signinBadge(signin))]]), h('div', null, out)) }),
+      card({ title: me.name, body: h('div', { class: 'stack' }, facts([[t('pages.swarm.role'), h('span', { class: 'row' }, me.role === 'admin' ? t('common.administrator') : t('pages.account.reads_the_cluster'), signinBadge(signin))]]), h('div', null, out)) }),
       languageCard(),
       // A password is changed here only when it is kept here; two-factor guards a password, so a provider's sign-in has
       // neither (its provider gives both); linking is for a local account not linked yet ("Users" 2, 3).
@@ -276,7 +261,7 @@ export function accountPage({ el, signal, query }) {
       me.sso ? null : twoFactorCard(signal),
       signin.kind === 'local' ? ssoCard(query) : null,
       tokensCard(signal),
-      agentCard(signal)));
+      caCard(signal)));
 }
 
 /** How the account signs in, beside its role: the provider's name with a key, or the directory's ("Users" 3). Nothing

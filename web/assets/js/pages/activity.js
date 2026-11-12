@@ -12,7 +12,7 @@ import { button } from '../../finui/components/button/button.js';
 import { icon } from '../../finui/core.js';
 import { t } from '../i18n.js';
 
-const KINDS = [['', t('pages.events.everything')], ['container', t('nav.containers')], ['stack', t('nav.stacks')], ['user', t('grants.people')], ['access', t('pages.activity.roles')], ['image', t('nav.images')], ['volume', t('nav.volumes')], ['network', t('nav.networks')]];
+const KINDS = [['', t('pages.events.everything')], ['cluster', t('nav.the_cluster')], ['cluster.stack', t('nav.cluster_stacks')], ['user', t('grants.people')], ['team', t('grants.teams')], ['token', t('pages.account.api_tokens')], ['settings', t('nav.settings')]];
 
 function tone(action) {
   if (action.endsWith('.failed')) return 'critical';

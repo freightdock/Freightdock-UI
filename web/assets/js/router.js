@@ -9,8 +9,7 @@ let current = null;          // { abort, cleanup: [] }
 let layouts = null;          // { shell(route) -> content element, bare() -> element }
 const listeners = new Set();
 
-/** route('/containers/:id', page, { bare, admin, title, host }): a `host` page is about the chosen host, and goes to Home
- *  while none is chosen. */
+/** route('/cluster/stacks', page, { bare, title }). */
 export function route(pattern, page, opts = {}) {
   const keys = [];
   const re = new RegExp('^' + pattern.replace(/:[a-z_]+/gi, (m) => { keys.push(m.slice(1)); return '([^/]+)'; }) + '/?$');
@@ -45,7 +44,7 @@ function guard(url) {
     const next = path + url.search;
     return '/login' + (next && next !== '/' ? '?next=' + encodeURIComponent(next) : '');
   }
-  if (path === '/login') return '/';
+  if (path === '/login' || path === '/' || path === '/home') return '/cluster';
   return null;
 }
 
@@ -61,7 +60,6 @@ export async function render() {
   const to = guard(url);
   if (to) { history.replaceState(history.state, '', to); return render(); }
   const m = match(url.pathname) || match('/404');
-  if (m.route.host && !state.env) { history.replaceState(history.state, '', '/home'); return render(); }
   teardown();
   const abort = new AbortController();
   current = { abort, cleanup: [] };

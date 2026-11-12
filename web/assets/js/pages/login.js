@@ -5,7 +5,7 @@
 
 import { h } from '../dom.js';
 import { post } from '../api.js';
-import { state, setEnv } from '../state.js';
+import { state } from '../state.js';
 import { navigate } from '../router.js';
 import { authCard, credentialsForm } from './auth.js';
 import { codeField, setupBox, showRecoveryCodes } from './two-factor.js';
@@ -17,7 +17,7 @@ import { t } from '../i18n.js';
 
 /** Only an address inside the app: `?next=//evil.example` goes home instead. */
 export function safeNext(next) {
-  return typeof next === 'string' && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/\\') ? next : '/home';
+  return typeof next === 'string' && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/\\') ? next : '/cluster';
 }
 
 const ICONS = { github: 'github', google: 'globe', microsoft: 'grid' };
@@ -66,8 +66,6 @@ async function secondStep(slot, r, next) {
 }
 
 export function loginPage({ el, query }) {
-  // Whoever signs in starts at Home and chooses a host there.
-  setEnv(null);
   const next = safeNext(query.get('next'));
   const sso = (state.status && state.status.sso) || { providers: [], ldap: false };
   const buttons = sso.providers || [];
