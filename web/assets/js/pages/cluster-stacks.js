@@ -121,8 +121,17 @@ function stackCard(s, reload) {
       s.subnet ? h('span', { class: 'mono' }, ` · ${t('pages.cluster_stacks.network', { subnet: s.subnet })}`) : null,
       h('span', null, ` · ${(s.nodes || []).length ? t('pages.cluster_stacks.runs_on', { nodes: s.nodes.map((id) => names.get(id) || shortId(id)).join(', ') }) : t('pages.cluster_stacks.runs_anywhere')}`)),
     actions,
-    body: h('div', { class: 'stack' }, workloadTable(w), reachTable(s)),
+    body: h('div', { class: 'stack' }, workloadTable(w), reachTable(s), volumesLine(s)),
   });
+}
+
+/** Its volumes on the cluster's shared storage ("Cluster" 21), with the worker holding each one for one writer. */
+function volumesLine(s) {
+  const v = Object.entries(s.volumes || {});
+  if (!v.length) return null;
+  return h('p', { class: 'sub' }, t('pages.cluster_stacks.volumes'), ' ', v.map(([name, x], i) => h('span', { class: 'nowrap' }, i ? ', ' : '',
+    h('span', { class: 'mono' }, name), ' ', t(x.access === 'many' ? 'pages.cluster_stacks.volume_many' : x.holder ? 'pages.cluster_stacks.volume_held' : 'pages.cluster_stacks.volume_one',
+      { storage: x.storage, node: x.holder ? names.get(x.holder) || shortId(x.holder) : '' }))));
 }
 
 /** How each service is reached from outside the cluster: its exposures on the pool, or nothing (internal only); and

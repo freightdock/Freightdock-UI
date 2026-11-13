@@ -1382,3 +1382,11 @@ pointer to what replaced it.
     filters by state (running, needs attention, stopped), by reach (on the pool, internal only) and by worker, kept
     while Freightdock is open; it says how many of the stacks it shows. The bar is drawn again only when the workers
     change, so a reload every few seconds never takes the typing away.
+21. Shared storage (the managers' G11) is shown on the Cluster page under the pool: each with its kind (NFS, which the
+    workers mount, or a shared directory the host already has), where it is, and the volumes kept on it with the worker
+    holding each volume for one writer (`GET /api/cluster/storage`, any session). An Administrator adds one or
+    removes one no stack uses (`POST /api/cluster/storage`, `DELETE /api/cluster/storage/{name}`, `cluster.storage.add`
+    and `.remove` on record; only a storage name goes into the managers' path). A stack puts a volume on it from its
+    Compose file (`x-freightdock: {storage, access}`), so the deployer lists the volumes on storage the managers found
+    and the stack's card says where each is and who holds it; its workloads move when their worker fails ("Moves
+    (shared storage)").

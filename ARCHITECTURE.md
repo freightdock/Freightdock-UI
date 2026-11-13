@@ -258,7 +258,9 @@ managers' answer; an administrator renames it there, "Cluster" 12) with their he
 latest events, asked again every three seconds; an administrator pings a node, runs, stops or removes a container on
 it, sets its labels (`PUT /api/cluster/nodes/{id}/labels`, "Cluster" 5; the labels column shows the worker's own and
 the cluster's merged), authorizes one that came back fenced (`POST /api/cluster/nodes/{id}/authorize`, "Cluster" 6;
-the Fencing column shows the managers' fencing state with its message as a tooltip), removes it, or makes a join token for a worker or a manager. A node is shown by its name in Freightdock (`node_names`,
+the Fencing column shows the managers' fencing state with its message as a tooltip), removes it, or makes a join token for a worker or a manager.
+Under the pool the cluster's shared storage (`/api/cluster/storage`, "Cluster" 21), added or removed by an
+administrator. A node is shown by its name in Freightdock (`node_names`,
 merged into the managers' answers by `cluster.rs`), else its hostname; a manager by its (`manager_names`, merged into
 `GET /api/cluster`'s `raft`), else its host. A command is followed until it ends and its outcome
 is a toast.

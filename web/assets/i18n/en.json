@@ -860,7 +860,41 @@
       "floating_remove_body": "Its holder lets it go, and nothing answers on it any more.",
       "floating_removed": "{address} removed",
       "floating_exposes": "Exposes",
-      "floating_exposes_nothing": "Nothing yet"
+      "floating_exposes_nothing": "Nothing yet",
+      "storage": "Shared storage",
+      "storage_sub": "Where stacks keep volumes that follow their workloads to any worker. A volume for one writer is used on one worker at a time.",
+      "storage_add": "Add storage",
+      "storage_none": "No shared storage",
+      "storage_none_text": "Volumes stay on the worker that runs them, and their workloads wait for it if it fails. Add an NFS export or a shared directory to let them move.",
+      "storage_name": "Name",
+      "storage_kind": "Kind",
+      "storage_source": "Where it is",
+      "storage_options": "Mount options",
+      "storage_volumes": "Volumes on it",
+      "storage_kind_word": {
+        "nfs": "NFS",
+        "path": "Shared directory"
+      },
+      "storage_kind_title": {
+        "nfs": "The workers mount the export themselves, and unmount it when they fence.",
+        "path": "A directory that is the same storage on every worker, shared outside Freightdock (a mount the host has, or a bind mount into a container)."
+      },
+      "storage_many": "many writers",
+      "storage_held": "one writer, on {node}",
+      "storage_free": "one writer, not in use",
+      "storage_no_volumes": "None yet",
+      "storage_in_use": "A stack keeps a volume on it: remove the stack first.",
+      "storage_name_help": "1 to 40 of a-z, 0-9 and -. A Compose file names it.",
+      "storage_source_help": {
+        "nfs": "host:/export, as the workers reach it.",
+        "path": "An absolute directory, the same shared storage on every worker."
+      },
+      "storage_options_help": "Optional, as mount -o takes them.",
+      "storage_compose_help": "A stack keeps a named volume here from its Compose file: under volumes, give it x-freightdock with storage set to this name, and access: many if several workloads may write to it at once.",
+      "storage_added": "Storage {name} added",
+      "storage_removed": "Storage {name} removed",
+      "storage_remove_title": "Remove storage {name}?",
+      "storage_remove_body": "Nothing on it is deleted; the cluster stops using it."
     },
     "cluster_stacks": {
       "title": "Cluster stacks",
@@ -879,7 +913,8 @@
       "recovery_kind": {
         "stateless": "Moves",
         "local_data": "Waits (volumes)",
-        "pinned": "Waits (pinned)"
+        "pinned": "Waits (pinned)",
+        "shared_storage": "Moves (shared storage)"
       },
       "recoveries": "Recoveries",
       "recoveries_sub": "Workloads the managers moved off a fenced node, or left there and why.",
@@ -965,7 +1000,11 @@
       "reach_asked": "Compose asks for {what}, not exposed",
       "reach_asked_help": "A port in the Compose file opens nothing by itself. Expose it on a pool address to reach it from outside the cluster.",
       "reach_managers": "Every manager :{port}",
-      "reach_managers_help": "The managers forward their port {port} to the UI wherever it runs: it is how Freightdock itself is reached."
+      "reach_managers_help": "The managers forward their port {port} to the UI wherever it runs: it is how Freightdock itself is reached.",
+      "volumes": "Volumes on shared storage:",
+      "volume_one": "on {storage} (one writer)",
+      "volume_held": "on {storage} (one writer, on {node})",
+      "volume_many": "on {storage} (many writers)"
     },
     "cluster_node": {
       "title": "Node",
@@ -1079,7 +1118,7 @@
       "back": "Back to stacks",
       "admin_only": "Only an administrator deploys stacks.",
       "file": "Compose file",
-      "compose_help": "image, command, environment, labels, ports, volumes and deploy (replicas, placement, resources) are used; what is not supported yet is named below. Ports here open nothing by themselves: they are offered under Reached from outside.",
+      "compose_help": "image, command, environment, labels, ports, volumes and deploy (replicas, placement, resources) are used; what is not supported yet is named below. Ports here open nothing by themselves: they are offered under Reached from outside. A named volume stays on its worker unless its x-freightdock names storage of the cluster's to keep it on.",
       "checking": "Checking with the managers...",
       "found": "{n} services:",
       "where": "Where it runs",
@@ -1095,7 +1134,10 @@
       "reach_sub": "Only what is listed here with a pool address is reachable from outside the cluster.",
       "reach_text": "A pool address answers only the ports listed here, and follows the service to whichever worker runs it. Services of the stack reach each other by name inside the cluster and need nothing here. Set a row to Internal only to keep that port inside.",
       "internal_only": "Internal only (not exposed)",
-      "redeploy": "Deploy changes"
+      "redeploy": "Deploy changes",
+      "volumes": "On shared storage:",
+      "volume_one": "on {storage}, one writer",
+      "volume_many": "on {storage}, many writers"
     }
   },
   "components": {

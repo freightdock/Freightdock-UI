@@ -178,6 +178,8 @@ pub fn router() -> Router<App> {
         .route("/api/cluster/floating", get(floating).post(add_floating))
         .route("/api/cluster/traffic", get(traffic))
         .route("/api/cluster/floating/{address}", axum::routing::delete(remove_floating))
+        .route("/api/cluster/storage", get(storage).post(add_storage))
+        .route("/api/cluster/storage/{name}", axum::routing::delete(remove_storage))
 }
 
 fn cluster(app: &App) -> ApiResult<&Cluster> {
@@ -342,6 +344,39 @@ async fn set_labels(State(app): State<App>, a: Authed, Path(id): Path<String>, J
 /// The cluster's traffic now (G9.8): each node's latest flows, their ends named by the managers.
 async fn traffic(State(app): State<App>, _a: Authed) -> ApiResult<Json<Value>> {
     Ok(Json(cluster(&app)?.call(reqwest::Method::GET, "/v1/traffic", None).await?.1))
+}
+
+/// The cluster's shared storage (G11), each with the volumes on it and who holds them.
+async fn storage(State(app): State<App>, _a: Authed) -> ApiResult<Json<Value>> {
+    Ok(Json(cluster(&app)?.call(reqwest::Method::GET, "/v1/storage", None).await?.1))
+}
+
+#[derive(Deserialize)]
+struct StorageBody {
+    name: String,
+    driver: String,
+    source: String,
+    #[serde(default)]
+    options: String,
+}
+
+/// Storage given to the cluster; the managers check it.
+async fn add_storage(State(app): State<App>, a: Authed, Json(b): Json<StorageBody>) -> ApiResult<(StatusCode, Json<Value>)> {
+    let name = b.name.trim().to_string();
+    let body = json!({ "name": name, "driver": b.driver.trim(), "source": b.source.trim(), "options": b.options.trim() });
+    let (s, v) = cluster(&app)?.call(reqwest::Method::POST, "/v1/storage", Some(body)).await?;
+    audit::record(&app.db, Some(&a.session.user), a.ip, audit::entry("cluster.storage.add", name)).await;
+    Ok((s, Json(v)))
+}
+
+async fn remove_storage(State(app): State<App>, a: Authed, Path(name): Path<String>) -> ApiResult<StatusCode> {
+    // Only a storage name (a-z, 0-9 and -) goes into the manager's path.
+    if name.is_empty() || name.len() > 40 || !name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-') {
+        return Err(ApiError::not_found("storage"));
+    }
+    cluster(&app)?.call(reqwest::Method::DELETE, &format!("/v1/storage/{name}"), None).await?;
+    audit::record(&app.db, Some(&a.session.user), a.ip, audit::entry("cluster.storage.remove", name)).await;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// The floating addresses (G10.3) and each one's holder.
@@ -549,6 +584,9 @@ mod tests {
                     "GET /v1/floating" => (StatusCode::OK, json!([{ "address": "192.0.2.10", "holder": "6f1c7c2e-0000-4000-8000-000000000001", "since": 1 }]).to_string()),
                     "POST /v1/floating" => (StatusCode::CREATED, json!({ "added": 3 }).to_string()),
                     "DELETE /v1/floating/192.0.2.10" => (StatusCode::NO_CONTENT, String::new()),
+                    "GET /v1/storage" => (StatusCode::OK, json!([{ "name": "nas", "driver": "nfs", "source": "192.0.2.50:/export", "volumes": [] }]).to_string()),
+                    "POST /v1/storage" => (StatusCode::CREATED, json!({ "got": got }).to_string()),
+                    "DELETE /v1/storage/nas" => (StatusCode::NO_CONTENT, String::new()),
                     "GET /v1/nodes/broken" => (StatusCode::SERVICE_UNAVAILABLE, "the cluster cannot take changes now".to_string()),
                     _ => (StatusCode::NOT_FOUND, "unknown".to_string()),
                 }
@@ -698,6 +736,23 @@ mod tests {
         let log: Vec<(String, String)> = app.db.call(|c| Ok(c.prepare("SELECT action, target FROM audit WHERE action LIKE 'cluster.floating.%' ORDER BY id")?.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<Result<_, _>>()?)).await.unwrap();
         assert_eq!(log, vec![("cluster.floating.add".to_string(), "192.0.2.10".to_string()), ("cluster.floating.remove".to_string(), "192.0.2.10".to_string())]);
         assert!(!asked.lock().unwrap().iter().any(|l| l.contains("nodes") && l.starts_with("DELETE")));
+    }
+
+    #[tokio::test]
+    async fn storage_is_read_by_anybody_and_given_or_taken_away_by_an_administrator_into_the_log() {
+        let (app, asked, _d) = connected("t0k3n").await;
+        let (cookie, csrf) = signed_in(&app).await;
+        let (s, _, b) = call(&app, get("/api/cluster/storage", &cookie)).await;
+        assert_eq!((s, b[0]["name"].clone()), (StatusCode::OK, json!("nas")));
+        let add = post("/api/cluster/storage").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).body(json_body(json!({ "name": " nas ", "driver": "nfs", "source": "192.0.2.50:/export", "options": "vers=4.2" }))).unwrap();
+        let (s, _, b) = call(&app, add).await;
+        assert_eq!((s, b["got"]["name"].clone(), b["got"]["options"].clone()), (StatusCode::CREATED, json!("nas"), json!("vers=4.2")), "trimmed, as given");
+        let del = |n: &str| Request::delete(format!("/api/cluster/storage/{n}")).header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).body(Body::empty()).unwrap();
+        assert_eq!(call(&app, del("nas")).await.0, StatusCode::NO_CONTENT);
+        assert_eq!(call(&app, del("..%2Fnodes")).await.0, StatusCode::NOT_FOUND, "only a storage name goes into the manager's path");
+        let log: Vec<(String, String)> = app.db.call(|c| Ok(c.prepare("SELECT action, target FROM audit WHERE action LIKE 'cluster.storage.%' ORDER BY id")?.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<Result<_, _>>()?)).await.unwrap();
+        assert_eq!(log, vec![("cluster.storage.add".to_string(), "nas".to_string()), ("cluster.storage.remove".to_string(), "nas".to_string())]);
+        assert!(!asked.lock().unwrap().iter().any(|l| l.contains("nodes")), "{:?}", asked.lock().unwrap());
     }
 
     #[tokio::test]

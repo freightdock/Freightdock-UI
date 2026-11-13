@@ -860,7 +860,41 @@
       "floating_remove_body": "Den som holder den slipper den, og ingenting svarer på den lenger.",
       "floating_removed": "{address} fjernet",
       "floating_exposes": "Eksponerer",
-      "floating_exposes_nothing": "Ingenting ennå"
+      "floating_exposes_nothing": "Ingenting ennå",
+      "storage": "Delt lagring",
+      "storage_sub": "Der stakker har volumer som følger arbeidslastene til hvilken som helst arbeider. Et volum for én skriver brukes på én arbeider om gangen.",
+      "storage_add": "Legg til lagring",
+      "storage_none": "Ingen delt lagring",
+      "storage_none_text": "Volumer blir på arbeideren som kjører dem, og arbeidslastene venter på den hvis den svikter. Legg til en NFS-eksport eller en delt mappe så de kan flytte.",
+      "storage_name": "Navn",
+      "storage_kind": "Type",
+      "storage_source": "Hvor den er",
+      "storage_options": "Monteringsvalg",
+      "storage_volumes": "Volumer på den",
+      "storage_kind_word": {
+        "nfs": "NFS",
+        "path": "Delt mappe"
+      },
+      "storage_kind_title": {
+        "nfs": "Arbeiderne monterer eksporten selv, og avmonterer den når de gjerder seg av.",
+        "path": "En mappe som er samme lagring på hver arbeider, delt utenfor Freightdock (en montering verten har, eller en bind-montering inn i en container)."
+      },
+      "storage_many": "mange skrivere",
+      "storage_held": "én skriver, på {node}",
+      "storage_free": "én skriver, ikke i bruk",
+      "storage_no_volumes": "Ingen ennå",
+      "storage_in_use": "En stakk har et volum på den: fjern stakken først.",
+      "storage_name_help": "1 til 40 av a-z, 0-9 og -. En Compose-fil bruker navnet.",
+      "storage_source_help": {
+        "nfs": "vert:/eksport, slik arbeiderne når den.",
+        "path": "En absolutt mappe, samme delte lagring på hver arbeider."
+      },
+      "storage_options_help": "Valgfritt, slik mount -o tar dem.",
+      "storage_compose_help": "En stakk legger et navngitt volum her fra Compose-filen: under volumes, gi det x-freightdock med storage satt til dette navnet, og access: many hvis flere arbeidslaster kan skrive til det samtidig.",
+      "storage_added": "Lagringen {name} er lagt til",
+      "storage_removed": "Lagringen {name} er fjernet",
+      "storage_remove_title": "Fjerne lagringen {name}?",
+      "storage_remove_body": "Ingenting på den slettes; klyngen slutter å bruke den."
     },
     "cluster_stacks": {
       "title": "Klyngestabler",
@@ -879,7 +913,8 @@
       "recovery_kind": {
         "stateless": "Flyttes",
         "local_data": "Venter (volumer)",
-        "pinned": "Venter (festet)"
+        "pinned": "Venter (festet)",
+        "shared_storage": "Flytter (delt lagring)"
       },
       "recoveries": "Gjenopprettinger",
       "recoveries_sub": "Arbeidslaster managerne flyttet bort fra en inngjerdet node, eller lot bli, og hvorfor.",
@@ -965,7 +1000,11 @@
       "reach_asked": "Compose ber om {what}, ikke eksponert",
       "reach_asked_help": "En port i Compose-filen åpner ingenting av seg selv. Eksponer den på en pooladresse for å nå den utenfor klyngen.",
       "reach_managers": "Hver manager :{port}",
-      "reach_managers_help": "Managerne videresender sin port {port} til UI-et der det kjører: slik nås Freightdock selv."
+      "reach_managers_help": "Managerne videresender sin port {port} til UI-et der det kjører: slik nås Freightdock selv.",
+      "volumes": "Volumer på delt lagring:",
+      "volume_one": "på {storage} (én skriver)",
+      "volume_held": "på {storage} (én skriver, på {node})",
+      "volume_many": "på {storage} (mange skrivere)"
     },
     "cluster_node": {
       "title": "Node",
@@ -1079,7 +1118,7 @@
       "back": "Tilbake til stabler",
       "admin_only": "Bare en administrator deployer stabler.",
       "file": "Compose-fil",
-      "compose_help": "image, command, environment, labels, ports, volumes og deploy (replicas, placement, resources) brukes; det som ikke støttes ennå, nevnes under. Porter her åpner ingenting av seg selv: de tilbys under Nås utenfra.",
+      "compose_help": "image, command, environment, labels, ports, volumes og deploy (replicas, placement, resources) brukes; det som ikke støttes ennå, nevnes under. Porter her åpner ingenting av seg selv: de tilbys under Nås utenfra. Et navngitt volum blir på arbeideren sin med mindre x-freightdock nevner klyngens lagring det skal ligge på.",
       "checking": "Sjekker med managerne...",
       "found": "{n} tjenester:",
       "where": "Hvor den kjører",
@@ -1095,7 +1134,10 @@
       "reach_sub": "Bare det som står her med en pooladresse, nås utenfor klyngen.",
       "reach_text": "En pooladresse svarer bare på portene som står her, og følger tjenesten til den arbeideren som kjører den. Tjenestene i stabelen når hverandre ved navn inne i klyngen og trenger ingenting her. Sett en rad til Bare internt for å holde den porten inne.",
       "internal_only": "Bare internt (ikke eksponert)",
-      "redeploy": "Deploy endringene"
+      "redeploy": "Deploy endringene",
+      "volumes": "På delt lagring:",
+      "volume_one": "på {storage}, én skriver",
+      "volume_many": "på {storage}, mange skrivere"
     }
   },
   "components": {

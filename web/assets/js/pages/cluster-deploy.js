@@ -149,6 +149,9 @@ function servicesFound(c) {
   return h('div', { class: 'stack' },
     h('div', { class: 'row wrap' }, h('span', { class: 'sub' }, t('pages.cluster_deploy.found', { n: list.length })),
       list.map(([k, v]) => h('span', { class: 'fd-deploy__svc' }, h('span', { class: 'mono' }, k), h('span', { class: 'sub' }, ` ${v.image}, ${v.replicas}x`)))),
+    Object.keys(c.volumes || {}).length ? h('div', { class: 'row wrap' }, h('span', { class: 'sub' }, t('pages.cluster_deploy.volumes')),
+      Object.entries(c.volumes).map(([k, v]) => h('span', { class: 'fd-deploy__svc' }, h('span', { class: 'mono' }, k),
+        h('span', { class: 'sub' }, ` ${t(v.access === 'many' ? 'pages.cluster_deploy.volume_many' : 'pages.cluster_deploy.volume_one', { storage: v.storage })}`)))) : null,
     (c.warnings || []).length ? h('ul', { class: 'fd-deploy__warnings' }, c.warnings.map((w) => h('li', null, status({ tone: 'warning', line: true }, w)))) : null);
 }
 
