@@ -13,6 +13,7 @@ whole series.
 ## [1.0.0] - 2026-11-09 to 2026-11-10
 
 First light
+- **A workload moved between two healthy workers waits for its old copy to stop** before it runs on the new one, as Docker does (`stop-first`), so it never runs twice; the stack card says what it waits for. A service with `deploy.update_config.order: start-first` still starts beside the old copy.
 - **An Integrations page** for administrators, with everything the cluster works with in one place: the shares (moved from the Cluster page), the Proxmox fencing provider (read the certificate's fingerprint from the server, try the token and see each worker's guest before saving) and how each worker is fenced, the cluster's timings (heartbeat, when a worker is suspect or unreachable, the self-fencing timers, the recovery delay, fencing and automatic authorization), and what each manager's own environment sets. A change is every manager's at once, and the workers take new timers without reconnecting.
 - **A stack's options when you deploy it**: a description on its card, an env file for its variables, the node labels it needs (its workloads move when a worker's labels change), how it survives its worker (as the file says, stateless, pinned, or with its volumes on shared storage) and a container name of your own per service. They are kept with the stack and shown when you change it.
 - **The UI is opened on its own pool address**, like every stack, and no longer answers on the managers' own addresses at 7443: a service keeps one address that never changes, wherever it runs.

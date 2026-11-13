@@ -1004,7 +1004,8 @@
       "volume_one": "on {storage} (one writer)",
       "volume_held": "on {storage} (one writer, on {node})",
       "volume_many": "on {storage} (many writers)",
-      "only_on": "Only on workers with {labels}"
+      "only_on": "Only on workers with {labels}",
+      "waits_for": "Waits for its old copy on {node} to stop"
     },
     "cluster_node": {
       "title": "Node",

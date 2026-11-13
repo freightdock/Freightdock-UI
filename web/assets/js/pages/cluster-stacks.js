@@ -218,7 +218,9 @@ function workloadTable(rows) {
       { label: t('pages.cluster_stacks.status'), cell: (w) => status({ tone: TONES[w.status] || 'info', line: true }, tOr(`pages.cluster_stacks.status_word.${w.status}`, w.status)), sort: (w) => w.status },
       { label: t('pages.cluster_stacks.recovery'), cell: (w) => h('span', { class: 'sub' }, tOr(`pages.cluster_stacks.recovery_kind.${w.recovery}`, w.recovery || '')), sort: (w) => w.recovery || '' },
       { label: t('pages.cluster_stacks.container'), cell: (w) => (w.actual ? h('span', { class: 'sub' }, `${w.actual.state}${w.actual.state === 'exited' ? ` (${w.actual.exit_code})` : ''}`) : '') },
-      { label: t('pages.cluster_stacks.last'), cell: (w) => h('span', { class: 'truncate sub', title: lastLine(w.last_command) }, lastLine(w.last_command)) },
+      { label: t('pages.cluster_stacks.last'), cell: (w) => (w.waits_for
+        ? h('span', { class: 'sub' }, t('pages.cluster_stacks.waits_for', { node: names.get(w.waits_for) || shortId(w.waits_for) }))
+        : h('span', { class: 'truncate sub', title: lastLine(w.last_command) }, lastLine(w.last_command))) },
     ],
   });
 }

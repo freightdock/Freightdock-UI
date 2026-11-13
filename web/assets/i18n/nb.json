@@ -1004,7 +1004,8 @@
       "volume_one": "på {storage} (én skriver)",
       "volume_held": "på {storage} (én skriver, på {node})",
       "volume_many": "på {storage} (mange skrivere)",
-      "only_on": "Bare på arbeidere med {labels}"
+      "only_on": "Bare på arbeidere med {labels}",
+      "waits_for": "Venter på at den gamle kopien på {node} stopper"
     },
     "cluster_node": {
       "title": "Node",
