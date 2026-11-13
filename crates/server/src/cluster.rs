@@ -180,6 +180,9 @@ pub fn router() -> Router<App> {
         .route("/api/cluster/floating/{address}", axum::routing::delete(remove_floating))
         .route("/api/cluster/storage", get(storage).post(add_storage))
         .route("/api/cluster/storage/{name}", axum::routing::delete(remove_storage))
+        .route("/api/cluster/settings", get(settings).put(set_settings))
+        .route("/api/cluster/settings/proxmox/fingerprint", post(proxmox_fingerprint))
+        .route("/api/cluster/settings/proxmox/test", post(proxmox_test))
 }
 
 fn cluster(app: &App) -> ApiResult<&Cluster> {
@@ -377,6 +380,31 @@ async fn remove_storage(State(app): State<App>, a: Authed, Path(name): Path<Stri
     cluster(&app)?.call(reqwest::Method::DELETE, &format!("/v1/storage/{name}"), None).await?;
     audit::record(&app.db, Some(&a.session.user), a.ip, audit::entry("cluster.storage.remove", name)).await;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// The cluster's settings (Integrations): each value, where it comes from, and what each manager's environment sets.
+async fn settings(State(app): State<App>, _a: Authed) -> ApiResult<Json<Value>> {
+    Ok(Json(cluster(&app)?.call(reqwest::Method::GET, "/v1/settings", None).await?.1))
+}
+
+/// Changes some of the cluster's settings: passed on whole, the manager checks them. The log names the settings,
+/// never a value (the Proxmox token is one).
+async fn set_settings(State(app): State<App>, a: Authed, Json(b): Json<Value>) -> ApiResult<Json<Value>> {
+    let Some(keys) = b.as_object().map(|o| o.keys().cloned().collect::<Vec<_>>().join(", ")) else { return Err(ApiError::bad("the settings are a JSON object")) };
+    let (_, v) = cluster(&app)?.call(reqwest::Method::PUT, "/v1/settings", Some(b)).await?;
+    audit::record(&app.db, Some(&a.session.user), a.ip, audit::Entry { detail: Some(keys), ..audit::entry("cluster.settings.change", "settings".to_string()) }).await;
+    Ok(Json(v))
+}
+
+/// The certificate the Proxmox API shows, read by a manager (it is the one that will talk to Proxmox).
+async fn proxmox_fingerprint(State(app): State<App>, _a: Authed, Json(b): Json<Value>) -> ApiResult<Json<Value>> {
+    let url = b["url"].as_str().unwrap_or("").to_string();
+    Ok(Json(cluster(&app)?.call(reqwest::Method::POST, "/v1/settings/proxmox/fingerprint", Some(json!({ "url": url }))).await?.1))
+}
+
+/// Tries the Proxmox provider from a manager: the settings given, or the ones in use. Changes nothing.
+async fn proxmox_test(State(app): State<App>, _a: Authed, Json(b): Json<Value>) -> ApiResult<Json<Value>> {
+    Ok(Json(cluster(&app)?.call(reqwest::Method::POST, "/v1/settings/proxmox/test", Some(b)).await?.1))
 }
 
 /// The floating addresses (G10.3) and each one's holder.
@@ -598,6 +626,10 @@ mod tests {
                     "GET /v1/storage" => (StatusCode::OK, json!([{ "name": "nas", "driver": "nfs", "source": "192.0.2.50:/export", "volumes": [] }]).to_string()),
                     "POST /v1/storage" => (StatusCode::CREATED, json!({ "got": got }).to_string()),
                     "DELETE /v1/storage/nas" => (StatusCode::NO_CONTENT, String::new()),
+                    "GET /v1/settings" => (StatusCode::OK, json!({ "settings": { "fence_stop_s": { "value": 30, "source": "default" }, "proxmox": null }, "manager": {} }).to_string()),
+                    "PUT /v1/settings" => (StatusCode::OK, json!({ "got": got }).to_string()),
+                    "POST /v1/settings/proxmox/fingerprint" => (StatusCode::OK, json!({ "fingerprint": "AB:CD", "got": got }).to_string()),
+                    "POST /v1/settings/proxmox/test" => (StatusCode::BAD_GATEWAY, json!({ "error": "the Proxmox API at https://pve.example:8006: no answer" }).to_string()),
                     "GET /v1/nodes/broken" => (StatusCode::SERVICE_UNAVAILABLE, "the cluster cannot take changes now".to_string()),
                     _ => (StatusCode::NOT_FOUND, "unknown".to_string()),
                 }
@@ -764,6 +796,29 @@ mod tests {
         let log: Vec<(String, String)> = app.db.call(|c| Ok(c.prepare("SELECT action, target FROM audit WHERE action LIKE 'cluster.storage.%' ORDER BY id")?.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<Result<_, _>>()?)).await.unwrap();
         assert_eq!(log, vec![("cluster.storage.add".to_string(), "nas".to_string()), ("cluster.storage.remove".to_string(), "nas".to_string())]);
         assert!(!asked.lock().unwrap().iter().any(|l| l.contains("nodes")), "{:?}", asked.lock().unwrap());
+    }
+
+    #[tokio::test]
+    async fn the_cluster_s_settings_are_changed_by_an_administrator_into_the_log_without_the_token() {
+        let (app, asked, _d) = connected("t0k3n").await;
+        let (cookie, csrf) = signed_in(&app).await;
+        let (s, _, b) = call(&app, get("/api/cluster/settings", &cookie)).await;
+        assert_eq!((s, b["settings"]["fence_stop_s"]["value"].clone()), (StatusCode::OK, json!(30)));
+        let put = |body: Value| Request::put("/api/cluster/settings").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).header(header::CONTENT_TYPE, "application/json").body(json_body(body)).unwrap();
+        let (s, _, b) = call(&app, put(json!({ "fence_stop_s": 45, "proxmox": { "url": "https://pve.example", "fingerprint": "AB", "token": "fd@pve!fence=s3cret" } }))).await;
+        assert_eq!((s, b["got"]["fence_stop_s"].clone(), b["got"]["proxmox"]["token"].clone()), (StatusCode::OK, json!(45), json!("fd@pve!fence=s3cret")), "passed on whole");
+        assert_eq!(call(&app, put(json!([1]))).await.0, StatusCode::BAD_REQUEST, "an object only");
+        let probe = post("/api/cluster/settings/proxmox/fingerprint").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).body(json_body(json!({ "url": "https://pve.example" }))).unwrap();
+        let (s, _, b) = call(&app, probe).await;
+        assert_eq!((s, b["fingerprint"].clone(), b["got"]["url"].clone()), (StatusCode::OK, json!("AB:CD"), json!("https://pve.example")));
+        let test = post("/api/cluster/settings/proxmox/test").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).body(json_body(json!({}))).unwrap();
+        let (s, _, b) = call(&app, test).await;
+        assert!(s == StatusCode::BAD_GATEWAY && b["error"].as_str().unwrap().contains("pve.example"), "the manager's sentence: {s} {b}");
+        let log: Vec<(String, String)> = app.db.call(|c| Ok(c.prepare("SELECT action, target || ' ' || COALESCE(detail, '') FROM audit WHERE action LIKE 'cluster.settings%' ORDER BY id")?.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<Result<_, _>>()?)).await.unwrap();
+        assert_eq!(log.len(), 1, "{log:?}");
+        assert_eq!(log[0].0, "cluster.settings.change");
+        assert!(log[0].1.contains("fence_stop_s") && log[0].1.contains("proxmox") && !log[0].1.contains("s3cret"), "{log:?}");
+        assert!(asked.lock().unwrap().iter().any(|l| l == "PUT /v1/settings"));
     }
 
     #[tokio::test]

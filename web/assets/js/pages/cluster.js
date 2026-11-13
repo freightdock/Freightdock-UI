@@ -2,9 +2,8 @@
 // as the managers agree on it and which manager hears each, each opening its own page, and the latest events, all asked of the manager again every few seconds. An administrator
 // sends a node a command (a ping, or a container run, stopped or removed), removes a node, or makes a join token to add
 // one ("Cluster" 2). Under the workers the floating addresses, each with the worker holding it; an administrator adds
-// or a range of them, or removes one. An administrator names the cluster ("Cluster" 18). Under the pool the shared
-// storage, each with the volumes kept on it and the worker holding each volume for one writer; an administrator adds
-// or removes one ("Cluster" 21).
+// or a range of them, or removes one. An administrator names the cluster ("Cluster" 18). The shared storage is on the
+// Integrations page ("Cluster" 23); its table and dialog are here, beside the node names they show.
 
 import { h, mount, ago, when, shortId } from '../dom.js';
 import { get, post, put, del } from '../api.js';
@@ -31,19 +30,19 @@ const sec = (ms) => Math.floor((ms || 0) / 1000);
 
 export function theClusterPage({ el, signal }) {
   const head = h('div');
-  const managers = h('div'), nodes = h('div'), floats = h('div'), stores = h('div'), events = h('div');
-  el.append(head, managers, nodes, floats, stores, events);
+  const managers = h('div'), nodes = h('div'), floats = h('div'), events = h('div');
+  el.append(head, managers, nodes, floats, events);
 
   const reload = loadInto(managers, {
     signal,
     load: async (s) => {
-      const [c, n, e, f, st] = await Promise.all([get('/api/cluster', { signal: s }), get('/api/cluster/nodes', { signal: s }).catch(() => null), get('/api/cluster/events', { signal: s }).catch(() => null), get('/api/cluster/floating', { signal: s }).catch(() => null), get('/api/cluster/storage', { signal: s }).catch(() => null)]);
-      return { c, n, e, f, st };
+      const [c, n, e, f] = await Promise.all([get('/api/cluster', { signal: s }), get('/api/cluster/nodes', { signal: s }).catch(() => null), get('/api/cluster/events', { signal: s }).catch(() => null), get('/api/cluster/floating', { signal: s }).catch(() => null)]);
+      return { c, n, e, f };
     },
-    draw: ({ c, n, e, f, st }) => {
+    draw: ({ c, n, e, f }) => {
       if (!c.connected) {
         mount(head, pageHeader(t('nav.the_cluster'), t('pages.cluster.sub')));
-        mount(nodes); mount(floats); mount(stores); mount(events);
+        mount(nodes); mount(floats); mount(events);
         return emptyState(t('pages.cluster.not_connected'), t('pages.cluster.not_connected_text'));
       }
       const cl = c.cluster || {};
@@ -55,9 +54,6 @@ export function theClusterPage({ el, signal }) {
       mount(floats, card({ title: t('pages.cluster.floating'), sub: t('pages.cluster.floating_sub'),
         actions: isAdmin() ? button({ size: 'sm', onClick: () => floatingDialog(reload) }, t('pages.cluster.floating_add')) : null,
         body: f ? floatingTable(f, n || [], reload) : emptyState(t('pages.cluster.no_answer'), '') }));
-      mount(stores, card({ title: t('pages.cluster.storage'), sub: t('pages.cluster.storage_sub'),
-        actions: isAdmin() ? button({ size: 'sm', onClick: () => storageDialog(reload) }, t('pages.cluster.storage_add')) : null,
-        body: st ? storageTable(st, n || [], reload) : emptyState(t('pages.cluster.no_answer'), '') }));
       mount(events, card({ title: t('pages.cluster.events'), body: e ? eventTable(e) : emptyState(t('pages.cluster.no_answer'), '') }));
       return card({ title: t('pages.cluster.managers'), body: managerTable(cl.raft || [], n || []) });
     },
@@ -306,7 +302,7 @@ function floatingDialog(reload) {
 
 /** The cluster's shared storage ("Cluster" 21): where it is, and the volumes on it with the worker holding each one
  *  for one writer. */
-function storageTable(list, nodes, reload) {
+export function storageTable(list, nodes, reload) {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const volume = (v) => h('span', { class: 'row nowrap' },
     h('a', { class: 'mono', href: '/cluster/stacks' }, `${v.stack}/${v.volume}`),
@@ -327,7 +323,7 @@ function storageTable(list, nodes, reload) {
   });
 }
 
-function storageDialog(reload) {
+export function storageDialog(reload) {
   let driver = 'nfs';
   const name = formField({ id: 'cl-storage-name', label: t('pages.cluster.storage_name'), placeholder: 'nas', help: t('pages.cluster.storage_name_help') });
   const source = formField({ id: 'cl-storage-source', label: t('pages.cluster.storage_source'), placeholder: '192.0.2.50:/export/freightdock', help: t('pages.cluster.storage_source_help.nfs') });

@@ -106,6 +106,10 @@ pub const RULES: &[(&str, &str, Rule)] = &[
     ("GET", "/api/cluster/storage", Session),
     ("POST", "/api/cluster/storage", Admin),
     ("DELETE", "/api/cluster/storage/{name}", Admin),
+    ("GET", "/api/cluster/settings", Admin),
+    ("PUT", "/api/cluster/settings", Admin),
+    ("POST", "/api/cluster/settings/proxmox/fingerprint", Admin),
+    ("POST", "/api/cluster/settings/proxmox/test", Admin),
     // The CA that signed the web server's certificate: a certificate, public, fetched before anybody trusts it.
     ("GET", "/api/tls/ca.pem", Public),
 ];

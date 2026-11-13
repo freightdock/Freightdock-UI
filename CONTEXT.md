@@ -66,7 +66,8 @@ web/
                            labelled field), cluster (whether the managers answer, for the menus), theme (before the
                            page draws)
   assets/js/pages/         cluster (the cluster: managers, nodes, events, commands, recoveries, join tokens; the
-                           landing page), cluster-stacks (the cluster's Compose stacks and their workloads), users
+                           landing page), cluster-stacks (the cluster's Compose stacks and their workloads), integrations (shares,
+                           fencing provider, timings, each manager's own settings: "Cluster" 23), users
                            (users and teams), activity, signins (the auth log), settings (appearance, then
                            signin-settings: providers and two-factor), account, changelog, setup, login, auth (the
                            cards both share), two-factor (the QR code and key, recovery codes), notfound
@@ -135,6 +136,8 @@ read-only token only reads.
 | `POST /api/cluster/stacks` | admin | `{name, compose, nodes?, exposures?, description?, env?, selector?, mode?, names?}`: made or changed, on the workers chosen (`[]` any) with its exposures on the pool and its options (each left out: as it was); `{stack, warnings}` ("Cluster" 19, 22) |
 | `POST /api/cluster/stack-check` | admin | the same body, nothing deployed: the services and the ports their file asks for, the warnings, where the workloads would go (`placements`) or why not (`unplaced`) ("Cluster" 19) |
 | `POST /api/cluster/stacks/{name}/{start,stop,restart}`, `DELETE /api/cluster/stacks/{name}` | admin | the stack's workloads run, stop, restart or go |
+| `GET /api/cluster/settings`, `PUT /api/cluster/settings` | admin | the cluster's settings, each with its source and default, and what the answering manager's environment sets; some changed (a value, or null for the managers' own; `proxmox: {url, fingerprint, token?}` or null), passed on whole, the keys on record ("Cluster" 23) |
+| `POST /api/cluster/settings/proxmox/fingerprint`, `POST /api/cluster/settings/proxmox/test` | admin | `{url}`: the certificate the Proxmox API shows, read by a manager; `{url, fingerprint, token?}` or `{}`: the provider tried from a manager, `{version, guests}` (nothing changed) |
 | `GET /api/cluster/floating` | session | the floating addresses and each one's holder ("Cluster" 15) |
 | `PUT /api/cluster/stacks/{name}/exposures` | admin | `{exposures: [{service, container_port, protocol, address, port}]}`: what the stack exposes on the pool, all of it ("Cluster" 17) |
 | `GET /api/cluster/traffic` | session | each node's latest flows, their ends named by the managers ("Cluster" 16) |

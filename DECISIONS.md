@@ -1385,7 +1385,7 @@ pointer to what replaced it.
     filters by state (running, needs attention, stopped), by reach (on the pool, internal only) and by worker, kept
     while Freightdock is open; it says how many of the stacks it shows. The bar is drawn again only when the workers
     change, so a reload every few seconds never takes the typing away.
-21. Shared storage (the managers' G11) is shown on the Cluster page under the pool: each with its kind (NFS, which the
+21. Shared storage (the managers' G11) is shown on the Integrations page (23; on the Cluster page under the pool before): each with its kind (NFS, which the
     workers mount, or a shared directory the host already has), where it is, and the volumes kept on it with the worker
     holding each volume for one writer (`GET /api/cluster/storage`, any session). An Administrator adds one or
     removes one no stack uses (`POST /api/cluster/storage`, `DELETE /api/cluster/storage/{name}`, `cluster.storage.add`
@@ -1404,3 +1404,16 @@ pointer to what replaced it.
     stack. Each option left out of a deploy stays as it was; a null mode goes back to the file. The deployer sends
     them with its check too, so a selector no worker meets or a name taken is said before anything is deployed. The UI
     server passes on only these five keys beside the name, file, nodes and exposures.
+23. Every setting of the cluster is an Administrator's to see and change from the UI (owner, 2026-11-13: "every setting
+    exposed via the UI, an integrations tab where I can do everything I need"). The Integrations page has the shares
+    (21, moved there), the fencing provider (Proxmox: its address, an API token and the certificate's fingerprint; the
+    fingerprint read from the server by a manager, to be compared with Proxmox's own before it is pinned; tried from a
+    manager, which answers Proxmox's version and each worker's guest as Proxmox sees it; how each worker is fenced, as
+    its labels), the timings (heartbeat, suspect, unreachable, the self-fencing timers, recovery delay; fencing and
+    automatic authorization as switches that save at once) and what each manager's environment sets, shown and not
+    changed, since a node needs it before it can reach the cluster. The values are the managers' replicated settings:
+    one change is every manager's, and each says where it comes from (the cluster, this manager's environment, the
+    default); one the cluster set can go back to the managers' own. The token is sent once and never comes back, so the
+    activity log names the settings changed (`cluster.settings.change`), never their values. All four routes are an
+    Administrator's (`GET`/`PUT /api/cluster/settings`, `POST /api/cluster/settings/proxmox/fingerprint` and `/test`);
+    the last two change nothing and only ask from a manager, which is the one that talks to Proxmox.
