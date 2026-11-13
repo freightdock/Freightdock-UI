@@ -312,7 +312,7 @@ export function storageTable(list, nodes, reload) {
   // How each node that made it ready says it answers ("Cluster" 28): mounted, its space, a file written and read back.
   const health = (x) => ((x.health || []).length
     ? h('div', { class: 'stack stack--tight' }, x.health.map((n) => h('span', { class: 'row nowrap', title: n.ok ? null : n.error },
-      status({ tone: n.ok ? 'good' : 'critical' }, n.node),
+      status({ tone: n.ok ? 'good' : 'critical' }, byId.get(n.node_id) ? nodeName(byId.get(n.node_id)) : n.node),
       h('span', { class: 'sub' }, n.ok ? t('pages.cluster.storage_free_of', { free: bytes(n.free_bytes), total: bytes(n.total_bytes) }) : n.error))))
     : h('span', { class: 'sub' }, t('pages.cluster.storage_unprobed')));
   return table({
