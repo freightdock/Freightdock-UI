@@ -1,6 +1,6 @@
 // One node of the cluster: what the managers know of it, the stacks' workloads placed on it and the containers it
 // says it runs, asked again every few seconds. An administrator gives it a name to be shown by, in Freightdock only
-// ("Cluster" 12): the managers and the node keep its hostname.
+// ("Cluster" 12): the managers and the node keep its hostname. An administrator opens its Docker from here ("Cluster" 25).
 
 import { h, mount, bytes, shortId } from '../dom.js';
 import { get, put } from '../api.js';
@@ -43,6 +43,7 @@ export function clusterNodePage({ el, params, signal }) {
       mount(head, pageHeader(nodeName(n), n.name ? t('pages.cluster_node.sub_named', { hostname: n.hostname || '' }) : t('pages.cluster_node.sub'),
         h('div', { class: 'row' },
           button({ size: 'sm', href: '/cluster' }, t('pages.cluster_node.back')),
+          isAdmin() && (n.report || {}).docker ? button({ size: 'sm', href: `/cluster/nodes/${encodeURIComponent(n.id)}/docker` }, t('pages.cluster_node.docker')) : null,
           isAdmin() ? button({ size: 'sm', onClick: () => rename(n, reload) }, t('pages.cluster_node.rename')) : null)));
       const placed = [];
       for (const s of st || []) for (const w of s.workloads || []) if (w.node_id === n.id) placed.push({ ...w, stack: s.name, image: ((s.services || {})[w.service] || {}).image });

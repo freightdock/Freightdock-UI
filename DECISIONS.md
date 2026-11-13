@@ -1427,3 +1427,15 @@ pointer to what replaced it.
     a backup with its passphrase is the whole cluster; each download is on record (`cluster.backup.download`), never
     with the passphrase. Bringing one back is a manager's command on a new manager (`freightdock-manager restore`),
     not this UI's: there is no cluster for it to talk to then.
+25. A node's Docker comes back as a page of the node, through its worker (owner, 2026-11-12: "kept, rebuilt to go
+    through the workers"; the direct-Docker pages went with the standalone mode, 10). Its containers, images, volumes
+    and networks are asked of the worker when the page is drawn (the managers' `DockerRequest`, never in the cluster's
+    log), with a container's logs (at most 5000 lines) and inspect. The changes are start, stop, restart and remove a
+    container, pull, remove and prune images, remove a volume or a network. The cluster's own (a workload's container,
+    a stack's network or volume on the cluster's storage) are shown and marked but never changed here: the worker
+    refuses, since they belong to their stack and the reconcile would undo it. Docker's own networks stay. Both routes
+    are an Administrator's, a look too, since a container's inspect and logs may hold its secrets
+    (`GET`/`POST /api/cluster/nodes/{id}/docker`); only the keys known go on to the manager, and each change is on
+    record (`cluster.docker`, the action and what it was on). A change runs to its end in a task of its own, on the
+    managers and here: a browser that leaves before the answer would otherwise leave it done on the node and nowhere
+    on record.

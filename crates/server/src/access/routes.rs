@@ -88,6 +88,9 @@ pub const RULES: &[(&str, &str, Rule)] = &[
     ("POST", "/api/cluster/nodes/{id}/commands", Admin),
     ("PUT", "/api/cluster/nodes/{id}/labels", Admin),
     ("POST", "/api/cluster/nodes/{id}/authorize", Admin),
+    // A node's Docker: its containers' environment and logs may hold secrets, so even a look is an Administrator's.
+    ("GET", "/api/cluster/nodes/{id}/docker", Admin),
+    ("POST", "/api/cluster/nodes/{id}/docker", Admin),
     ("GET", "/api/cluster/commands/{id}", Session),
     ("GET", "/api/cluster/events", Session),
     ("GET", "/api/cluster/recoveries", Session),

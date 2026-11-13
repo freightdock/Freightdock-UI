@@ -173,6 +173,7 @@ pub fn router() -> Router<App> {
         .route("/api/cluster/nodes/{id}/commands", post(command))
         .route("/api/cluster/nodes/{id}/labels", axum::routing::put(set_labels))
         .route("/api/cluster/nodes/{id}/authorize", post(authorize))
+        .route("/api/cluster/nodes/{id}/docker", get(docker_read).post(docker_change))
         .route("/api/cluster/commands/{id}", get(command_status))
         .route("/api/cluster/events", get(events))
         .route("/api/cluster/recoveries", get(recoveries))
@@ -321,6 +322,42 @@ fn valid_id(id: &str) -> bool {
 
 fn id_or_404(id: &str, what: &str) -> ApiResult<()> {
     if valid_id(id) { Ok(()) } else { Err(ApiError::not_found(what)) }
+}
+
+/// The keys a look at a node's Docker passes on to the manager, in this order; any other is dropped.
+const DOCKER_KEYS: [&str; 4] = ["action", "target", "tail", "timestamps"];
+
+/// A look at the node's Docker, through its worker ("Cluster" 25): an Administrator's, since a container's inspect and
+/// logs may hold its secrets.
+async fn docker_read(State(app): State<App>, _a: Authed, Path(id): Path<String>, Query(q): Query<std::collections::HashMap<String, String>>) -> ApiResult<Json<Value>> {
+    id_or_404(&id, "node")?;
+    let query = {
+        let mut url = url::form_urlencoded::Serializer::new(String::new());
+        for k in DOCKER_KEYS {
+            if let Some(v) = q.get(k) {
+                url.append_pair(k, v);
+            }
+        }
+        url.finish()
+    };
+    Ok(Json(cluster(&app)?.call(reqwest::Method::GET, &format!("/v1/nodes/{id}/docker?{query}"), None).await?.1))
+}
+
+/// A change to the node's Docker (the worker refuses the cluster's own); on record with what and on what.
+async fn docker_change(State(app): State<App>, a: Authed, Path(id): Path<String>, Json(b): Json<Value>) -> ApiResult<Json<Value>> {
+    id_or_404(&id, "node")?;
+    let action = b["action"].as_str().unwrap_or_default().to_string();
+    let on = b["target"].as_str().filter(|t| !t.is_empty()).or_else(|| b["params"]["image"].as_str()).unwrap_or_default().to_string();
+    let body = json!({ "action": action, "target": b["target"].as_str().unwrap_or_default(), "params": b.get("params").cloned().unwrap_or(json!({})) });
+    let detail = if on.is_empty() { action } else { format!("{action} {on}") };
+    cluster(&app)?;
+    // In a task of its own: a browser that leaves before the answer does not leave a change done and not on record.
+    let task = tokio::spawn(async move {
+        let (_, v) = cluster(&app)?.call(reqwest::Method::POST, &format!("/v1/nodes/{id}/docker"), Some(body)).await?;
+        audit::record(&app.db, Some(&a.session.user), a.ip, audit::Entry { detail: Some(detail), ..audit::entry("cluster.docker", id.clone()) }).await;
+        Ok::<_, ApiError>(v)
+    });
+    Ok(Json(task.await.map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))??))
 }
 
 async fn command(State(app): State<App>, a: Authed, Path(id): Path<String>, Json(body): Json<Value>) -> ApiResult<(StatusCode, Json<Value>)> {
@@ -649,6 +686,10 @@ mod tests {
                 }
                 // What was sent, given back by the two that echo it.
                 let got: Value = serde_json::from_slice(&axum::body::to_bytes(req.into_body(), 1 << 20).await.unwrap_or_default()).unwrap_or(Value::Null);
+                // A slow change, for a caller that goes before the answer.
+                if got["action"] == "container.restart" {
+                    tokio::time::sleep(Duration::from_millis(400)).await;
+                }
                 match line.as_str() {
                     "GET /v1/cluster" => (StatusCode::OK, json!({ "cluster_id": "c1", "raft": [{ "raft_id": "5271529257891035005", "addr": "192.0.2.1:7450", "leader": true }] }).to_string()),
                     "GET /v1/nodes" => (StatusCode::OK, json!([{ "id": "6f1c7c2e-0000-4000-8000-000000000001", "liveness": { "health": "healthy" } }]).to_string()),
@@ -681,6 +722,8 @@ mod tests {
                     "POST /v1/backup" => (StatusCode::BAD_REQUEST, json!({ "error": "a backup's passphrase is at least 12 characters" }).to_string()),
                     "GET /v1/backups" => (StatusCode::OK, json!({ "backups": [{ "name": "freightdock-20261113-200000.fdbk", "taken_at": 1, "size": 11, "manager": "m1" }] }).to_string()),
                     "GET /v1/backups/freightdock-20261113-200000.fdbk" => (StatusCode::OK, "FDBK1stored".to_string()),
+                    "GET /v1/nodes/6f1c7c2e-0000-4000-8000-000000000001/docker?action=logs&target=web&tail=50" => (StatusCode::OK, json!({ "lines": ["hi"], "cut": false }).to_string()),
+                    "POST /v1/nodes/6f1c7c2e-0000-4000-8000-000000000001/docker" => (StatusCode::OK, json!({ "got": got }).to_string()),
                     "GET /v1/nodes/broken" => (StatusCode::SERVICE_UNAVAILABLE, "the cluster cannot take changes now".to_string()),
                     _ => (StatusCode::NOT_FOUND, "unknown".to_string()),
                 }
@@ -900,6 +943,41 @@ mod tests {
         assert_eq!(log.len(), 2, "the download and the stored one: {log:?}");
         assert!(log.iter().all(|l| !l.contains("horse")), "{log:?}");
         assert!(!asked.lock().unwrap().iter().any(|l| l.contains("admin.token")));
+    }
+
+    #[tokio::test]
+    async fn a_node_s_docker_is_an_administrator_s_and_a_change_is_on_record() {
+        let (app, asked, _d) = connected("t0k3n").await;
+        let (cookie, csrf) = signed_in(&app).await;
+        let node = "6f1c7c2e-0000-4000-8000-000000000001";
+        let (s, _, b) = call(&app, get(&format!("/api/cluster/nodes/{node}/docker?action=logs&target=web&tail=50&evil=1"), &cookie)).await;
+        assert_eq!((s, b["lines"][0].clone()), (StatusCode::OK, json!("hi")), "only the keys known go on: {b}");
+        let change = |cookie: &str, csrf: &str, body: Value| post(&format!("/api/cluster/nodes/{node}/docker")).header(header::COOKIE, cookie).header("x-csrf-token", csrf).body(json_body(body)).unwrap();
+        let (s, _, b) = call(&app, change(&cookie, &csrf, json!({ "action": "container.stop", "target": "web" }))).await;
+        assert_eq!((s, b["got"]["action"].clone(), b["got"]["target"].clone()), (StatusCode::OK, json!("container.stop"), json!("web")));
+        let (action, target, detail): (String, String, String) = app.db.call(|c| Ok(c.query_row("SELECT action, target, detail FROM audit ORDER BY id DESC LIMIT 1", [], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?)).await.unwrap();
+        assert_eq!((action.as_str(), target.as_str(), detail.as_str()), ("cluster.docker", node, "container.stop web"));
+        assert_eq!(call(&app, get("/api/cluster/nodes/..%2Fstacks/docker?action=containers", &cookie)).await.0, StatusCode::NOT_FOUND);
+        // The browser leaves before the answer: the change is on record all the same, since it was done all the same.
+        assert!(tokio::time::timeout(Duration::from_millis(100), call(&app, change(&cookie, &csrf, json!({ "action": "container.restart", "target": "web" })))).await.is_err());
+        let mut recorded = false;
+        for _ in 0..30 {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            let n: i64 = app.db.call(|c| Ok(c.query_row("SELECT COUNT(*) FROM audit WHERE detail = 'container.restart web'", [], |r| r.get(0))?)).await.unwrap();
+            if n == 1 {
+                recorded = true;
+                break;
+            }
+        }
+        assert!(recorded, "the restart is on record");
+
+        app.db.call(|c| Ok(c.execute("INSERT INTO users (id, name, password_hash, role, created_at) VALUES (9, 'deckhand', 'x', 'user', 0)", [])?)).await.unwrap();
+        let token = crate::auth::start(&app.db, 9, None, None).await.unwrap();
+        let user = format!("freightdock_session={token}");
+        let (_, _, me) = call(&app, get("/api/me", &user)).await;
+        assert_eq!(call(&app, get(&format!("/api/cluster/nodes/{node}/docker?action=containers"), &user)).await.0, StatusCode::FORBIDDEN, "a container's environment and logs may hold secrets");
+        assert_eq!(call(&app, change(&user, me["csrf"].as_str().unwrap(), json!({ "action": "container.stop", "target": "web" }))).await.0, StatusCode::FORBIDDEN);
+        assert_eq!(asked.lock().unwrap().iter().filter(|l| l.contains("/docker")).count(), 3);
     }
 
     #[tokio::test]
