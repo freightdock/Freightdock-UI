@@ -22,7 +22,7 @@ import { segmented } from '../../finui/components/segmented/segmented.js';
 import { checkbox } from '../../finui/components/choice/choice.js';
 import { toast } from '../../finui/components/toast/toast.js';
 import { t, tOr } from '../i18n.js';
-import { nodeName } from './cluster.js';
+import { nodeName, labelText } from './cluster.js';
 
 // A Compose file to start from: Compose's own words. Its port is offered on the pool below, never opened by itself.
 const EXAMPLE = `services:
@@ -95,7 +95,7 @@ function deployer({ existing, stack, nodes, pool, storage, signal }) {
     onChange: (v) => { mode = v; drawWorkers(); later(0); } });
   drawWorkers();
   const selector = formField({ id: 'cs-selector', label: t('pages.cluster_deploy.selector'), autocomplete: 'off', placeholder: t('pages.cluster_deploy.selector_placeholder'), help: t('pages.cluster_deploy.selector_help') });
-  selector.input.value = (had.selector || []).map((c) => c.replace(/^node\.labels\./, '')).join(', ');
+  selector.input.value = (had.selector || []).map(labelText).join(', ');
   selector.input.addEventListener('input', () => later());
   const labelsSeen = [...new Set(nodes.flatMap((n) => Object.entries(Object.assign({}, (n.report && n.report.labels) || {}, n.labels || {})).map(([k, v]) => `${k}=${v}`)))].sort();
   const seen = labelsSeen.length ? h('p', { class: 'sub' }, t('pages.cluster_deploy.labels_seen', { labels: labelsSeen.join(', ') })) : null;

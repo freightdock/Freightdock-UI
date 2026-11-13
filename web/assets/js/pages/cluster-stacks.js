@@ -19,7 +19,7 @@ import { openModal } from '../../finui/components/modal/modal.js';
 import { segmented } from '../../finui/components/segmented/segmented.js';
 import { toast } from '../../finui/components/toast/toast.js';
 import { t, tOr } from '../i18n.js';
-import { nodeName as shownName } from './cluster.js';
+import { nodeName as shownName, labelText } from './cluster.js';
 import { exposureEditor } from './cluster-deploy.js';
 
 const EVERY_MS = 3000;
@@ -128,7 +128,7 @@ function stackCard(s, reload) {
 /** How it survives its worker and the node labels it needs, when its deploy chose them ("Cluster" 22). */
 function modeLine(s) {
   const o = s.options || {};
-  const sel = (o.selector || []).map((c) => c.replace(/^node\.labels\./, ''));
+  const sel = (o.selector || []).map(labelText);
   if (!o.mode && !sel.length) return null;
   return h('p', { class: 'sub' },
     o.mode ? t(`pages.cluster_deploy.mode_word.${o.mode.kind}`) + (o.mode.storage ? ` (${o.mode.storage})` : '') : null,

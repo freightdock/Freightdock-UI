@@ -386,3 +386,8 @@ async function joinToken(kind) {
       h('p', { class: 'sub' }, t('pages.cluster.token_once'))),
   });
 }
+
+/** A selector's constraint as it is typed: `node.labels.zone==a` is `zone=a`, `!=` stays; any other is as it is. */
+export function labelText(c) {
+  return c.startsWith('node.labels.') ? c.slice('node.labels.'.length).replace('==', '=') : c;
+}
