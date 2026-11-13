@@ -50,10 +50,12 @@ You need a Freightdock cluster: a manager and a worker on one node is enough (th
 `install-node.sh first <host>`). Then let the managers run the UI:
 
 ```sh
-freightdock-manager ui ghcr.io/freightdock/freightdock:latest
+freightdock-manager floating add 192.0.2.10
+freightdock-manager ui ghcr.io/freightdock/freightdock:latest 192.0.2.10
 ```
 
-It runs on a node of the cluster, moves when that node fails, and opens at **https://any-manager:7443**. Or run it
+It runs on a node of the cluster, moves when that node fails, and opens at **https://192.0.2.10**, an address of the
+pool that stays its own wherever it runs. Or run it
 yourself beside a manager: an API token for the UI and the cluster CA first.
 
 ```sh

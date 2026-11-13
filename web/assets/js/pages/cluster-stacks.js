@@ -27,7 +27,7 @@ const EVERY_MS = 3000;
 let names = new Map();
 const TONES = { running: 'good', stopped: 'info', pending: 'warning', failed: 'critical', unplaced: 'critical', unknown: 'warning', fenced: 'critical' };
 const sec = (ms) => Math.floor((ms || 0) / 1000);
-/** The managers' own stack, the UI: changed with `freightdock-manager ui`, reached at 7443 of every manager. */
+/** The managers' own stack, the UI: changed with `freightdock-manager ui`, reached on its pool address like any stack. */
 const SYSTEM = 'freightdock';
 /** The search and filters, kept while Freightdock is open so a way back finds them as they were. */
 const filter = { q: '', state: 'all', node: '', reach: 'all' };
@@ -140,7 +140,6 @@ export function reachOf(s) {
   return Object.entries(s.services || {}).map(([name, svc]) => {
     const mine = (s.exposures || []).filter((e) => e.service === name);
     const pool = mine.map((e) => ({ kind: 'pool', text: `${e.address}:${e.port} → ${e.container_port}/${e.protocol}` }));
-    if (s.name === SYSTEM) return { name, ways: [...pool, { kind: 'managers', text: '7443' }] };
     const asked = (svc.ports || []).filter((p) => p.host_port && !mine.some((e) => e.container_port === p.container_port && e.protocol === (p.protocol || 'tcp')))
       .map((p) => ({ kind: 'asked', text: `${p.host_port}:${p.container_port}/${p.protocol || 'tcp'}` }));
     return { name, ways: [...pool, ...asked] };
@@ -154,9 +153,6 @@ function reachTable(s) {
       { label: t('pages.cluster_stacks.service'), cell: (r) => h('span', { class: 'mono' }, r.name), sort: (r) => r.name },
       { label: t('pages.cluster_stacks.reach'), cell: (r) => {
         const pool = r.ways.filter((w) => w.kind === 'pool'), asked = r.ways.filter((w) => w.kind === 'asked');
-        const managers = r.ways.filter((w) => w.kind === 'managers');
-        if (managers.length) return h('div', { class: 'row wrap' }, pool.map((w) => status({ tone: 'good' }, t('pages.cluster_stacks.reach_pool', { what: w.text }))),
-          managers.map((w) => h('span', { title: t('pages.cluster_stacks.reach_managers_help') }, status({ tone: 'info' }, t('pages.cluster_stacks.reach_managers', { port: w.text })))));
         return h('div', { class: 'row wrap' },
           pool.length ? pool.map((w) => h('span', { title: t('pages.cluster_stacks.reach_pool_help') }, status({ tone: 'good' }, t('pages.cluster_stacks.reach_pool', { what: w.text }))))
             : h('span', { class: 'sub', title: t('pages.cluster_stacks.reach_internal_help') }, t('pages.cluster_stacks.reach_internal')),

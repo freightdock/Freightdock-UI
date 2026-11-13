@@ -999,8 +999,6 @@
       "runs_anywhere": "runs on any healthy worker",
       "reach_asked": "Compose asks for {what}, not exposed",
       "reach_asked_help": "A port in the Compose file opens nothing by itself. Expose it on a pool address to reach it from outside the cluster.",
-      "reach_managers": "Every manager :{port}",
-      "reach_managers_help": "The managers forward their port {port} to the UI wherever it runs: it is how Freightdock itself is reached.",
       "volumes": "Volumes on shared storage:",
       "volume_one": "on {storage} (one writer)",
       "volume_held": "on {storage} (one writer, on {node})",

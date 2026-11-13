@@ -1314,7 +1314,8 @@ pointer to what replaced it.
     node's Docker pages through its worker. Their DECISIONS sections stay, marked set aside, so their numbers and
     reasons are there when they come back.
 11. The managers run the UI (Freightdock-Manager's G8.5): `freightdock-manager ui <image>` places it on a node as the
-    managers' own stack, moves it when that node fails, and every manager answers for it at 7443. So the UI is
+    managers' own stack, moves it when that node fails, and it is reached on an address of the pool like any stack
+    (at first every manager answered for it at 7443; that went, owner, 2026-11-13: see 19). So the UI is
     started with its token and the cluster CA as values (`FREIGHTDOCK_CLUSTER_TOKEN`, `FREIGHTDOCK_CLUSTER_CA`, taken
     before their `_FILE`s), which the manager that starts it fills in and the cluster's state never holds; a value is
     never shown in a log. It has no volume, so the CA of its own HTTPS certificate travels in the database snapshot
@@ -1370,8 +1371,10 @@ pointer to what replaced it.
 19. A stack is reached from outside the cluster only on the pool, and otherwise only inside it (owner, 2026-11-13):
     a Compose file's `ports:` open nothing, on a worker's own address or anywhere. They are what the file asks for,
     which the deployer offers as exposures on a free pool address (kept, moved, or set to Internal only before it
-    deploys), so a ready-made Compose file still works and nothing leaves by accident. Only the managers' own stack, the
-    UI, has its port answered on every worker, for the managers to forward 7443 to; it cannot be edited or removed here.
+    deploys), so a ready-made Compose file still works and nothing leaves by accident. The managers' own stack, the UI,
+    too: it is on a pool address at 443 (`freightdock-manager ui <image> [address]`), never on a worker's or a
+    manager's own address, so a service keeps one address of its own that nobody has to change; it cannot be edited or
+    removed here.
     A stack is deployed and changed on its own page, the deployer (`/cluster/stacks/new`, `/cluster/stacks/<name>/edit`),
     in three parts the managers check as they are written (`POST /api/cluster/stack-check`, Admin, changing nothing so
     not on record): the Compose file with the services found and the keys set aside; where it runs, any healthy worker

@@ -999,8 +999,6 @@
       "runs_anywhere": "kjører på hvilken som helst frisk arbeider",
       "reach_asked": "Compose ber om {what}, ikke eksponert",
       "reach_asked_help": "En port i Compose-filen åpner ingenting av seg selv. Eksponer den på en pooladresse for å nå den utenfor klyngen.",
-      "reach_managers": "Hver manager :{port}",
-      "reach_managers_help": "Managerne videresender sin port {port} til UI-et der det kjører: slik nås Freightdock selv.",
       "volumes": "Volumer på delt lagring:",
       "volume_one": "på {storage} (én skriver)",
       "volume_held": "på {storage} (én skriver, på {node})",

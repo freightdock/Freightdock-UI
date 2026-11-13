@@ -9,15 +9,16 @@ the managers' admin API.
 The simplest: let the managers run it. On a manager, as root:
 
 ```sh
-freightdock-manager ui ghcr.io/freightdock/freightdock:latest
+freightdock-manager floating add 192.0.2.10   # a free address of the LAN, if the pool has none yet
+freightdock-manager ui ghcr.io/freightdock/freightdock:latest 192.0.2.10
 freightdock-manager ui status        # where it runs
 ```
 
 The managers place it on a node, move it when that node fails (a one-node cluster runs it again when the node is
-back), and every manager answers for it at **https://<any manager>:7443**, forwarding to the node it runs on (port
-7453 there). Its API token, the cluster CA and the managers' addresses are handed to it as it starts, never written
+back), and it opens at **https://192.0.2.10**: an address of the pool, the UI's wherever it runs (left out, the one
+it has or the first free one). Nothing answers for it on a node's or a manager's own address. Its API token, the cluster CA and the managers' addresses are handed to it as it starts, never written
 anywhere; its database is the managers', so nothing is lost when it moves. `install-node.sh` does the same with
-`UI_IMAGE=<image>` on `first`. `freightdock-manager ui off` removes it. The setup token is in its log on the node it
+`UI_IMAGE=<image> UI_ADDRESS=<address>` on `first`. `freightdock-manager ui off` removes it. The setup token is in its log on the node it
 runs on (`docker logs freightdock-ui-1`).
 
 ## By hand, on a manager's node
