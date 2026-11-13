@@ -644,11 +644,13 @@ pub(crate) mod tests {
         let ticket = b["ticket"].as_str().unwrap().to_string();
         let (s, _, b) = call(&app, code_step(&ticket, "000000")).await;
         assert_eq!((s, b["field"].as_str()), (StatusCode::UNAUTHORIZED, Some("code")));
-        // The code the enrolment took is spent; the next step's is good.
-        let (s, h, _) = call(&app, code_step(&ticket, &code_at(&key, now() / STEP))).await;
+        // The code the enrolment took is spent; the next step's is good. The step it took is the one kept, not the
+        // clock's now: a test that crosses a 30-second boundary would otherwise try a code nobody spent.
+        let spent: i64 = app.db.call(|c| Ok(c.query_row("SELECT totp_last_step FROM users", [], |r| r.get(0))?)).await.unwrap();
+        let (s, h, _) = call(&app, code_step(&ticket, &code_at(&key, spent))).await;
         assert_eq!(s, StatusCode::UNAUTHORIZED, "the code taken to enrol is not good again");
         assert!(!h.contains_key(header::SET_COOKIE));
-        let (s, h, _) = call(&app, code_step(&ticket, &code_at(&key, now() / STEP + 1))).await;
+        let (s, h, _) = call(&app, code_step(&ticket, &code_at(&key, spent + 1))).await;
         assert_eq!(s, StatusCode::OK);
         assert!(h.contains_key(header::SET_COOKIE), "signed in");
         let (s, _, _) = call(&app, code_step(&ticket, &code_at(&key, now() / STEP + 1))).await;
