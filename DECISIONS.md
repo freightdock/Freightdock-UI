@@ -1393,3 +1393,14 @@ pointer to what replaced it.
     Compose file (`x-freightdock: {storage, access}`), so the deployer lists the volumes on storage the managers found
     and the stack's card says where each is and who holds it; its workloads move when their worker fails ("Moves
     (shared storage)").
+22. A stack is given its options beside its Compose file when it is deployed (owner, 2026-11-13: a label selector, a
+    choice of how it survives its worker, a name of one's own for its workloads, a description), and the managers keep
+    them with it (`StackOptions`): a description shown on its card; an env file that fills the file's variables (every
+    form Compose has) and environment names given with no value, shown only in the stack's detail; a node label
+    selector (`zone=a`, `disk!=hdd`) added to every service's constraints, its workloads moved when a worker's labels
+    change; a mode over what the file says (stateless: every workload moves, named volumes local; pinned: every
+    workload waits for its worker; shared: every workload moves with its named volumes on the cluster's storage, one
+    writer); and container names by service, each one workload's in the cluster and also a name for it inside the
+    stack. Each option left out of a deploy stays as it was; a null mode goes back to the file. The deployer sends
+    them with its check too, so a selector no worker meets or a name taken is said before anything is deployed. The UI
+    server passes on only these five keys beside the name, file, nodes and exposures.

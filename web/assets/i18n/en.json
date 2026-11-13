@@ -935,7 +935,8 @@
         "failed": "Failed",
         "unplaced": "No node",
         "unknown": "Unknown",
-        "fenced": "Fenced"
+        "fenced": "Fenced",
+        "exited": "Exited"
       },
       "op": {
         "run_container": "Run",
@@ -1002,7 +1003,8 @@
       "volumes": "Volumes on shared storage:",
       "volume_one": "on {storage} (one writer)",
       "volume_held": "on {storage} (one writer, on {node})",
-      "volume_many": "on {storage} (many writers)"
+      "volume_many": "on {storage} (many writers)",
+      "only_on": "Only on workers with {labels}"
     },
     "cluster_node": {
       "title": "Node",
@@ -1135,7 +1137,33 @@
       "redeploy": "Deploy changes",
       "volumes": "On shared storage:",
       "volume_one": "on {storage}, one writer",
-      "volume_many": "on {storage}, many writers"
+      "volume_many": "on {storage}, many writers",
+      "description": "Description",
+      "description_help": "What the stack is for, shown on its card. At most 500 characters.",
+      "env": "Env file",
+      "env_help": "KEY=value lines. They fill the file's variables ($TAG and the other forms Compose has) and an environment name given with no value. Kept with the stack, shown only to administrators here.",
+      "selector": "Node labels",
+      "selector_help": "Only workers with these labels run it, comma separated: zone=a, disk!=hdd. When a worker's labels change, its workloads move to one that has them.",
+      "labels_seen": "Labels on the workers now: {labels}",
+      "mode": "When its worker fails",
+      "mode_sub": "Over what the Compose file says for each service.",
+      "mode_word": {
+        "file": "As the file says",
+        "stateless": "Stateless",
+        "pinned": "Pinned",
+        "shared": "Shared storage"
+      },
+      "mode_help": {
+        "file": "Each service as its file says: it moves to another worker, unless its x-freightdock says ha: false.",
+        "stateless": "Every workload moves to a healthy worker at once. Named volumes stay on each worker: what was written there is not taken along.",
+        "pinned": "Every workload waits for its own worker to come back, with its data there. Nothing moves by itself.",
+        "shared": "Every workload moves, and its named volumes are kept on the cluster's storage, one writer at a time, so its data moves with it."
+      },
+      "mode_storage": "Storage",
+      "mode_no_storage": "The cluster has no storage yet: add it on the Cluster page.",
+      "names_help": "Container names, each its own in the cluster and a name for it inside the stack too. Left empty: the file's container_name, else stack-service-replica.",
+      "container_name": "Container name of {service}",
+      "selector_placeholder": "zone=a, disk!=hdd"
     }
   },
   "components": {

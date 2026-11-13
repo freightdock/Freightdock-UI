@@ -935,7 +935,8 @@
         "failed": "Feilet",
         "unplaced": "Ingen node",
         "unknown": "Ukjent",
-        "fenced": "Inngjerdet"
+        "fenced": "Inngjerdet",
+        "exited": "Avsluttet"
       },
       "op": {
         "run_container": "Kjør",
@@ -1002,7 +1003,8 @@
       "volumes": "Volumer på delt lagring:",
       "volume_one": "på {storage} (én skriver)",
       "volume_held": "på {storage} (én skriver, på {node})",
-      "volume_many": "på {storage} (mange skrivere)"
+      "volume_many": "på {storage} (mange skrivere)",
+      "only_on": "Bare på arbeidere med {labels}"
     },
     "cluster_node": {
       "title": "Node",
@@ -1135,7 +1137,33 @@
       "redeploy": "Deploy endringene",
       "volumes": "På delt lagring:",
       "volume_one": "på {storage}, én skriver",
-      "volume_many": "på {storage}, mange skrivere"
+      "volume_many": "på {storage}, mange skrivere",
+      "description": "Beskrivelse",
+      "description_help": "Hva stacken er til, vist på kortet. Høyst 500 tegn.",
+      "env": "Env-fil",
+      "env_help": "KEY=verdi-linjer. De fyller filens variabler ($TAG og de andre formene Compose har) og et miljønavn gitt uten verdi. Lagres med stacken, vises bare for administratorer her.",
+      "selector": "Nodeetiketter",
+      "selector_help": "Bare arbeidere med disse etikettene kjører den, kommaseparert: zone=a, disk!=hdd. Når en arbeiders etiketter endres, flyttes arbeidslastene til en som har dem.",
+      "labels_seen": "Etiketter på arbeiderne nå: {labels}",
+      "mode": "Når arbeideren svikter",
+      "mode_sub": "Over det Compose-filen sier for hver tjeneste.",
+      "mode_word": {
+        "file": "Som filen sier",
+        "stateless": "Tilstandsløs",
+        "pinned": "Festet",
+        "shared": "Delt lagring"
+      },
+      "mode_help": {
+        "file": "Hver tjeneste som filen sier: den flyttes til en annen arbeider, med mindre x-freightdock sier ha: false.",
+        "stateless": "Hver arbeidslast flyttes straks til en frisk arbeider. Navngitte volumer blir på hver arbeider: det som ble skrevet der, følger ikke med.",
+        "pinned": "Hver arbeidslast venter på at sin egen arbeider kommer tilbake, med dataene der. Ingenting flyttes av seg selv.",
+        "shared": "Hver arbeidslast flyttes, og de navngitte volumene holdes på klyngens lagring, én skriver om gangen, så dataene følger med."
+      },
+      "mode_storage": "Lagring",
+      "mode_no_storage": "Klyngen har ingen lagring ennå: legg den til på Klynge-siden.",
+      "names_help": "Containernavn, hvert sitt eget i klyngen og et navn for den inne i stacken også. Tomt: filens container_name, ellers stack-tjeneste-replika.",
+      "container_name": "Containernavn for {service}",
+      "selector_placeholder": "zone=a, disk!=hdd"
     }
   },
   "components": {

@@ -25,7 +25,7 @@ import { exposureEditor } from './cluster-deploy.js';
 const EVERY_MS = 3000;
 /** The nodes' shown names by id, from the last load. */
 let names = new Map();
-const TONES = { running: 'good', stopped: 'info', pending: 'warning', failed: 'critical', unplaced: 'critical', unknown: 'warning', fenced: 'critical' };
+const TONES = { running: 'good', stopped: 'info', exited: 'info', pending: 'warning', failed: 'critical', unplaced: 'critical', unknown: 'warning', fenced: 'critical' };
 const sec = (ms) => Math.floor((ms || 0) / 1000);
 /** The managers' own stack, the UI: changed with `freightdock-manager ui`, reached on its pool address like any stack. */
 const SYSTEM = 'freightdock';
@@ -33,7 +33,7 @@ const SYSTEM = 'freightdock';
 const filter = { q: '', state: 'all', node: '', reach: 'all' };
 
 /** Whether stack `s` is one the filters keep. The search matches the stack's, its services', images', workloads' and
- *  workers' names, its addresses and its exposures, ignoring case. */
+ *  workers' names, its containers' own names, its description, its addresses and its exposures, ignoring case. */
 export function kept(s, f, nameOf) {
   const w = s.workloads || [];
   const up = w.filter((x) => x.status === 'running').length;
@@ -45,7 +45,7 @@ export function kept(s, f, nameOf) {
   if (f.reach === 'internal' && pooled) return false;
   const q = f.q.trim().toLowerCase();
   if (!q) return true;
-  const words = [s.name, s.subnet, ...Object.entries(s.services || {}).flatMap(([k, v]) => [k, v.image]),
+  const words = [s.name, s.subnet, s.description, ...Object.entries(s.services || {}).flatMap(([k, v]) => [k, v.image, v.name]),
     ...w.flatMap((x) => [x.id, x.address, x.node_id && nameOf(x.node_id), x.hostname]),
     ...(s.exposures || []).map((e) => `${e.address}:${e.port}`)];
   return words.some((x) => x && String(x).toLowerCase().includes(q));
@@ -121,8 +121,19 @@ function stackCard(s, reload) {
       s.subnet ? h('span', { class: 'mono' }, ` · ${t('pages.cluster_stacks.network', { subnet: s.subnet })}`) : null,
       h('span', null, ` · ${(s.nodes || []).length ? t('pages.cluster_stacks.runs_on', { nodes: s.nodes.map((id) => names.get(id) || shortId(id)).join(', ') }) : t('pages.cluster_stacks.runs_anywhere')}`)),
     actions,
-    body: h('div', { class: 'stack' }, workloadTable(w), reachTable(s), volumesLine(s)),
+    body: h('div', { class: 'stack' }, s.description ? h('p', null, s.description) : null, modeLine(s), workloadTable(w), reachTable(s), volumesLine(s)),
   });
+}
+
+/** How it survives its worker and the node labels it needs, when its deploy chose them ("Cluster" 22). */
+function modeLine(s) {
+  const o = s.options || {};
+  const sel = (o.selector || []).map((c) => c.replace(/^node\.labels\./, ''));
+  if (!o.mode && !sel.length) return null;
+  return h('p', { class: 'sub' },
+    o.mode ? t(`pages.cluster_deploy.mode_word.${o.mode.kind}`) + (o.mode.storage ? ` (${o.mode.storage})` : '') : null,
+    o.mode && sel.length ? ' · ' : null,
+    sel.length ? t('pages.cluster_stacks.only_on', { labels: sel.join(', ') }) : null);
 }
 
 /** Its volumes on the cluster's shared storage ("Cluster" 21), with the worker holding each one for one writer. */
@@ -201,7 +212,7 @@ function workloadTable(rows) {
   return table({
     rows, filter: false, dense: true, empty: [t('pages.cluster_stacks.no_workloads'), ''],
     columns: [
-      { label: t('pages.cluster_stacks.workload'), cell: (w) => h('span', { class: 'mono' }, w.id), sort: (w) => w.id },
+      { label: t('pages.cluster_stacks.workload'), cell: (w) => h('div', { class: 'name-cell' }, h('span', { class: 'mono' }, w.id), w.container_name ? h('span', { class: 'sub mono' }, w.container_name) : null), sort: (w) => w.id },
       { label: t('pages.cluster.node'), cell: (w) => (w.node_id ? h('div', { class: 'name-cell' }, h('a', { href: `/cluster/nodes/${encodeURIComponent(w.node_id)}` }, names.get(w.node_id) || w.hostname || shortId(w.node_id)), h('span', { class: 'sub mono', title: w.node_id }, shortId(w.node_id))) : h('span', { class: 'sub' }, t('pages.cluster_stacks.no_node'))), sort: (w) => names.get(w.node_id) || w.hostname || '' },
       { label: t('pages.cluster_stacks.address'), cell: (w) => (w.address ? h('span', { class: 'mono' }, w.address) : h('span', { class: 'sub' }, t('pages.cluster_stacks.no_address'))), sort: (w) => addrKey(w.address) },
       { label: t('pages.cluster_stacks.status'), cell: (w) => status({ tone: TONES[w.status] || 'info', line: true }, tOr(`pages.cluster_stacks.status_word.${w.status}`, w.status)), sort: (w) => w.status },

@@ -13,6 +13,8 @@ whole series.
 ## [1.0.0] - 2026-11-09 to 2026-11-10
 
 First light
+- **A stack's options when you deploy it**: a description on its card, an env file for its variables, the node labels it needs (its workloads move when a worker's labels change), how it survives its worker (as the file says, stateless, pinned, or with its volumes on shared storage) and a container name of your own per service. They are kept with the stack and shown when you change it.
+- **The UI is opened on its own pool address**, like every stack, and no longer answers on the managers' own addresses at 7443: a service keeps one address that never changes, wherever it runs.
 - **Your picture from your sign-in provider** in the menu: Authentik's (or any OpenID provider's) picture, fetched and kept by Freightdock so your browser never calls Gravatar, with nothing painted behind it.
 - **Account says how you sign in**: an `SSO: Authentik` badge (or the directory's) beside your role. An account signed in through a provider shows no password, two-factor or "Link to" card, since the provider looks after all three; a directory account keeps two-factor.
 - **A new webhook runs at once** even when it takes the place of one just removed; it used to wait out the old one's ten seconds and answer 429.

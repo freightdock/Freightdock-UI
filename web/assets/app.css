@@ -339,3 +339,6 @@
 .fd-deploy__node { justify-content: space-between; padding: 8px 12px; border: 1px solid var(--border-soft); border-radius: var(--radius-sm); }
 .fd-deploy__svc { padding: 2px 8px; border: 1px solid var(--border-soft); border-radius: var(--radius-sm); white-space: nowrap; }
 .fd-deploy__warnings { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.fd-deploy__name { gap: 12px; }
+.fd-deploy__name > label { min-width: 8rem; }
+.fd-deploy__name > input { flex: 1; max-width: 24rem; }

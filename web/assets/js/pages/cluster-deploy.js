@@ -3,7 +3,9 @@
 // Compose file, with the services it holds and what the managers set aside; where it runs, any healthy worker or the
 // workers chosen, with where its new workloads would go; and how it is reached from outside, its exposures on the
 // pool. A Compose port opens nothing by itself: it is offered here as an exposure on a free pool address, which the
-// person deploying keeps, moves or makes internal only. Nothing else leaves the cluster ("Cluster" 17).
+// person deploying keeps, moves or makes internal only. Nothing else leaves the cluster ("Cluster" 17). Beside the
+// file, the stack's options ("Cluster" 22): a description, an env file for its variables, a node label selector, how
+// it survives its node (as the file says, stateless, pinned, or on shared storage) and its containers' own names.
 
 import { h, mount } from '../dom.js';
 import { get, post } from '../api.js';
@@ -42,21 +44,25 @@ export function clusterDeployPage({ el, params, signal }) {
   mount(head, pageHeader(existing ? t('pages.cluster_stacks.edit_title', { name: existing }) : t('pages.cluster_deploy.title'), t('pages.cluster_deploy.sub'), back));
   if (!isAdmin()) { mount(body, emptyState(t('pages.cluster_deploy.admin_only'), '')); return; }
   (async () => {
-    let nodes, pool, stack = null;
+    let nodes, pool, storage, stack = null;
     try {
-      [nodes, pool, stack] = await Promise.all([
-        get('/api/cluster/nodes', { signal }), get('/api/cluster/floating', { signal }).catch(() => []),
+      [nodes, pool, storage, stack] = await Promise.all([
+        get('/api/cluster/nodes', { signal }), get('/api/cluster/floating', { signal }).catch(() => []), get('/api/cluster/storage', { signal }).catch(() => []),
         existing ? get(`/api/cluster/stacks/${encodeURIComponent(existing)}`, { signal }) : null]);
     } catch (e) { if (!signal.aborted) mount(body, emptyState(t('pages.cluster.no_answer'), e.message)); return; }
-    if (!signal.aborted) mount(body, deployer({ existing, stack, nodes: nodes || [], pool: pool || [], signal }));
+    if (!signal.aborted) mount(body, deployer({ existing, stack, nodes: nodes || [], pool: pool || [], storage: storage || [], signal }));
   })();
 }
 
-function deployer({ existing, stack, nodes, pool, signal }) {
+function deployer({ existing, stack, nodes, pool, storage, signal }) {
   // The workers chosen (ids); none while it runs on any.
   let mode = stack && (stack.nodes || []).length ? 'chosen' : 'any';
   const chosen = new Set(stack ? stack.nodes || [] : []);
   let last = null;
+  const had = (stack && stack.options) || {};
+  // Each service's own container name, as typed here; the file's container_name when left empty.
+  const names = new Map(Object.entries(had.names || {}));
+  let survive = had.mode ? had.mode.kind : 'file';
 
   // 1. The Compose file.
   const name = formField({ id: 'cs-name', label: t('pages.cluster_stacks.name'), autocomplete: 'off', help: t('pages.cluster_stacks.name_help') });
@@ -64,6 +70,13 @@ function deployer({ existing, stack, nodes, pool, signal }) {
   if (existing) name.input.readOnly = true;
   const file = codeEditor({ id: 'cs-compose', label: t('pages.cluster_stacks.compose'), value: stack ? stack.compose || '' : EXAMPLE, rows: 20, language: 'yaml', help: t('pages.cluster_deploy.compose_help'), onChange: () => later() });
   name.input.addEventListener('input', () => later());
+  const about = h('textarea', { class: 'fui-field__input fui-field__input--area', id: 'cs-about', rows: 2, maxLength: 500 }, had.description || '');
+  const aboutField = h('div', { class: 'fui-field' }, h('label', { class: 'fui-field__label', htmlFor: 'cs-about' }, t('pages.cluster_deploy.description')), about,
+    h('p', { class: 'fui-field__help' }, t('pages.cluster_deploy.description_help')));
+  const env = h('textarea', { class: 'fui-field__input fui-field__input--area mono', id: 'cs-env', rows: 4, spellcheck: false, placeholder: 'TAG=1.2\nPASSWORD=...' }, had.env || '');
+  env.addEventListener('input', () => later());
+  const envField = h('div', { class: 'fui-field' }, h('label', { class: 'fui-field__label', htmlFor: 'cs-env' }, t('pages.cluster_deploy.env')), env,
+    h('p', { class: 'fui-field__help' }, t('pages.cluster_deploy.env_help')));
   const found = h('div', { class: 'stack', 'aria-live': 'polite' });
 
   // 2. Where it runs.
@@ -81,6 +94,24 @@ function deployer({ existing, stack, nodes, pool, signal }) {
     options: [{ value: 'any', label: t('pages.cluster_deploy.any') }, { value: 'chosen', label: t('pages.cluster_deploy.chosen') }],
     onChange: (v) => { mode = v; drawWorkers(); later(0); } });
   drawWorkers();
+  const selector = formField({ id: 'cs-selector', label: t('pages.cluster_deploy.selector'), autocomplete: 'off', placeholder: t('pages.cluster_deploy.selector_placeholder'), help: t('pages.cluster_deploy.selector_help') });
+  selector.input.value = (had.selector || []).map((c) => c.replace(/^node\.labels\./, '')).join(', ');
+  selector.input.addEventListener('input', () => later());
+  const labelsSeen = [...new Set(nodes.flatMap((n) => Object.entries(Object.assign({}, (n.report && n.report.labels) || {}, n.labels || {})).map(([k, v]) => `${k}=${v}`)))].sort();
+  const seen = labelsSeen.length ? h('p', { class: 'sub' }, t('pages.cluster_deploy.labels_seen', { labels: labelsSeen.join(', ') })) : null;
+
+  // How it survives its node.
+  const storageNames = storage.map((x) => x.name);
+  const onStorage = h('select', { class: 'fui-field__input', id: 'cs-storage' }, storageNames.map((n) => h('option', { value: n, selected: had.mode && had.mode.storage === n }, n)));
+  onStorage.addEventListener('change', () => later(0));
+  const survival = h('div', { class: 'stack' });
+  const drawSurvival = () => mount(survival, h('p', { class: 'sub' }, t(`pages.cluster_deploy.mode_help.${survive}`)),
+    survive === 'shared' ? (storageNames.length ? h('div', { class: 'fui-field' }, h('label', { class: 'fui-field__label', htmlFor: 'cs-storage' }, t('pages.cluster_deploy.mode_storage')), onStorage)
+      : status({ tone: 'warning', line: true }, t('pages.cluster_deploy.mode_no_storage'))) : null);
+  const survivePick = segmented({ label: t('pages.cluster_deploy.mode'), value: survive, size: 'sm',
+    options: ['file', 'stateless', 'pinned', 'shared'].map((v) => ({ value: v, label: t(`pages.cluster_deploy.mode_word.${v}`) })),
+    onChange: (v) => { survive = v; drawSurvival(); later(0); } });
+  drawSurvival();
 
   // 3. How it is reached from outside.
   const reach = exposureEditor({ pool, stack: existing, initial: stack ? stack.exposures || [] : [] });
@@ -88,13 +119,20 @@ function deployer({ existing, stack, nodes, pool, signal }) {
   const err = h('p', { class: 'fui-field__error', role: 'alert' });
   const go = button({ variant: 'primary', type: 'submit' }, existing ? t('pages.cluster_deploy.redeploy') : t('pages.cluster_stacks.deploy'));
   const form = h('form', { class: 'stack', novalidate: true },
-    card({ title: t('pages.cluster_deploy.file'), body: h('div', { class: 'stack' }, name.el, file.el, found) }),
-    card({ title: t('pages.cluster_deploy.where'), sub: t('pages.cluster_deploy.where_sub'), actions: where, body: h('div', { class: 'stack' }, workers, placed) }),
+    card({ title: t('pages.cluster_deploy.file'), body: h('div', { class: 'stack' }, name.el, aboutField, file.el, envField, found) }),
+    card({ title: t('pages.cluster_deploy.where'), sub: t('pages.cluster_deploy.where_sub'), actions: where, body: h('div', { class: 'stack' }, workers, selector.el, seen, placed) }),
+    card({ title: t('pages.cluster_deploy.mode'), sub: t('pages.cluster_deploy.mode_sub'), actions: survivePick, body: survival }),
     card({ title: t('pages.cluster_stacks.reach'), sub: t('pages.cluster_deploy.reach_sub'), body: reach.el }),
     err,
     h('div', { class: 'row row--end' }, button({ href: '/cluster/stacks' }, t('common.cancel')), go));
 
-  const body = () => ({ name: name.input.value.trim(), compose: file.value, nodes: mode === 'any' ? [] : [...chosen], exposures: reach.read() });
+  const options = () => ({
+    description: about.value.trim(), env: env.value,
+    selector: selector.input.value.split(',').map((x) => x.trim()).filter(Boolean),
+    mode: survive === 'file' ? null : survive === 'shared' ? { kind: 'shared', storage: onStorage.value } : { kind: survive },
+    names: Object.fromEntries([...names].map(([k, v]) => [k, v.trim()])),
+  });
+  const body = () => ({ name: name.input.value.trim(), compose: file.value, nodes: mode === 'any' ? [] : [...chosen], exposures: reach.read(), ...options() });
 
   // The managers' check, a moment after the last edit; a newer one aborts the one before.
   let timer = null, inflight = null;
@@ -109,9 +147,10 @@ function deployer({ existing, stack, nodes, pool, signal }) {
     if (mode === 'chosen' && !b.nodes.length) b.nodes = [];
     mount(found, h('p', { class: 'sub' }, t('pages.cluster_deploy.checking')));
     try {
-      last = await post('/api/cluster/stack-check', { name: b.name, compose: b.compose, nodes: b.nodes }, { signal: ctl.signal });
+      const { exposures, ...asked } = b;
+      last = await post('/api/cluster/stack-check', asked, { signal: ctl.signal });
       file.setError('');
-      mount(found, servicesFound(last));
+      mount(found, servicesFound(last, b.name, names, () => later(0)));
       mount(placed, placement(last, nodes, mode === 'chosen' && !chosen.size));
       reach.offer(last.services || {}, !existing);
     } catch (e) {
@@ -143,12 +182,21 @@ function deployer({ existing, stack, nodes, pool, signal }) {
   return form;
 }
 
-/** The services the managers found in the file, and the warnings for what they set aside. */
-function servicesFound(c) {
+/** The services the managers found in the file, each with its containers' own name to type (`names`, by service),
+ *  and the warnings for what they set aside. */
+function servicesFound(c, stackName, names, changed) {
   const list = Object.entries(c.services || {});
+  const nameOf = ([k, v]) => {
+    const input = h('input', { class: 'fui-field__input mono', id: `cs-n-${k}`, autocomplete: 'off', spellcheck: false, value: names.get(k) || '',
+      placeholder: v.name && !names.get(k) ? v.name : `${stackName}-${k}-1`, 'aria-label': t('pages.cluster_deploy.container_name', { service: k }) });
+    input.addEventListener('input', () => names.set(k, input.value));
+    input.addEventListener('change', () => changed());
+    return h('div', { class: 'row fd-deploy__name' }, h('label', { class: 'mono', htmlFor: `cs-n-${k}` }, k), input);
+  };
   return h('div', { class: 'stack' },
     h('div', { class: 'row wrap' }, h('span', { class: 'sub' }, t('pages.cluster_deploy.found', { n: list.length })),
       list.map(([k, v]) => h('span', { class: 'fd-deploy__svc' }, h('span', { class: 'mono' }, k), h('span', { class: 'sub' }, ` ${v.image}, ${v.replicas}x`)))),
+    list.length ? h('div', { class: 'stack' }, h('p', { class: 'sub' }, t('pages.cluster_deploy.names_help')), list.map(nameOf)) : null,
     Object.keys(c.volumes || {}).length ? h('div', { class: 'row wrap' }, h('span', { class: 'sub' }, t('pages.cluster_deploy.volumes')),
       Object.entries(c.volumes).map(([k, v]) => h('span', { class: 'fd-deploy__svc' }, h('span', { class: 'mono' }, k),
         h('span', { class: 'sub' }, ` ${t(v.access === 'many' ? 'pages.cluster_deploy.volume_many' : 'pages.cluster_deploy.volume_one', { storage: v.storage })}`)))) : null,

@@ -477,12 +477,23 @@ struct DeployBody {
     nodes: Option<Vec<String>>,
     #[serde(default)]
     exposures: Option<Value>,
+    /// The stack's options ("Cluster" 22): each passed on as given (`mode` null too), each left out kept as it was.
+    #[serde(flatten)]
+    rest: serde_json::Map<String, Value>,
 }
+
+/// The options a deploy may give beside its file.
+const OPTIONS: [&str; 5] = ["description", "env", "selector", "mode", "names"];
 
 impl DeployBody {
     /// As the manager takes it, with only what was given.
     fn to_manager(&self) -> Value {
         let mut v = json!({ "name": self.name.trim(), "compose": self.compose });
+        for k in OPTIONS {
+            if let Some(x) = self.rest.get(k) {
+                v[k] = x.clone();
+            }
+        }
         if let Some(n) = &self.nodes {
             v["nodes"] = json!(n);
         }
@@ -790,6 +801,10 @@ mod tests {
         let chosen = json!({ "name": "web", "compose": "services: {}", "nodes": ["n1"], "exposures": [{ "service": "web", "container_port": 80, "protocol": "tcp", "address": "192.0.2.10", "port": 80 }] });
         let (_, _, b) = call(&app, change("POST", "/api/cluster/stacks", chosen.clone())).await;
         assert_eq!((&b["got"]["nodes"], &b["got"]["exposures"][0]["address"]), (&json!(["n1"]), &json!("192.0.2.10")), "the nodes and exposures chosen go with the deploy");
+        let options = json!({ "name": "web", "compose": "services: {}", "description": "The shop", "env": "TAG=1\n", "selector": ["zone=a"], "mode": null, "names": { "web": "shop-web" } });
+        let (_, _, b) = call(&app, change("POST", "/api/cluster/stacks", options)).await;
+        assert_eq!((&b["got"]["description"], &b["got"]["env"], &b["got"]["selector"], &b["got"]["names"]["web"]), (&json!("The shop"), &json!("TAG=1\n"), &json!(["zone=a"]), &json!("shop-web")), "the options go with the deploy");
+        assert_eq!(b["got"].get("mode"), Some(&Value::Null), "null (as the file says) is passed on, not left out");
         let (s, _, b) = call(&app, change("POST", "/api/cluster/stack-check", chosen)).await;
         assert_eq!((s, &b["services"]["web"]["ports"][0]["host_port"], &b["got"]["nodes"]), (StatusCode::OK, &json!(8080), &json!(["n1"])), "a check is passed on whole");
         let (s, _, b) = call(&app, change("POST", "/api/cluster/stacks/web/restart", json!({}))).await;
@@ -802,8 +817,8 @@ mod tests {
         let (s, _, _) = call(&app, change("DELETE", "/api/cluster/stacks/..%2Fnodes", Value::Null)).await;
         assert_eq!(s, StatusCode::NOT_FOUND);
         let actions: Vec<String> = app.db.call(|c| Ok(c.prepare("SELECT action || ' ' || COALESCE(target, '') FROM audit ORDER BY id")?.query_map([], |r| r.get(0))?.collect::<Result<_, _>>()?)).await.unwrap();
-        assert_eq!(actions.iter().filter(|a| a.starts_with("cluster.stack")).cloned().collect::<Vec<_>>(), vec!["cluster.stack.deploy web", "cluster.stack.deploy web", "cluster.stack.restart web", "cluster.stack.remove web"]);
-        assert_eq!(asked.lock().unwrap().len(), 6, "a check changes nothing, so it is not on record");
+        assert_eq!(actions.iter().filter(|a| a.starts_with("cluster.stack")).cloned().collect::<Vec<_>>(), vec!["cluster.stack.deploy web", "cluster.stack.deploy web", "cluster.stack.deploy web", "cluster.stack.restart web", "cluster.stack.remove web"]);
+        assert_eq!(asked.lock().unwrap().len(), 7, "a check changes nothing, so it is not on record");
     }
 
     #[tokio::test]
