@@ -894,7 +894,10 @@
       "storage_added": "Storage {name} added",
       "storage_removed": "Storage {name} removed",
       "storage_remove_title": "Remove storage {name}?",
-      "storage_remove_body": "Nothing on it is deleted; the cluster stops using it."
+      "storage_remove_body": "Nothing on it is deleted; the cluster stops using it.",
+      "storage_health": "Health",
+      "storage_free_of": "{free} free of {total}",
+      "storage_unprobed": "No node uses it yet"
     },
     "cluster_stacks": {
       "title": "Cluster stacks",
@@ -1365,7 +1368,9 @@
         "deploy_failed": "A workload could not start",
         "manager_down": "A manager goes down",
         "manager_back": "A manager is back",
-        "backup_failed": "A scheduled backup failed"
+        "backup_failed": "A scheduled backup failed",
+        "storage_unhealthy": "A node's shared storage fails",
+        "storage_back": "A node's shared storage answers again"
       },
       "channel_testing": "Sending from a manager...",
       "channel_failed_test": "It did not go through",

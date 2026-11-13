@@ -149,7 +149,7 @@ read-only token only reads.
 | `PUT /api/cluster/stacks/{name}/exposures` | admin | `{exposures: [{service, container_port, protocol, address, port}]}`: what the stack exposes on the pool, all of it ("Cluster" 17) |
 | `GET /api/cluster/traffic` | session | each node's latest flows, their ends named by the managers ("Cluster" 16) |
 | `POST /api/cluster/floating`, `DELETE /api/cluster/floating/{address}` | admin | `{address}`, one or a range: added (`{added}`, how many were new); removed (an IPv4 address in the path only) |
-| `GET /api/cluster/storage` | session | the cluster's shared storage, the volumes on each and who holds them ("Cluster" 21) |
+| `GET /api/cluster/storage` | session | the cluster's shared storage, the volumes on each and who holds them ("Cluster" 21), and each node's health of it (`health`, "Cluster" 28) |
 | `POST /api/cluster/storage`, `DELETE /api/cluster/storage/{name}` | admin | `{name, driver: nfs\|path, source, options}`: added; removed (a storage name in the path only; refused while a stack uses it) |
 | `GET /api/status` | anyone | name, version, configured, `sso: {providers: [{id, label, kind, preset}], ldap}` (the buttons; whether a directory takes the password form) |
 | `GET /api/auth/sso/{id}/login?next=` | anyone | off to that provider |

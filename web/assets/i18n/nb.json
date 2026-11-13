@@ -894,7 +894,10 @@
       "storage_added": "Lagringen {name} er lagt til",
       "storage_removed": "Lagringen {name} er fjernet",
       "storage_remove_title": "Fjerne lagringen {name}?",
-      "storage_remove_body": "Ingenting på den slettes; klyngen slutter å bruke den."
+      "storage_remove_body": "Ingenting på den slettes; klyngen slutter å bruke den.",
+      "storage_health": "Helse",
+      "storage_free_of": "{free} ledig av {total}",
+      "storage_unprobed": "Ingen node bruker den ennå"
     },
     "cluster_stacks": {
       "title": "Klyngestabler",
@@ -1365,7 +1368,9 @@
         "deploy_failed": "En arbeidslast kunne ikke starte",
         "manager_down": "En manager går ned",
         "manager_back": "En manager er tilbake",
-        "backup_failed": "En planlagt sikkerhetskopi feilet"
+        "backup_failed": "En planlagt sikkerhetskopi feilet",
+        "storage_unhealthy": "En nodes delte lagring feiler",
+        "storage_back": "En nodes delte lagring svarer igjen"
       },
       "channel_testing": "Sender fra en manager...",
       "channel_failed_test": "Den kom ikke frem",

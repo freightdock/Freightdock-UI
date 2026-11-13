@@ -5,7 +5,7 @@
 // or a range of them, or removes one. An administrator names the cluster ("Cluster" 18). The shared storage is on the
 // Integrations page ("Cluster" 23); its table and dialog are here, beside the node names they show.
 
-import { h, mount, ago, when, shortId } from '../dom.js';
+import { h, mount, ago, when, shortId, bytes } from '../dom.js';
 import { get, post, put, del } from '../api.js';
 import { isAdmin } from '../state.js';
 import { loadInto, table } from '../view.js';
@@ -309,6 +309,12 @@ export function storageTable(list, nodes, reload) {
     h('span', { class: 'sub' }, v.access === 'many' ? t('pages.cluster.storage_many') : v.holder
       ? t('pages.cluster.storage_held', { node: byId.get(v.holder) ? nodeName(byId.get(v.holder)) : shortId(v.holder) })
       : t('pages.cluster.storage_free')));
+  // How each node that made it ready says it answers ("Cluster" 28): mounted, its space, a file written and read back.
+  const health = (x) => ((x.health || []).length
+    ? h('div', { class: 'stack stack--tight' }, x.health.map((n) => h('span', { class: 'row nowrap', title: n.ok ? null : n.error },
+      status({ tone: n.ok ? 'good' : 'critical' }, n.node),
+      h('span', { class: 'sub' }, n.ok ? t('pages.cluster.storage_free_of', { free: bytes(n.free_bytes), total: bytes(n.total_bytes) }) : n.error))))
+    : h('span', { class: 'sub' }, t('pages.cluster.storage_unprobed')));
   return table({
     rows: list, empty: [t('pages.cluster.storage_none'), t('pages.cluster.storage_none_text')], label: t('pages.cluster.storage'),
     columns: [
@@ -318,6 +324,7 @@ export function storageTable(list, nodes, reload) {
       { label: t('pages.cluster.storage_volumes'), cell: (x) => ((x.volumes || []).length
         ? h('div', { class: 'stack stack--tight' }, x.volumes.map(volume))
         : h('span', { class: 'sub' }, t('pages.cluster.storage_no_volumes'))), sort: (x) => (x.volumes || []).length },
+      { label: t('pages.cluster.storage_health'), cell: health, sort: (x) => (x.health || []).filter((n) => !n.ok).length },
       ...(isAdmin() ? [{ label: '', nosort: true, cell: (x) => h('div', { class: 'row row--end' }, button({ size: 'sm', variant: 'danger', disabled: (x.volumes || []).length > 0, title: (x.volumes || []).length ? t('pages.cluster.storage_in_use') : null, onClick: () => removeStorage(x.name, reload) }, t('common.remove'))) }] : []),
     ],
   });

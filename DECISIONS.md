@@ -1464,3 +1464,9 @@ pointer to what replaced it.
     /api/cluster/notifications/{name}`, `POST .../test`); only a channel's name goes into a manager's path, and the log
     names the channel and its kind, never its secret (`cluster.notification.set`, `.remove`, `.test` with whether it
     went through, as a test reaches outside). Not yet told: a failing health check, which the workers do not report.
+28. Shared storage shows its health per node on the Shares card (G11.8, 2026-11-13): each node that made a storage
+    ready probes it (an NFS export still mounted, its space, a file written and read back; a probe stuck past 10 s is
+    said as such) and the managers pass it on in `GET /api/cluster/storage` (`health`). Only the nodes that use a
+    storage answer for it, so one no workload has used yet says so instead of a guess. The managers place no new
+    workload with volumes on a storage on a node where it fails, and tell `storage.unhealthy` and `storage.back`
+    through the notification channels (27).
