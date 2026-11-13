@@ -1303,7 +1303,7 @@
       "no_registries": "No private registries",
       "no_registries_text": "Public images need none.",
       "notifications": "Notifications",
-      "notifications_sub": "Where the cluster tells what happens to it: a webhook, e-mail, an ntfy topic or a Gotify server. The leading manager tells each change once, and the same news at most once in ten minutes.",
+      "notifications_sub": "Where the cluster tells what happens to it. The leading manager tells each change once, the same news at most once in ten minutes.",
       "channel_add": "Add a channel",
       "channel_change": "The channel {name}",
       "channel_name": "Name",

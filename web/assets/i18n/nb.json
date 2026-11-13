@@ -1303,7 +1303,7 @@
       "no_registries": "Ingen private registre",
       "no_registries_text": "Offentlige bilder trenger ingen.",
       "notifications": "Varsler",
-      "notifications_sub": "Hvor klyngen forteller hva som skjer med den: en webhook, e-post, et ntfy-emne eller en Gotify-server. Den ledende manageren forteller hver endring én gang, og den samme nyheten høyst én gang i ti minutter.",
+      "notifications_sub": "Hvor klyngen forteller hva som skjer med den. Den ledende manageren forteller hver endring én gang, den samme nyheten høyst én gang i ti minutter.",
       "channel_add": "Legg til en kanal",
       "channel_change": "Kanalen {name}",
       "channel_name": "Navn",

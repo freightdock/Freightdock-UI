@@ -381,7 +381,7 @@ function channelDialog(x, events, reload) {
   const sec = h('div', { class: 'stack stack--tight' }, h('span', { class: 'fui-field__label' }, t('pages.integrations.channel_security')),
     segmented({ label: t('pages.integrations.channel_security'), value: security, onChange: (v) => { security = v; },
       options: [{ value: 'starttls', label: 'STARTTLS' }, { value: 'tls', label: 'TLS' }, { value: 'none', label: '-' }] }));
-  const secret = f('secret', '', { type: 'password', autocomplete: 'new-password', placeholder: x && x.has_secret ? t('pages.integrations.secret_kept') : '' });
+  const secret = f('secret', '', { type: 'password', autocomplete: 'new-password', placeholder: x && x.has_secret ? t('pages.integrations.secret_kept') : '', help: t('pages.integrations.secret_webhook_help') });
   const clearBox = x && x.has_secret ? checkbox({ label: t('pages.integrations.secret_clear'), onChange: (v) => { clear = v; } }) : null;
   if (x) { name.input.value = x.name; name.input.readOnly = true; }
   url.input.value = c.url || ''; server.input.value = c.server || ''; topic.input.value = c.topic || '';
@@ -394,16 +394,15 @@ function channelDialog(x, events, reload) {
   };
   const fields = h('div', { class: 'stack' });
   const secretLabel = secret.el.querySelector('label');
-  const secretHelp = h('div', { class: 'muted' });
   const paint = () => {
     mount(fields, ...fieldsOf[kind]);
     if (secretLabel) secretLabel.textContent = t(`pages.integrations.secret_${kind}`);
-    secretHelp.textContent = t(`pages.integrations.secret_${kind}_help`);
     server.input.placeholder = kind === 'ntfy' ? 'https://ntfy.sh' : 'https://gotify.example';
     priority.input.placeholder = kind === 'ntfy' ? '4' : '5';
     const help = (field, text) => { const p = field.el.querySelector('.fui-field__help'); if (p) { p.textContent = text; p.hidden = !text; } };
     help(server, kind === 'ntfy' ? t('pages.integrations.channel_ntfy_server_help') : '');
     help(priority, kind === 'ntfy' ? t('pages.integrations.channel_ntfy_priority_help') : t('pages.integrations.channel_gotify_priority_help'));
+    help(secret, t(`pages.integrations.secret_${kind}_help`));
   };
   const kinds = segmented({ label: t('pages.integrations.channel_kind'), value: kind, onChange: (v) => { kind = v; paint(); },
     options: KIND_NAMES.map((k) => ({ value: k, label: t(`pages.integrations.kind_${k}`) })) });
@@ -429,7 +428,7 @@ function channelDialog(x, events, reload) {
   const go = button({ variant: 'primary', type: 'submit' }, t('common.save'));
   const form = h('form', { class: 'stack', novalidate: true }, name.el,
     h('div', { class: 'stack stack--tight' }, h('span', { class: 'fui-field__label' }, t('pages.integrations.channel_kind')), kinds),
-    fields, secret.el, secretHelp, clearBox, evs, on, error, h('div', { class: 'row row--end' }, go));
+    fields, secret.el, clearBox, evs, on, error, h('div', { class: 'row row--end' }, go));
   const m = openModal({ title: x ? t('pages.integrations.channel_change', { name: x.name }) : t('pages.integrations.channel_add'), body: form, initialFocus: x ? null : name.input });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
