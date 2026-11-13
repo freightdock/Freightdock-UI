@@ -1439,3 +1439,12 @@ pointer to what replaced it.
     record (`cluster.docker`, the action and what it was on). A change runs to its end in a task of its own, on the
     managers and here: a browser that leaves before the answer would otherwise leave it done on the node and nowhere
     on record.
+26. Private registries are the cluster's, set on the Integrations page (owner's roadmap, 2026-11-13): a login per
+    registry, named as images name it (`ghcr.io`, `registry.example:5000`, `docker.io`), kept in the managers'
+    replicated state. The password or token goes in once and never comes back, like the Proxmox token (23); a change
+    may leave it out to keep it. The manager that sends a run or a page's pull fills the login in for the image's
+    registry, so it is never kept with a command. A login can be tried from a manager first (it signs in as Docker
+    would and pulls nothing). All four routes are an Administrator's, a look too
+    (`GET /api/cluster/registries`, `PUT`/`DELETE /api/cluster/registries/{host}`, `POST .../test`); only a registry's
+    name goes into a manager's path, and the log names the registry and the user, never the password
+    (`cluster.registry.set`, `cluster.registry.remove`).

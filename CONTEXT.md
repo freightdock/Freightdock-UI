@@ -68,7 +68,7 @@ web/
   assets/js/pages/         cluster (the cluster: managers, nodes, events, commands, recoveries, join tokens; the
                            landing page), cluster-stacks (the cluster's Compose stacks and their workloads), cluster-docker (a node's Docker
                            through its worker: "Cluster" 25), integrations (shares,
-                           fencing provider, timings, backups, each manager's own settings: "Cluster" 23, 24), users
+                           fencing provider, private registries, timings, backups, each manager's own settings: "Cluster" 23, 24), users
                            (users and teams), activity, signins (the auth log), settings (appearance, then
                            signin-settings: providers and two-factor), account, changelog, setup, login, auth (the
                            cards both share), two-factor (the QR code and key, recovery codes), notfound
@@ -139,6 +139,7 @@ read-only token only reads.
 | `POST /api/cluster/stacks/{name}/{start,stop,restart}`, `DELETE /api/cluster/stacks/{name}` | admin | the stack's workloads run, stop, restart or go |
 | `GET /api/cluster/settings`, `PUT /api/cluster/settings` | admin | the cluster's settings, each with its source and default, and what the answering manager's environment sets; some changed (a value, or null for the managers' own; `proxmox: {url, fingerprint, token?}` or null), passed on whole, the keys on record ("Cluster" 23) |
 | `GET /api/cluster/nodes/{id}/docker?action=&target=&tail=&timestamps=`, `POST /api/cluster/nodes/{id}/docker` | admin | a node's Docker through its worker: a look (containers, images, volumes, networks, info, a container's inspect or logs), or a change `{action, target, params}`, on record ("Cluster" 25) |
+| `GET /api/cluster/registries`, `PUT`/`DELETE /api/cluster/registries/{host}`, `POST /api/cluster/registries/{host}/test` | admin | private registries' logins: listed without passwords, set `{username, password?}` (kept when left out), removed, tried from a manager ("Cluster" 26) |
 | `POST /api/cluster/backup` | admin | `{passphrase}`: a sealed backup of the cluster now, as a download, on record without the passphrase ("Cluster" 24) |
 | `GET /api/cluster/backups`, `GET /api/cluster/backups/{name}` | admin | the answering manager's scheduled backups; one as a download ("Cluster" 24) |
 | `POST /api/cluster/settings/proxmox/fingerprint`, `POST /api/cluster/settings/proxmox/test` | admin | `{url}`: the certificate the Proxmox API shows, read by a manager; `{url, fingerprint, token?}` or `{}`: the provider tried from a manager, `{version, guests}` (nothing changed) |

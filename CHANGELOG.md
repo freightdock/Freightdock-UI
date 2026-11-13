@@ -13,6 +13,7 @@ whole series.
 ## [1.0.0] - 2026-11-09 to 2026-11-10
 
 First light
+- **Private registries** on the Integrations page: a login per registry (GitHub's, your own, Docker Hub), tried before it is saved, and every worker pulls that registry's images with it, for stacks and for a pull from a node's Docker page. The password or token is never shown again.
 - **Each node's Docker is back**, as a page of the node for administrators: its containers (with their logs and inspect), images, volumes and networks, asked of the node's worker through the managers. Start, stop, restart and remove containers, pull, remove and prune images, remove volumes and networks; the cluster's own are marked and left to their stack.
 - **Backups of the whole cluster** from the Integrations page: download one now, sealed with a passphrase you type, or let every manager write its own on a schedule (how often, how many to keep, and a passphrase that is never shown again). A backup holds the stacks, nodes, storage, settings, users and the cluster's certificate authority, so a cluster lost whole comes back on a new manager with `freightdock-manager restore` and its workers' certificates still good.
 - **A workload moved between two healthy workers waits for its old copy to stop** before it runs on the new one, as Docker does (`stop-first`), so it never runs twice; the stack card says what it waits for. A service with `deploy.update_config.order: start-first` still starts beside the old copy.

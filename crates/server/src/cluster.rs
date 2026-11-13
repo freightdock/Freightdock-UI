@@ -192,6 +192,9 @@ pub fn router() -> Router<App> {
         .route("/api/cluster/settings/proxmox/fingerprint", post(proxmox_fingerprint))
         .route("/api/cluster/settings/proxmox/test", post(proxmox_test))
         .route("/api/cluster/backup", post(take_backup))
+        .route("/api/cluster/registries", get(registries))
+        .route("/api/cluster/registries/{host}", axum::routing::put(set_registry).delete(remove_registry))
+        .route("/api/cluster/registries/{host}/test", post(test_registry))
         .route("/api/cluster/backups", get(backups))
         .route("/api/cluster/backups/{name}", get(backup_file))
 }
@@ -427,6 +430,42 @@ async fn remove_storage(State(app): State<App>, a: Authed, Path(name): Path<Stri
     cluster(&app)?.call(reqwest::Method::DELETE, &format!("/v1/storage/{name}"), None).await?;
     audit::record(&app.db, Some(&a.session.user), a.ip, audit::entry("cluster.storage.remove", name)).await;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// A registry as images name it (`ghcr.io`, `registry.example:5000`): nothing else goes into a manager's path.
+fn registry_or_404(host: &str) -> ApiResult<()> {
+    let ok = !host.is_empty() && host.len() <= 260 && !host.contains("..") && host.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b"-.:".contains(&b));
+    if ok { Ok(()) } else { Err(ApiError::not_found("registry")) }
+}
+
+/// The private registries the cluster has a login for ("Cluster" 26), never with a password.
+async fn registries(State(app): State<App>, _a: Authed) -> ApiResult<Json<Value>> {
+    Ok(Json(cluster(&app)?.call(reqwest::Method::GET, "/v1/registries", None).await?.1))
+}
+
+/// A registry's login, passed on whole (the password may be left out to keep the one set); on record without it.
+async fn set_registry(State(app): State<App>, a: Authed, Path(host): Path<String>, Json(b): Json<Value>) -> ApiResult<Json<Value>> {
+    registry_or_404(&host)?;
+    let mut body = json!({ "username": b["username"].as_str().unwrap_or_default() });
+    if let Some(p) = b["password"].as_str().filter(|p| !p.is_empty()) {
+        body["password"] = json!(p);
+    }
+    let (_, v) = cluster(&app)?.call(reqwest::Method::PUT, &format!("/v1/registries/{host}"), Some(body)).await?;
+    audit::record(&app.db, Some(&a.session.user), a.ip, audit::Entry { detail: b["username"].as_str().map(str::to_string), ..audit::entry("cluster.registry.set", host) }).await;
+    Ok(Json(v))
+}
+
+async fn remove_registry(State(app): State<App>, a: Authed, Path(host): Path<String>) -> ApiResult<StatusCode> {
+    registry_or_404(&host)?;
+    cluster(&app)?.call(reqwest::Method::DELETE, &format!("/v1/registries/{host}"), None).await?;
+    audit::record(&app.db, Some(&a.session.user), a.ip, audit::entry("cluster.registry.remove", host)).await;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Signs in to the registry from a manager, with the login given or the one set. Changes nothing.
+async fn test_registry(State(app): State<App>, _a: Authed, Path(host): Path<String>, Json(b): Json<Value>) -> ApiResult<Json<Value>> {
+    registry_or_404(&host)?;
+    Ok(Json(cluster(&app)?.call(reqwest::Method::POST, &format!("/v1/registries/{host}/test"), Some(b)).await?.1))
 }
 
 /// The cluster's settings (Integrations): each value, where it comes from, and what each manager's environment sets.
@@ -724,6 +763,10 @@ mod tests {
                     "GET /v1/backups/freightdock-20261113-200000.fdbk" => (StatusCode::OK, "FDBK1stored".to_string()),
                     "GET /v1/nodes/6f1c7c2e-0000-4000-8000-000000000001/docker?action=logs&target=web&tail=50" => (StatusCode::OK, json!({ "lines": ["hi"], "cut": false }).to_string()),
                     "POST /v1/nodes/6f1c7c2e-0000-4000-8000-000000000001/docker" => (StatusCode::OK, json!({ "got": got }).to_string()),
+                    "GET /v1/registries" => (StatusCode::OK, json!([{ "host": "ghcr.io", "username": "bot", "at": 1 }]).to_string()),
+                    "PUT /v1/registries/ghcr.io" => (StatusCode::OK, json!({ "got": got }).to_string()),
+                    "DELETE /v1/registries/ghcr.io" => (StatusCode::NO_CONTENT, String::new()),
+                    "POST /v1/registries/ghcr.io/test" => (StatusCode::OK, json!({ "ok": true, "message": "signed in", "got": got }).to_string()),
                     "GET /v1/nodes/broken" => (StatusCode::SERVICE_UNAVAILABLE, "the cluster cannot take changes now".to_string()),
                     _ => (StatusCode::NOT_FOUND, "unknown".to_string()),
                 }
@@ -978,6 +1021,27 @@ mod tests {
         assert_eq!(call(&app, get(&format!("/api/cluster/nodes/{node}/docker?action=containers"), &user)).await.0, StatusCode::FORBIDDEN, "a container's environment and logs may hold secrets");
         assert_eq!(call(&app, change(&user, me["csrf"].as_str().unwrap(), json!({ "action": "container.stop", "target": "web" }))).await.0, StatusCode::FORBIDDEN);
         assert_eq!(asked.lock().unwrap().iter().filter(|l| l.contains("/docker")).count(), 3);
+    }
+
+    #[tokio::test]
+    async fn a_registry_s_login_is_an_administrator_s_and_on_record_without_its_password() {
+        let (app, asked, _d) = connected("t0k3n").await;
+        let (cookie, csrf) = signed_in(&app).await;
+        let (s, _, b) = call(&app, get("/api/cluster/registries", &cookie)).await;
+        assert_eq!((s, b[0]["host"].clone()), (StatusCode::OK, json!("ghcr.io")));
+        let put = Request::put("/api/cluster/registries/ghcr.io").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).header(header::HOST, "freightdock.test").header(header::CONTENT_TYPE, "application/json").body(json_body(json!({ "username": "bot", "password": "s3cret" }))).unwrap();
+        let (s, _, b) = call(&app, put).await;
+        assert_eq!((s, b["got"]["password"].clone()), (StatusCode::OK, json!("s3cret")), "passed on whole");
+        let test = post("/api/cluster/registries/ghcr.io/test").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).body(json_body(json!({}))).unwrap();
+        assert_eq!(call(&app, test).await.0, StatusCode::OK);
+        let del = Request::delete("/api/cluster/registries/ghcr.io").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).header(header::HOST, "freightdock.test").body(Body::empty()).unwrap();
+        assert_eq!(call(&app, del).await.0, StatusCode::NO_CONTENT);
+        let bad = Request::delete("/api/cluster/registries/..%2Fstorage%2Fnas").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).header(header::HOST, "freightdock.test").body(Body::empty()).unwrap();
+        assert_eq!(call(&app, bad).await.0, StatusCode::NOT_FOUND, "only a registry's name goes into the manager's path");
+        let log: Vec<String> = app.db.call(|c| Ok(c.prepare("SELECT action || ' ' || target || ' ' || COALESCE(detail, '') FROM audit WHERE action LIKE 'cluster.registry%' ORDER BY id")?.query_map([], |r| r.get(0))?.collect::<Result<_, _>>()?)).await.unwrap();
+        assert_eq!(log.len(), 2, "{log:?}");
+        assert!(log[0].starts_with("cluster.registry.set ghcr.io") && log.iter().all(|l| !l.contains("s3cret")), "{log:?}");
+        assert!(!asked.lock().unwrap().iter().any(|l| l.contains("storage")));
     }
 
     #[tokio::test]

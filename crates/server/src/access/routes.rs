@@ -115,6 +115,11 @@ pub const RULES: &[(&str, &str, Rule)] = &[
     ("POST", "/api/cluster/settings/proxmox/test", Admin),
     // A backup holds the whole cluster (sealed): administrators only, even to list them.
     ("POST", "/api/cluster/backup", Admin),
+    // A registry's login: who the cluster pulls as. An Administrator's, to see too.
+    ("GET", "/api/cluster/registries", Admin),
+    ("PUT", "/api/cluster/registries/{host}", Admin),
+    ("DELETE", "/api/cluster/registries/{host}", Admin),
+    ("POST", "/api/cluster/registries/{host}/test", Admin),
     ("GET", "/api/cluster/backups", Admin),
     ("GET", "/api/cluster/backups/{name}", Admin),
     // The CA that signed the web server's certificate: a certificate, public, fetched before anybody trusts it.

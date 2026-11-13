@@ -5,9 +5,10 @@
 // comes from, and what each manager's own environment sets, shown and not changed (a node needs it to reach the
 // cluster at all). The cluster's settings are replicated: one change is every manager's. Backups of the cluster: one
 // now as a download, or each manager's scheduled ones with the passphrase they are sealed with (set, never shown).
+// Private registries: a login per registry the workers pull with ("Cluster" 26), the password never shown.
 
 import { h, mount, bytes, when } from '../dom.js';
-import { get, post, put, download } from '../api.js';
+import { get, post, put, del, download } from '../api.js';
 import { loadInto, table } from '../view.js';
 import { pageHeader } from '../../finui/components/page-header/page-header.js';
 import { card } from '../../finui/components/card/card.js';
@@ -40,16 +41,19 @@ export function integrationsPage({ el, signal }) {
   const reload = loadInto(body, {
     signal,
     load: async (s) => {
-      const [c, st, n, b] = await Promise.all([get('/api/cluster/settings', { signal: s }), get('/api/cluster/storage', { signal: s }).catch(() => null), get('/api/cluster/nodes', { signal: s }).catch(() => []),
-        get('/api/cluster/backups', { signal: s }).catch(() => null)]);
-      return { c, st, n, b };
+      const [c, st, n, b, rg] = await Promise.all([get('/api/cluster/settings', { signal: s }), get('/api/cluster/storage', { signal: s }).catch(() => null), get('/api/cluster/nodes', { signal: s }).catch(() => []),
+        get('/api/cluster/backups', { signal: s }).catch(() => null), get('/api/cluster/registries', { signal: s }).catch(() => null)]);
+      return { c, st, n, b, rg };
     },
-    draw: ({ c, st, n, b }) => {
+    draw: ({ c, st, n, b, rg }) => {
       const s = c.settings || {};
       return h('div', { class: 'stack' },
         card({ title: t('pages.integrations.shares'), sub: t('pages.integrations.shares_sub'),
           actions: button({ size: 'sm', onClick: () => storageDialog(reload) }, t('pages.cluster.storage_add')),
           body: st ? storageTable(st, n || [], reload) : emptyState(t('pages.cluster.no_answer'), '') }),
+        card({ title: t('pages.integrations.registries'), sub: t('pages.integrations.registries_sub'),
+          actions: button({ size: 'sm', onClick: () => registryDialog(null, reload) }, t('pages.integrations.registry_add')),
+          body: rg ? registryTable(rg, reload) : emptyState(t('pages.cluster.no_answer'), '') }),
         card({ title: t('pages.integrations.fencing'), sub: t('pages.integrations.fencing_sub'),
           actions: h('div', { class: 'row' },
             s.proxmox ? button({ size: 'sm', onClick: () => tryProxmox(null) }, t('pages.integrations.test')) : null,
@@ -236,6 +240,76 @@ function timings(s, reload) {
     if (Object.keys(patch).length) save(patch); else toast({ text: t('pages.integrations.nothing_changed'), tone: 'info' });
   });
   return form;
+}
+
+function registryTable(rows, reload) {
+  return table({
+    rows, filter: false, label: t('pages.integrations.registries'), empty: [t('pages.integrations.no_registries'), t('pages.integrations.no_registries_text')],
+    columns: [
+      { label: t('pages.integrations.registry'), cell: (x) => h('span', { class: 'mono' }, x.host), sort: (x) => x.host },
+      { label: t('pages.integrations.registry_user'), cell: (x) => h('span', { class: 'mono' }, x.username), sort: (x) => x.username },
+      { label: '', nosort: true, cell: (x) => h('div', { class: 'row row--end nowrap' },
+        button({ size: 'sm', onClick: () => tryRegistry(x.host, {}) }, t('pages.integrations.test')),
+        button({ size: 'sm', onClick: () => registryDialog(x, reload) }, t('pages.integrations.change')),
+        button({ size: 'sm', variant: 'danger', onClick: () => removeRegistry(x.host, reload) }, t('common.remove'))) },
+    ],
+  });
+}
+
+/** What a sign-in from a manager said. */
+async function registryResult(host, body) {
+  try {
+    const r = await post(`/api/cluster/registries/${encodeURIComponent(host)}/test`, body);
+    return callout({ tone: 'good', title: t('pages.integrations.registry_ok'), body: r.message || '' });
+  } catch (e) {
+    return callout({ tone: 'critical', title: t('pages.integrations.test_failed'), body: e.message });
+  }
+}
+
+async function tryRegistry(host, body) {
+  const out = h('div', null, t('pages.integrations.testing'));
+  openModal({ title: t('pages.integrations.registry_test', { host }), body: out });
+  mount(out, await registryResult(host, body));
+}
+
+/** A registry's login: its name as images have it, the user and a password or token (kept when left empty on a
+ *  change), tried from a manager before it is saved if wanted. */
+function registryDialog(x, reload) {
+  const host = formField({ id: 'int-rg-host', label: t('pages.integrations.registry'), placeholder: 'ghcr.io', autocomplete: 'off', help: t('pages.integrations.registry_help') });
+  const user = formField({ id: 'int-rg-user', label: t('pages.integrations.registry_user'), autocomplete: 'off' });
+  const pass = formField({ id: 'int-rg-pass', type: 'password', autocomplete: 'new-password', label: t('pages.integrations.registry_password'),
+    placeholder: x ? t('pages.integrations.registry_kept') : '', help: t('pages.integrations.registry_password_help') });
+  if (x) { host.input.value = x.host; host.input.readOnly = true; user.input.value = x.username; }
+  const result = h('div');
+  const name = () => host.input.value.trim().toLowerCase();
+  const body = () => {
+    const b = { username: user.input.value.trim() };
+    if (pass.input.value) b.password = pass.input.value;
+    return b;
+  };
+  const test = button({ onClick: async () => {
+    if (!name()) { host.setError(t('pages.integrations.registry_help')); return; }
+    test.disabled = true; mount(result, await registryResult(name(), body())); test.disabled = false;
+  } }, t('pages.integrations.test'));
+  const go = button({ variant: 'primary', type: 'submit' }, t('common.save'));
+  const form = h('form', { class: 'stack', novalidate: true }, host.el, user.el, pass.el, result, h('div', { class: 'row row--end' }, test, go));
+  const m = openModal({ title: x ? t('pages.integrations.registry_change', { host: x.host }) : t('pages.integrations.registry_add'), body: form, initialFocus: x ? user.input : host.input });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!name()) { host.setError(t('pages.integrations.registry_help')); return; }
+    go.disabled = true;
+    try {
+      await put(`/api/cluster/registries/${encodeURIComponent(name())}`, body());
+      m.close();
+      toast({ text: t('pages.integrations.saved'), tone: 'good' });
+      reload();
+    } catch (err) { go.disabled = false; host.setError(err.message); }
+  });
+}
+
+async function removeRegistry(host, reload) {
+  if (!(await confirm({ title: t('pages.integrations.registry_remove', { host }), body: t('pages.integrations.registry_remove_body') }))) return;
+  try { await del(`/api/cluster/registries/${encodeURIComponent(host)}`); toast({ text: t('pages.integrations.saved'), tone: 'good' }); reload(); } catch (e) { toast({ text: e.message, tone: 'critical' }); }
 }
 
 /** A passphrase field typed twice; `value()` is the passphrase, or null with the field marked when they differ or
