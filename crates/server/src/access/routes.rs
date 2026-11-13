@@ -120,6 +120,11 @@ pub const RULES: &[(&str, &str, Rule)] = &[
     ("PUT", "/api/cluster/registries/{host}", Admin),
     ("DELETE", "/api/cluster/registries/{host}", Admin),
     ("POST", "/api/cluster/registries/{host}/test", Admin),
+    // Where the cluster's news goes, and the secrets to get it there.
+    ("GET", "/api/cluster/notifications", Admin),
+    ("PUT", "/api/cluster/notifications/{name}", Admin),
+    ("DELETE", "/api/cluster/notifications/{name}", Admin),
+    ("POST", "/api/cluster/notifications/{name}/test", Admin),
     ("GET", "/api/cluster/backups", Admin),
     ("GET", "/api/cluster/backups/{name}", Admin),
     // The CA that signed the web server's certificate: a certificate, public, fetched before anybody trusts it.

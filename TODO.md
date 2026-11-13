@@ -15,10 +15,10 @@ The single-host milestones M0 to M6 are history (git log of the old Freightdock 
 
 In the owner's order, external integrations last:
 
-- [ ] A node's Docker pages (containers, images, volumes, networks, logs, consoles) through its worker.
-- [ ] Registries with saved sign-ins, for the managers to pull with.
-- [ ] Notifications from the managers' events.
-- [ ] Backups of the managers' state.
+- [x] A node's Docker pages (containers, images, volumes, networks, logs) through its worker. Consoles not yet.
+- [x] Registries with saved sign-ins, for the managers to pull with.
+- [x] Notifications from the managers' events.
+- [x] Backups of the managers' state.
 - [ ] The MCP server.
 - [ ] Import from Portainer.
 - [ ] Finer roles (per stack, per node) with the features that need them.

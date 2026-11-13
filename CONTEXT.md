@@ -68,7 +68,8 @@ web/
   assets/js/pages/         cluster (the cluster: managers, nodes, events, commands, recoveries, join tokens; the
                            landing page), cluster-stacks (the cluster's Compose stacks and their workloads), cluster-docker (a node's Docker
                            through its worker: "Cluster" 25), integrations (shares,
-                           fencing provider, private registries, timings, backups, each manager's own settings: "Cluster" 23, 24), users
+                           fencing provider, private registries, notifications, timings, backups, each manager's own
+                           settings: "Cluster" 23, 24, 26, 27), users
                            (users and teams), activity, signins (the auth log), settings (appearance, then
                            signin-settings: providers and two-factor), account, changelog, setup, login, auth (the
                            cards both share), two-factor (the QR code and key, recovery codes), notfound
@@ -140,6 +141,7 @@ read-only token only reads.
 | `GET /api/cluster/settings`, `PUT /api/cluster/settings` | admin | the cluster's settings, each with its source and default, and what the answering manager's environment sets; some changed (a value, or null for the managers' own; `proxmox: {url, fingerprint, token?}` or null), passed on whole, the keys on record ("Cluster" 23) |
 | `GET /api/cluster/nodes/{id}/docker?action=&target=&tail=&timestamps=`, `POST /api/cluster/nodes/{id}/docker` | admin | a node's Docker through its worker: a look (containers, images, volumes, networks, info, a container's inspect or logs), or a change `{action, target, params}`, on record ("Cluster" 25) |
 | `GET /api/cluster/registries`, `PUT`/`DELETE /api/cluster/registries/{host}`, `POST /api/cluster/registries/{host}/test` | admin | private registries' logins: listed without passwords, set `{username, password?}` (kept when left out), removed, tried from a manager ("Cluster" 26) |
+| `GET /api/cluster/notifications`, `PUT`/`DELETE /api/cluster/notifications/{name}`, `POST /api/cluster/notifications/{name}/test` | admin | notification channels: listed with the events there are and without secrets, set `{kind, enabled, events, config, secret?}` whole (kept when left out, none when empty), removed, tested from a manager ("Cluster" 27) |
 | `POST /api/cluster/backup` | admin | `{passphrase}`: a sealed backup of the cluster now, as a download, on record without the passphrase ("Cluster" 24) |
 | `GET /api/cluster/backups`, `GET /api/cluster/backups/{name}` | admin | the answering manager's scheduled backups; one as a download ("Cluster" 24) |
 | `POST /api/cluster/settings/proxmox/fingerprint`, `POST /api/cluster/settings/proxmox/test` | admin | `{url}`: the certificate the Proxmox API shows, read by a manager; `{url, fingerprint, token?}` or `{}`: the provider tried from a manager, `{version, guests}` (nothing changed) |
@@ -209,9 +211,8 @@ end-to-end suite against managers and workers is to be written.
   cluster page that says it is not connected. The managers run it as a system workload later (G8.5).
 - Roles are two: an Administrator changes the cluster, anybody else signed in reads it. Roles per stack or node come
   back with the features that need them.
-- Set aside, to come back through the managers: notifications, backups (of the managers' state), the MCP server, the
-  import from Portainer, registries, and a node's Docker pages (containers, images, volumes, networks, consoles)
-  reached through its worker.
+- Back through the managers so far: a node's Docker pages ("Cluster" 25, without consoles yet), backups (24),
+  registries (26) and notifications (27). Still set aside: the MCP server and the import from Portainer.
 - Sign-in: an account is linked to one provider or directory at a time ("SSO" 13); GitHub's orgs and teams are read
   to 500 each; Active Directory's nested groups are followed only with its preset's in-chain filter (memberOf is direct
   groups only), and that filter is checked by unit tests, not against a real Active Directory.

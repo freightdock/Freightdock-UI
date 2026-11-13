@@ -6,8 +6,9 @@
 // cluster at all). The cluster's settings are replicated: one change is every manager's. Backups of the cluster: one
 // now as a download, or each manager's scheduled ones with the passphrase they are sealed with (set, never shown).
 // Private registries: a login per registry the workers pull with ("Cluster" 26), the password never shown.
+// Notifications: channels the leading manager tells the cluster's news through ("Cluster" 27), each secret never shown.
 
-import { h, mount, bytes, when } from '../dom.js';
+import { h, mount, bytes, when, ago } from '../dom.js';
 import { get, post, put, del, download } from '../api.js';
 import { loadInto, table } from '../view.js';
 import { pageHeader } from '../../finui/components/page-header/page-header.js';
@@ -22,6 +23,7 @@ import { settingRow } from '../../finui/components/setting-row/setting-row.js';
 import { toggle } from '../../finui/components/toggle/toggle.js';
 import { facts } from '../../finui/components/facts/facts.js';
 import { callout } from '../../finui/components/callout/callout.js';
+import { checkbox, choiceGroup } from '../../finui/components/choice/choice.js';
 import { toast } from '../../finui/components/toast/toast.js';
 import { confirm } from '../confirm.js';
 import { t } from '../i18n.js';
@@ -41,11 +43,12 @@ export function integrationsPage({ el, signal }) {
   const reload = loadInto(body, {
     signal,
     load: async (s) => {
-      const [c, st, n, b, rg] = await Promise.all([get('/api/cluster/settings', { signal: s }), get('/api/cluster/storage', { signal: s }).catch(() => null), get('/api/cluster/nodes', { signal: s }).catch(() => []),
-        get('/api/cluster/backups', { signal: s }).catch(() => null), get('/api/cluster/registries', { signal: s }).catch(() => null)]);
-      return { c, st, n, b, rg };
+      const [c, st, n, b, rg, nt] = await Promise.all([get('/api/cluster/settings', { signal: s }), get('/api/cluster/storage', { signal: s }).catch(() => null), get('/api/cluster/nodes', { signal: s }).catch(() => []),
+        get('/api/cluster/backups', { signal: s }).catch(() => null), get('/api/cluster/registries', { signal: s }).catch(() => null),
+        get('/api/cluster/notifications', { signal: s }).catch(() => null)]);
+      return { c, st, n, b, rg, nt };
     },
-    draw: ({ c, st, n, b, rg }) => {
+    draw: ({ c, st, n, b, rg, nt }) => {
       const s = c.settings || {};
       return h('div', { class: 'stack' },
         card({ title: t('pages.integrations.shares'), sub: t('pages.integrations.shares_sub'),
@@ -54,6 +57,9 @@ export function integrationsPage({ el, signal }) {
         card({ title: t('pages.integrations.registries'), sub: t('pages.integrations.registries_sub'),
           actions: button({ size: 'sm', onClick: () => registryDialog(null, reload) }, t('pages.integrations.registry_add')),
           body: rg ? registryTable(rg, reload) : emptyState(t('pages.cluster.no_answer'), '') }),
+        card({ title: t('pages.integrations.notifications'), sub: t('pages.integrations.notifications_sub'),
+          actions: nt ? button({ size: 'sm', onClick: () => channelDialog(null, nt.events, reload) }, t('pages.integrations.channel_add')) : null,
+          body: nt ? channelTable(nt, reload) : emptyState(t('pages.cluster.no_answer'), '') }),
         card({ title: t('pages.integrations.fencing'), sub: t('pages.integrations.fencing_sub'),
           actions: h('div', { class: 'row' },
             s.proxmox ? button({ size: 'sm', onClick: () => tryProxmox(null) }, t('pages.integrations.test')) : null,
@@ -262,12 +268,12 @@ async function registryResult(host, body) {
     const r = await post(`/api/cluster/registries/${encodeURIComponent(host)}/test`, body);
     return callout({ tone: 'good', title: t('pages.integrations.registry_ok'), body: r.message || '' });
   } catch (e) {
-    return callout({ tone: 'critical', title: t('pages.integrations.test_failed'), body: e.message });
+    return callout({ tone: 'critical', title: t('pages.integrations.registry_failed'), body: e.message });
   }
 }
 
 async function tryRegistry(host, body) {
-  const out = h('div', null, t('pages.integrations.testing'));
+  const out = h('div', null, t('pages.integrations.registry_testing'));
   openModal({ title: t('pages.integrations.registry_test', { host }), body: out });
   mount(out, await registryResult(host, body));
 }
@@ -310,6 +316,138 @@ function registryDialog(x, reload) {
 async function removeRegistry(host, reload) {
   if (!(await confirm({ title: t('pages.integrations.registry_remove', { host }), body: t('pages.integrations.registry_remove_body') }))) return;
   try { await del(`/api/cluster/registries/${encodeURIComponent(host)}`); toast({ text: t('pages.integrations.saved'), tone: 'good' }); reload(); } catch (e) { toast({ text: e.message, tone: 'critical' }); }
+}
+
+const KIND_NAMES = ['webhook', 'email', 'ntfy', 'gotify'];
+const evLabel = (e) => t(`pages.integrations.ev.${e.replace('.', '_')}`);
+
+function channelLast(x) {
+  if (!x.enabled) return status({ tone: 'info' }, t('pages.integrations.channel_off'));
+  if (x.last_error) return h('span', { title: x.last_error }, status({ tone: 'critical' }, t('pages.integrations.channel_failed')), ' ', h('span', { class: 'muted' }, x.last_error));
+  if (x.last_sent_at) return status({ tone: 'good' }, t('pages.integrations.channel_sent', { when: ago(x.last_sent_at / 1000) }));
+  return h('span', { class: 'muted' }, t('pages.integrations.channel_never'));
+}
+
+function channelTable(nt, reload) {
+  const all = (nt.events || []).length;
+  return table({
+    rows: nt.channels || [], filter: false, label: t('pages.integrations.notifications'), empty: [t('pages.integrations.no_channels'), t('pages.integrations.no_channels_text')],
+    columns: [
+      { label: t('pages.integrations.channel_name'), cell: (x) => h('span', { class: 'mono' }, x.name), sort: (x) => x.name },
+      { label: t('pages.integrations.channel_kind'), cell: (x) => t(`pages.integrations.kind_${x.kind}`), sort: (x) => x.kind },
+      { label: t('pages.integrations.channel_events'), cell: (x) => h('span', { title: (x.events || []).map(evLabel).join('\n') }, t('pages.integrations.channel_events_count', { n: (x.events || []).length, all })), sort: (x) => (x.events || []).length },
+      { label: t('pages.integrations.channel_last'), cell: channelLast, sort: (x) => x.last_sent_at || 0 },
+      { label: '', nosort: true, cell: (x) => h('div', { class: 'row row--end nowrap' },
+        button({ size: 'sm', onClick: () => tryChannel(x.name, reload) }, t('pages.integrations.test')),
+        button({ size: 'sm', onClick: () => channelDialog(x, nt.events, reload) }, t('pages.integrations.change')),
+        button({ size: 'sm', variant: 'danger', onClick: () => removeChannel(x.name, reload) }, t('common.remove'))) },
+    ],
+  });
+}
+
+/** Sends a test through a channel as it is saved, from a manager, and says how it went. */
+async function tryChannel(name, reload) {
+  const out = h('div', null, t('pages.integrations.channel_testing'));
+  openModal({ title: t('pages.integrations.channel_test', { name }), body: out });
+  try {
+    const r = await post(`/api/cluster/notifications/${encodeURIComponent(name)}/test`, {});
+    mount(out, callout({ tone: 'good', title: t('pages.integrations.channel_ok'), body: r.message || '' }));
+  } catch (e) {
+    mount(out, callout({ tone: 'critical', title: t('pages.integrations.channel_failed_test'), body: e.message }));
+  }
+  reload();
+}
+
+/** A channel, set whole: its name, kind, the fields its kind reads, its secret (kept when left empty on a change, or
+ *  taken away), the events it tells and whether it is on. The manager checks it and names the field that is wrong. */
+function channelDialog(x, events, reload) {
+  const c = (x && x.config) || {};
+  let kind = (x && x.kind) || 'webhook';
+  let chosen = x ? [...(x.events || [])] : (events || []).map((e) => e.event);
+  let enabled = x ? !!x.enabled : true;
+  let clear = false;
+  const f = (id, label, opts = {}) => formField({ id: `int-ch-${id}`, label, autocomplete: 'off', ...opts });
+  const name = f('name', t('pages.integrations.channel_name'), { help: t('pages.integrations.channel_name_help') });
+  const url = f('url', t('pages.integrations.channel_url'), { placeholder: 'https://hooks.example/cluster', help: t('pages.integrations.channel_url_help') });
+  const server = f('server', t('pages.integrations.channel_server'), { help: t('pages.integrations.channel_ntfy_server_help') });
+  const topic = f('topic', t('pages.integrations.channel_topic'));
+  const priority = f('priority', t('pages.integrations.channel_priority'), { type: 'number', help: t('pages.integrations.channel_ntfy_priority_help') });
+  const host = f('host', t('pages.integrations.channel_smtp_host'), { placeholder: 'smtp.example' });
+  const port = f('port', t('pages.integrations.channel_smtp_port'), { type: 'number', help: t('pages.integrations.channel_smtp_port_help') });
+  const user = f('user', t('pages.integrations.channel_smtp_user'));
+  const from = f('from', t('pages.integrations.channel_from'), { placeholder: 'cluster@example.org' });
+  const to = f('to', t('pages.integrations.channel_to'), { help: t('pages.integrations.channel_to_help') });
+  let security = c.security || 'starttls';
+  const sec = h('div', { class: 'stack stack--tight' }, h('span', { class: 'fui-field__label' }, t('pages.integrations.channel_security')),
+    segmented({ label: t('pages.integrations.channel_security'), value: security, onChange: (v) => { security = v; },
+      options: [{ value: 'starttls', label: 'STARTTLS' }, { value: 'tls', label: 'TLS' }, { value: 'none', label: '-' }] }));
+  const secret = f('secret', '', { type: 'password', autocomplete: 'new-password', placeholder: x && x.has_secret ? t('pages.integrations.secret_kept') : '' });
+  const clearBox = x && x.has_secret ? checkbox({ label: t('pages.integrations.secret_clear'), onChange: (v) => { clear = v; } }) : null;
+  if (x) { name.input.value = x.name; name.input.readOnly = true; }
+  url.input.value = c.url || ''; server.input.value = c.server || ''; topic.input.value = c.topic || '';
+  priority.input.value = c.priority ?? ''; host.input.value = c.host || ''; port.input.value = c.port ?? '';
+  user.input.value = c.username || ''; from.input.value = c.from || ''; to.input.value = (c.to || []).join(', ');
+
+  const fieldsOf = {
+    webhook: [url.el], ntfy: [server.el, topic.el, priority.el], gotify: [server.el, priority.el],
+    email: [host.el, port.el, sec, user.el, from.el, to.el],
+  };
+  const fields = h('div', { class: 'stack' });
+  const secretLabel = secret.el.querySelector('label');
+  const secretHelp = h('div', { class: 'muted' });
+  const paint = () => {
+    mount(fields, ...fieldsOf[kind]);
+    if (secretLabel) secretLabel.textContent = t(`pages.integrations.secret_${kind}`);
+    secretHelp.textContent = t(`pages.integrations.secret_${kind}_help`);
+    server.input.placeholder = kind === 'ntfy' ? 'https://ntfy.sh' : 'https://gotify.example';
+    priority.input.placeholder = kind === 'ntfy' ? '4' : '5';
+    const help = (field, text) => { const p = field.el.querySelector('.fui-field__help'); if (p) { p.textContent = text; p.hidden = !text; } };
+    help(server, kind === 'ntfy' ? t('pages.integrations.channel_ntfy_server_help') : '');
+    help(priority, kind === 'ntfy' ? t('pages.integrations.channel_ntfy_priority_help') : t('pages.integrations.channel_gotify_priority_help'));
+  };
+  const kinds = segmented({ label: t('pages.integrations.channel_kind'), value: kind, onChange: (v) => { kind = v; paint(); },
+    options: KIND_NAMES.map((k) => ({ value: k, label: t(`pages.integrations.kind_${k}`) })) });
+  const evs = choiceGroup({ label: t('pages.integrations.channel_events'), kind: 'checkbox', value: chosen, onChange: (v) => { chosen = v; },
+    options: (events || []).map((e) => ({ value: e.event, label: evLabel(e.event), help: e.says })) });
+  const on = checkbox({ label: t('pages.integrations.channel_enabled'), checked: enabled, onChange: (v) => { enabled = v; } });
+  paint();
+
+  const num = (i) => (i.input.value.trim() === '' ? null : Number(i.input.value));
+  const body = () => {
+    const config = {
+      webhook: { url: url.input.value.trim() },
+      ntfy: { server: server.input.value.trim(), topic: topic.input.value.trim(), priority: num(priority) },
+      gotify: { server: server.input.value.trim(), priority: num(priority) },
+      email: { host: host.input.value.trim(), port: num(port), security, username: user.input.value.trim(), from: from.input.value.trim(),
+        to: to.input.value.split(',').map((v) => v.trim()).filter(Boolean) },
+    }[kind];
+    const b = { kind, enabled, events: chosen, config };
+    if (clear) b.secret = ''; else if (secret.input.value) b.secret = secret.input.value;
+    return b;
+  };
+  const error = h('div');
+  const go = button({ variant: 'primary', type: 'submit' }, t('common.save'));
+  const form = h('form', { class: 'stack', novalidate: true }, name.el,
+    h('div', { class: 'stack stack--tight' }, h('span', { class: 'fui-field__label' }, t('pages.integrations.channel_kind')), kinds),
+    fields, secret.el, secretHelp, clearBox, evs, on, error, h('div', { class: 'row row--end' }, go));
+  const m = openModal({ title: x ? t('pages.integrations.channel_change', { name: x.name }) : t('pages.integrations.channel_add'), body: form, initialFocus: x ? null : name.input });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const n = name.input.value.trim();
+    if (!/^[a-z0-9_-]{1,64}$/.test(n)) { name.setError(t('pages.integrations.channel_name_help')); return; }
+    go.disabled = true; mount(error);
+    try {
+      await put(`/api/cluster/notifications/${encodeURIComponent(n)}`, body());
+      m.close();
+      toast({ text: t('pages.integrations.saved'), tone: 'good' });
+      reload();
+    } catch (err) { go.disabled = false; mount(error, callout({ tone: 'critical', title: t('pages.integrations.channel_not_saved'), body: err.message })); }
+  });
+}
+
+async function removeChannel(name, reload) {
+  if (!(await confirm({ title: t('pages.integrations.channel_remove', { name }), body: t('pages.integrations.channel_remove_body') }))) return;
+  try { await del(`/api/cluster/notifications/${encodeURIComponent(name)}`); toast({ text: t('pages.integrations.saved'), tone: 'good' }); reload(); } catch (e) { toast({ text: e.message, tone: 'critical' }); }
 }
 
 /** A passphrase field typed twice; `value()` is the passphrase, or null with the field marked when they differ or

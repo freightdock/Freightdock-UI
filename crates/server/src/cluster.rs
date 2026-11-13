@@ -195,6 +195,9 @@ pub fn router() -> Router<App> {
         .route("/api/cluster/registries", get(registries))
         .route("/api/cluster/registries/{host}", axum::routing::put(set_registry).delete(remove_registry))
         .route("/api/cluster/registries/{host}/test", post(test_registry))
+        .route("/api/cluster/notifications", get(notifications))
+        .route("/api/cluster/notifications/{name}", axum::routing::put(set_channel).delete(remove_channel))
+        .route("/api/cluster/notifications/{name}/test", post(test_channel))
         .route("/api/cluster/backups", get(backups))
         .route("/api/cluster/backups/{name}", get(backup_file))
 }
@@ -466,6 +469,41 @@ async fn remove_registry(State(app): State<App>, a: Authed, Path(host): Path<Str
 async fn test_registry(State(app): State<App>, _a: Authed, Path(host): Path<String>, Json(b): Json<Value>) -> ApiResult<Json<Value>> {
     registry_or_404(&host)?;
     Ok(Json(cluster(&app)?.call(reqwest::Method::POST, &format!("/v1/registries/{host}/test"), Some(b)).await?.1))
+}
+
+/// A notification channel's name: nothing else goes into a manager's path.
+fn channel_or_404(name: &str) -> ApiResult<()> {
+    let ok = !name.is_empty() && name.len() <= 64 && name.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_');
+    if ok { Ok(()) } else { Err(ApiError::not_found("notification channel")) }
+}
+
+/// The notification channels ("Cluster" 27), never with a secret, and the events and kinds there are.
+async fn notifications(State(app): State<App>, _a: Authed) -> ApiResult<Json<Value>> {
+    Ok(Json(cluster(&app)?.call(reqwest::Method::GET, "/v1/notifications", None).await?.1))
+}
+
+/// A channel, passed on whole (the manager checks it); on record with its kind, never its secret.
+async fn set_channel(State(app): State<App>, a: Authed, Path(name): Path<String>, Json(b): Json<Value>) -> ApiResult<Json<Value>> {
+    channel_or_404(&name)?;
+    let (_, v) = cluster(&app)?.call(reqwest::Method::PUT, &format!("/v1/notifications/{name}"), Some(b.clone())).await?;
+    audit::record(&app.db, Some(&a.session.user), a.ip, audit::Entry { detail: b["kind"].as_str().map(str::to_string), ..audit::entry("cluster.notification.set", name) }).await;
+    Ok(Json(v))
+}
+
+async fn remove_channel(State(app): State<App>, a: Authed, Path(name): Path<String>) -> ApiResult<StatusCode> {
+    channel_or_404(&name)?;
+    cluster(&app)?.call(reqwest::Method::DELETE, &format!("/v1/notifications/{name}"), None).await?;
+    audit::record(&app.db, Some(&a.session.user), a.ip, audit::entry("cluster.notification.remove", name)).await;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Sends a test through the channel from a manager; on record whether it went through, as it reaches outside.
+async fn test_channel(State(app): State<App>, a: Authed, Path(name): Path<String>) -> ApiResult<Json<Value>> {
+    channel_or_404(&name)?;
+    let r = cluster(&app)?.call(reqwest::Method::POST, &format!("/v1/notifications/{name}/test"), None).await;
+    let outcome = if r.is_ok() { "sent" } else { "failed" };
+    audit::record(&app.db, Some(&a.session.user), a.ip, audit::Entry { detail: Some(outcome.into()), ..audit::entry("cluster.notification.test", name) }).await;
+    Ok(Json(r?.1))
 }
 
 /// The cluster's settings (Integrations): each value, where it comes from, and what each manager's environment sets.
@@ -767,6 +805,10 @@ mod tests {
                     "PUT /v1/registries/ghcr.io" => (StatusCode::OK, json!({ "got": got }).to_string()),
                     "DELETE /v1/registries/ghcr.io" => (StatusCode::NO_CONTENT, String::new()),
                     "POST /v1/registries/ghcr.io/test" => (StatusCode::OK, json!({ "ok": true, "message": "signed in", "got": got }).to_string()),
+                    "GET /v1/notifications" => (StatusCode::OK, json!({ "channels": [{ "name": "ops", "kind": "ntfy", "has_secret": true }], "events": [{ "event": "node.down", "says": "a node" }], "kinds": ["webhook"] }).to_string()),
+                    "PUT /v1/notifications/ops" => (StatusCode::OK, json!({ "got": got }).to_string()),
+                    "DELETE /v1/notifications/ops" => (StatusCode::NO_CONTENT, String::new()),
+                    "POST /v1/notifications/ops/test" => (StatusCode::BAD_GATEWAY, json!({ "error": "https://ntfy.example answered 401" }).to_string()),
                     "GET /v1/nodes/broken" => (StatusCode::SERVICE_UNAVAILABLE, "the cluster cannot take changes now".to_string()),
                     _ => (StatusCode::NOT_FOUND, "unknown".to_string()),
                 }
@@ -1042,6 +1084,33 @@ mod tests {
         assert_eq!(log.len(), 2, "{log:?}");
         assert!(log[0].starts_with("cluster.registry.set ghcr.io") && log.iter().all(|l| !l.contains("s3cret")), "{log:?}");
         assert!(!asked.lock().unwrap().iter().any(|l| l.contains("storage")));
+    }
+
+    #[tokio::test]
+    async fn a_notification_channel_is_an_administrator_s_and_on_record_without_its_secret() {
+        let (app, asked, _d) = connected("t0k3n").await;
+        let (cookie, csrf) = signed_in(&app).await;
+        let (s, _, b) = call(&app, get("/api/cluster/notifications", &cookie)).await;
+        assert_eq!((s, b["channels"][0]["name"].clone()), (StatusCode::OK, json!("ops")));
+        let body = json!({ "kind": "ntfy", "events": ["node.down"], "config": { "topic": "alerts" }, "secret": "tk_s3cret" });
+        let put = Request::put("/api/cluster/notifications/ops").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).header(header::HOST, "freightdock.test").header(header::CONTENT_TYPE, "application/json").body(json_body(body)).unwrap();
+        let (s, _, b) = call(&app, put).await;
+        assert_eq!((s, b["got"]["secret"].clone(), b["got"]["config"]["topic"].clone()), (StatusCode::OK, json!("tk_s3cret"), json!("alerts")), "passed on whole");
+        let test = post("/api/cluster/notifications/ops/test").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).body(json_body(json!({}))).unwrap();
+        let (s, _, b) = call(&app, test).await;
+        assert!(s == StatusCode::BAD_GATEWAY && b["error"].as_str().unwrap_or("").contains("401"), "the manager's why kept: {s} {b}");
+        let del = Request::delete("/api/cluster/notifications/ops").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).header(header::HOST, "freightdock.test").body(Body::empty()).unwrap();
+        assert_eq!(call(&app, del).await.0, StatusCode::NO_CONTENT);
+        let bad = Request::delete("/api/cluster/notifications/..%2Fstorage%2Fnas").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).header(header::HOST, "freightdock.test").body(Body::empty()).unwrap();
+        assert_eq!(call(&app, bad).await.0, StatusCode::NOT_FOUND, "only a channel's name goes into the manager's path");
+        let log: Vec<String> = app.db.call(|c| Ok(c.prepare("SELECT action || ' ' || target || ' ' || COALESCE(detail, '') FROM audit WHERE action LIKE 'cluster.notification%' ORDER BY id")?.query_map([], |r| r.get(0))?.collect::<Result<_, _>>()?)).await.unwrap();
+        assert_eq!(log.len(), 3, "set, test and remove: {log:?}");
+        assert!(log[0].starts_with("cluster.notification.set ops ntfy") && log.iter().all(|l| !l.contains("s3cret")), "{log:?}");
+        assert!(!asked.lock().unwrap().iter().any(|l| l.contains("storage")));
+
+        app.db.call(|c| Ok(c.execute("INSERT INTO users (id, name, password_hash, role, created_at) VALUES (9, 'deckhand', 'x', 'user', 0)", [])?)).await.unwrap();
+        let token = crate::auth::start(&app.db, 9, None, None).await.unwrap();
+        assert_eq!(call(&app, get("/api/cluster/notifications", &format!("freightdock_session={token}"))).await.0, StatusCode::FORBIDDEN, "where the cluster's news goes is an administrator's");
     }
 
     #[tokio::test]

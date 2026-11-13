@@ -1075,6 +1075,7 @@ pointer to what replaced it.
 ## Notifications
 
 **Set aside** (G8.3, 2026-11-12, "Cluster" 10): the feature these items are about is not in the cluster UI. They are kept, numbered, for when it comes back through the managers; until then they describe nothing in this repository.
+**Back through the managers** (2026-11-13, "Cluster" 27): items 1, 3, 4 and 5 hold there; item 2 as "Cluster" 27 says (from the workers' reports, not Docker's events); item 6's deploy is the cluster's failed run.
 
 1. Freightdock tells through channels an administrator sets up: a webhook, e-mail over SMTP, an ntfy topic, a Gotify
    server, each with the events it wants. Each channel has at most one secret (a webhook's signing key, an ntfy or
@@ -1448,3 +1449,18 @@ pointer to what replaced it.
     (`GET /api/cluster/registries`, `PUT`/`DELETE /api/cluster/registries/{host}`, `POST .../test`); only a registry's
     name goes into a manager's path, and the log names the registry and the user, never the password
     (`cluster.registry.set`, `cluster.registry.remove`).
+27. Notifications come back through the managers, set on the Integrations page (owner's roadmap, 2026-11-13), and
+    not in the UI: the UI is a workload itself and would be gone exactly when its node goes down. A channel (a
+    webhook, e-mail over SMTP, an ntfy topic, a Gotify server) is kept in the managers' replicated state with the
+    events it wants; its one secret (signing key, token, SMTP password) goes in once and never comes back (a change may
+    leave it out to keep it, or take it away). The Raft leader watches node health, fencing, recoveries, workload
+    containers, failed runs and the managers, and tells each change once; a manager tells its own failed backup. The
+    same event about the same thing is told at most once in ten minutes ("Notifications" 3, in memory, so a new leader
+    may tell once more). A container "died" when it stopped with a code other than 0 while its workload should run
+    there with that spec: a stop, a replaced generation or a stopped stack is no news ("Notifications" 2 without
+    Docker's events, which the managers do not see). A webhook is signed as "Notifications" 4 says. A test is sent
+    through the channel as saved, and a failure says why without the address's query ("Notifications" 5). All four
+    routes are an Administrator's, a look too (`GET /api/cluster/notifications`, `PUT`/`DELETE
+    /api/cluster/notifications/{name}`, `POST .../test`); only a channel's name goes into a manager's path, and the log
+    names the channel and its kind, never its secret (`cluster.notification.set`, `.remove`, `.test` with whether it
+    went through, as a test reaches outside). Not yet told: a failing health check, which the workers do not report.
