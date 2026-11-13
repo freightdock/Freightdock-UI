@@ -95,10 +95,10 @@ function containerTable(rows, c) {
         button({ size: 'sm', onClick: () => logs(c, x.id, name(x)) }, t('pages.cluster_docker.logs')),
         button({ size: 'sm', onClick: () => inspect(c, x.id, name(x)) }, t('pages.cluster_docker.inspect')),
         x.cluster ? null : x.state === 'running'
-          ? button({ size: 'sm', onClick: () => act(c, { action: 'container.stop', target: x.id, done: t('pages.cluster_docker.stopped', { name: name(x) }) }) }, t('pages.cluster_docker.stop'))
-          : button({ size: 'sm', onClick: () => act(c, { action: 'container.start', target: x.id, done: t('pages.cluster_docker.started', { name: name(x) }) }) }, t('pages.cluster_docker.start')),
-        x.cluster ? null : button({ size: 'sm', onClick: () => act(c, { action: 'container.restart', target: x.id, done: t('pages.cluster_docker.restarted', { name: name(x) }) }) }, t('pages.cluster_docker.restart')),
-        x.cluster ? null : button({ size: 'sm', variant: 'danger', onClick: () => act(c, { action: 'container.remove', target: x.id, params: { force: 'true' },
+          ? button({ size: 'sm', onClick: () => act(c, { action: 'container.stop', target: name(x), done: t('pages.cluster_docker.stopped', { name: name(x) }) }) }, t('pages.cluster_docker.stop'))
+          : button({ size: 'sm', onClick: () => act(c, { action: 'container.start', target: name(x), done: t('pages.cluster_docker.started', { name: name(x) }) }) }, t('pages.cluster_docker.start')),
+        x.cluster ? null : button({ size: 'sm', onClick: () => act(c, { action: 'container.restart', target: name(x), done: t('pages.cluster_docker.restarted', { name: name(x) }) }) }, t('pages.cluster_docker.restart')),
+        x.cluster ? null : button({ size: 'sm', variant: 'danger', onClick: () => act(c, { action: 'container.remove', target: name(x), params: { force: 'true' },
           ask: { title: t('pages.cluster_docker.remove_container', { name: name(x) }), body: t('pages.cluster_docker.remove_container_body') }, done: t('pages.cluster_docker.removed', { name: name(x) }) }) }, t('common.remove'))) },
     ],
   });
@@ -194,7 +194,7 @@ function networkTable(rows, c) {
       { label: t('pages.cluster_docker.name'), cell: (x) => h('div', { class: 'row' }, h('span', { class: 'mono' }, x.name || ''), ours(x)), sort: (x) => x.name },
       { label: t('pages.cluster_docker.driver'), cell: (x) => x.driver || '', sort: (x) => x.driver },
       { label: t('pages.cluster_docker.scope'), cell: (x) => [x.scope || '', x.internal ? t('pages.cluster_docker.internal') : ''].filter(Boolean).join(', ') },
-      { label: '', nosort: true, cell: (x) => (x.cluster || DOCKER_OWN.includes(x.name) ? '' : h('div', { class: 'row row--end' }, button({ size: 'sm', variant: 'danger', onClick: () => act(c, { action: 'network.remove', target: x.id,
+      { label: '', nosort: true, cell: (x) => (x.cluster || DOCKER_OWN.includes(x.name) ? '' : h('div', { class: 'row row--end' }, button({ size: 'sm', variant: 'danger', onClick: () => act(c, { action: 'network.remove', target: x.name,
         ask: { title: t('pages.cluster_docker.remove_network', { name: x.name }), body: t('pages.cluster_docker.remove_network_body') }, done: t('pages.cluster_docker.removed', { name: x.name }) }) }, t('common.remove')))) },
     ],
   });
