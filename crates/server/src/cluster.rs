@@ -110,6 +110,12 @@ impl Cluster {
     /// goes on to the next, so a change is never sent twice. Its answer comes back as it is; its refusals as the same
     /// status with its sentence.
     pub(crate) async fn call(&self, method: reqwest::Method, path: &str, body: Option<Value>) -> ApiResult<(StatusCode, Value)> {
+        let (status, bytes) = self.call_bytes(method, path, body).await?;
+        Ok((status, if bytes.trim_ascii().is_empty() { Value::Null } else { serde_json::from_slice(&bytes).unwrap_or(Value::Null) }))
+    }
+
+    /// As `call`, the answer as bytes: a backup is not JSON.
+    pub(crate) async fn call_bytes(&self, method: reqwest::Method, path: &str, body: Option<Value>) -> ApiResult<(StatusCode, Vec<u8>)> {
         let token = match &self.token {
             Given::Value(t) => t.clone(),
             Given::File(f) => tokio::fs::read_to_string(f).await.map_err(|e| {
@@ -142,8 +148,9 @@ impl Cluster {
         }
         let r = answered.ok_or_else(|| ApiError::new(StatusCode::BAD_GATEWAY, "the cluster's manager does not answer"))?;
         let status = StatusCode::from_u16(r.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
-        let text = r.text().await.unwrap_or_default();
+        let bytes = r.bytes().await.map(|b| b.to_vec()).unwrap_or_default();
         if !status.is_success() {
+            let text = String::from_utf8_lossy(&bytes);
             // The manager's sentence, for a person; a 401 from it is Freightdock's token, not the person's sign-in.
             // The manager answers `{"error": "..."}`; its sentence is what a person reads.
             let said = serde_json::from_str::<Value>(&text).ok().and_then(|v| v["error"].as_str().map(str::to_string)).unwrap_or_else(|| text.trim().to_string());
@@ -151,7 +158,7 @@ impl Cluster {
             let status = if status == StatusCode::UNAUTHORIZED { StatusCode::BAD_GATEWAY } else { status };
             return Err(ApiError::new(status, message));
         }
-        Ok((status, if text.trim().is_empty() { Value::Null } else { serde_json::from_str(&text).unwrap_or(Value::Null) }))
+        Ok((status, bytes))
     }
 }
 
@@ -183,6 +190,9 @@ pub fn router() -> Router<App> {
         .route("/api/cluster/settings", get(settings).put(set_settings))
         .route("/api/cluster/settings/proxmox/fingerprint", post(proxmox_fingerprint))
         .route("/api/cluster/settings/proxmox/test", post(proxmox_test))
+        .route("/api/cluster/backup", post(take_backup))
+        .route("/api/cluster/backups", get(backups))
+        .route("/api/cluster/backups/{name}", get(backup_file))
 }
 
 fn cluster(app: &App) -> ApiResult<&Cluster> {
@@ -394,6 +404,43 @@ async fn set_settings(State(app): State<App>, a: Authed, Json(b): Json<Value>) -
     let (_, v) = cluster(&app)?.call(reqwest::Method::PUT, "/v1/settings", Some(b)).await?;
     audit::record(&app.db, Some(&a.session.user), a.ip, audit::Entry { detail: Some(keys), ..audit::entry("cluster.settings.change", "settings".to_string()) }).await;
     Ok(Json(v))
+}
+
+/// A backup as a download: never cached, never kept by Freightdock.
+fn download(name: &str, bytes: Vec<u8>) -> axum::response::Response {
+    use axum::http::header;
+    use axum::response::IntoResponse;
+    ([(header::CONTENT_TYPE, "application/octet-stream".to_string()), (header::CONTENT_DISPOSITION, format!("attachment; filename=\"{name}\"")), (header::CACHE_CONTROL, "no-store".to_string())], bytes).into_response()
+}
+
+/// A backup's file name as the managers make it: nothing else goes into a manager's path.
+fn backup_name(name: &str) -> bool {
+    name.starts_with("freightdock-") && name.ends_with(".fdbk") && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'.') && !name.contains("..")
+}
+
+/// A backup of the cluster now, sealed by a manager with the passphrase given. The log says it was taken, never
+/// with what.
+async fn take_backup(State(app): State<App>, a: Authed, Json(b): Json<Value>) -> ApiResult<axum::response::Response> {
+    let passphrase = b["passphrase"].as_str().ok_or_else(|| ApiError::bad("a backup needs a passphrase"))?;
+    let (_, bytes) = cluster(&app)?.call_bytes(reqwest::Method::POST, "/v1/backup", Some(json!({ "passphrase": passphrase }))).await?;
+    let t = time::OffsetDateTime::now_utc();
+    let name = format!("freightdock-{:04}{:02}{:02}-{:02}{:02}{:02}.fdbk", t.year(), t.month() as u8, t.day(), t.hour(), t.minute(), t.second());
+    audit::record(&app.db, Some(&a.session.user), a.ip, audit::entry("cluster.backup.download", "now".to_string())).await;
+    Ok(download(&name, bytes))
+}
+
+/// The scheduled backups of the manager that answers.
+async fn backups(State(app): State<App>, _a: Authed) -> ApiResult<Json<Value>> {
+    Ok(Json(cluster(&app)?.call(reqwest::Method::GET, "/v1/backups", None).await?.1))
+}
+
+async fn backup_file(State(app): State<App>, a: Authed, Path(name): Path<String>) -> ApiResult<axum::response::Response> {
+    if !backup_name(&name) {
+        return Err(ApiError::new(StatusCode::NOT_FOUND, "no such backup"));
+    }
+    let (_, bytes) = cluster(&app)?.call_bytes(reqwest::Method::GET, &format!("/v1/backups/{name}"), None).await?;
+    audit::record(&app.db, Some(&a.session.user), a.ip, audit::entry("cluster.backup.download", name.clone())).await;
+    Ok(download(&name, bytes))
 }
 
 /// The certificate the Proxmox API shows, read by a manager (it is the one that will talk to Proxmox).
@@ -630,6 +677,10 @@ mod tests {
                     "PUT /v1/settings" => (StatusCode::OK, json!({ "got": got }).to_string()),
                     "POST /v1/settings/proxmox/fingerprint" => (StatusCode::OK, json!({ "fingerprint": "AB:CD", "got": got }).to_string()),
                     "POST /v1/settings/proxmox/test" => (StatusCode::BAD_GATEWAY, json!({ "error": "the Proxmox API at https://pve.example:8006: no answer" }).to_string()),
+                    "POST /v1/backup" if got["passphrase"] == "correct horse battery" => (StatusCode::OK, "FDBK1sealed".to_string()),
+                    "POST /v1/backup" => (StatusCode::BAD_REQUEST, json!({ "error": "a backup's passphrase is at least 12 characters" }).to_string()),
+                    "GET /v1/backups" => (StatusCode::OK, json!({ "backups": [{ "name": "freightdock-20261113-200000.fdbk", "taken_at": 1, "size": 11, "manager": "m1" }] }).to_string()),
+                    "GET /v1/backups/freightdock-20261113-200000.fdbk" => (StatusCode::OK, "FDBK1stored".to_string()),
                     "GET /v1/nodes/broken" => (StatusCode::SERVICE_UNAVAILABLE, "the cluster cannot take changes now".to_string()),
                     _ => (StatusCode::NOT_FOUND, "unknown".to_string()),
                 }
@@ -819,6 +870,36 @@ mod tests {
         assert_eq!(log[0].0, "cluster.settings.change");
         assert!(log[0].1.contains("fence_stop_s") && log[0].1.contains("proxmox") && !log[0].1.contains("s3cret"), "{log:?}");
         assert!(asked.lock().unwrap().iter().any(|l| l == "PUT /v1/settings"));
+    }
+
+    #[tokio::test]
+    async fn a_backup_is_downloaded_by_an_administrator_and_logged_without_its_passphrase() {
+        let (app, asked, _d) = connected("t0k3n").await;
+        let (cookie, csrf) = signed_in(&app).await;
+        let raw = |req: Request<Body>| {
+            let app = app.clone();
+            async move {
+                let r = tower::ServiceExt::oneshot(crate::api::router(app), req).await.unwrap();
+                let (s, h) = (r.status(), r.headers().clone());
+                (s, h, http_body_util::BodyExt::collect(r.into_body()).await.unwrap().to_bytes().to_vec())
+            }
+        };
+        let take = |p: &str| post("/api/cluster/backup").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).body(json_body(json!({ "passphrase": p }))).unwrap();
+        let (s, h, b) = raw(take("correct horse battery")).await;
+        assert_eq!((s, b.as_slice()), (StatusCode::OK, &b"FDBK1sealed"[..]));
+        assert!(h[header::CONTENT_DISPOSITION].to_str().unwrap().contains(".fdbk"), "{h:?}");
+        assert_eq!(h[header::CACHE_CONTROL], "no-store");
+        let (s, _, b) = call(&app, take("short")).await;
+        assert!(s == StatusCode::BAD_REQUEST && b["error"].as_str().unwrap().contains("12"), "{s} {b}");
+        let (s, _, b) = call(&app, get("/api/cluster/backups", &cookie)).await;
+        assert_eq!((s, b["backups"][0]["manager"].clone()), (StatusCode::OK, json!("m1")));
+        let (s, _, b) = raw(get("/api/cluster/backups/freightdock-20261113-200000.fdbk", &cookie)).await;
+        assert_eq!((s, b.as_slice()), (StatusCode::OK, &b"FDBK1stored"[..]));
+        assert_eq!(raw(get("/api/cluster/backups/..%2Fadmin.token", &cookie)).await.0, StatusCode::NOT_FOUND, "only a backup's name goes into the manager's path");
+        let log: Vec<String> = app.db.call(|c| Ok(c.prepare("SELECT action || ' ' || target || ' ' || COALESCE(detail, '') FROM audit WHERE action LIKE 'cluster.backup%' ORDER BY id")?.query_map([], |r| r.get(0))?.collect::<Result<_, _>>()?)).await.unwrap();
+        assert_eq!(log.len(), 2, "the download and the stored one: {log:?}");
+        assert!(log.iter().all(|l| !l.contains("horse")), "{log:?}");
+        assert!(!asked.lock().unwrap().iter().any(|l| l.contains("admin.token")));
     }
 
     #[tokio::test]

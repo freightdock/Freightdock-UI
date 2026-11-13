@@ -1417,3 +1417,13 @@ pointer to what replaced it.
     activity log names the settings changed (`cluster.settings.change`), never their values. All four routes are an
     Administrator's (`GET`/`PUT /api/cluster/settings`, `POST /api/cluster/settings/proxmox/fingerprint` and `/test`);
     the last two change nothing and only ask from a manager, which is the one that talks to Proxmox.
+24. Backups of the cluster are the managers' and are taken from the Integrations page (owner's roadmap, 2026-11-13):
+    the replicated state (this UI's database with it) and the cluster CA, sealed by a manager with a passphrase. One
+    now is a download sealed with a passphrase typed twice and sent once (`POST /api/cluster/backup`), kept nowhere,
+    never cached (`Cache-Control: no-store`). Scheduled ones are each manager's: how often and how many are settings
+    (23), and their passphrase is a write-only setting, shown only as set or not. The stored ones listed are the
+    answering manager's (`GET /api/cluster/backups`), each downloaded as it is (`GET /api/cluster/backups/{name}`,
+    only a name the managers make goes into a manager's path). All three are an Administrator's, even to list, since
+    a backup with its passphrase is the whole cluster; each download is on record (`cluster.backup.download`), never
+    with the passphrase. Bringing one back is a manager's command on a new manager (`freightdock-manager restore`),
+    not this UI's: there is no cluster for it to talk to then.

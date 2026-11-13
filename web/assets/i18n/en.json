@@ -1237,7 +1237,10 @@
         "fence_reboot_s": "Reboot after",
         "recovery_delay_s": "Recovery delay",
         "fence": "Fencing",
-        "auto_authorize": "Authorize returning workers"
+        "auto_authorize": "Authorize returning workers",
+        "backup_passphrase": "Passphrase",
+        "backup_every_h": "Every",
+        "backup_keep": "Keep"
       },
       "help": {
         "heartbeat_ms": "How often each worker reports.",
@@ -1248,8 +1251,40 @@
         "fence_reboot_s": "Then this long later it reboots if it could not stop them.",
         "recovery_delay_s": "How long a fenced worker's workloads wait before they run elsewhere.",
         "fence": "Off, an unheard worker is only unreachable: nothing moves.",
-        "auto_authorize": "A worker that comes back fenced runs workloads again by itself; off, an administrator authorizes it."
-      }
+        "auto_authorize": "A worker that comes back fenced runs workloads again by itself; off, an administrator authorizes it.",
+        "backup_passphrase": "What the scheduled backups are sealed with. None is written without it.",
+        "backup_every_h": "Hours between each manager's backups; 0 writes none.",
+        "backup_keep": "How many backups each manager keeps; the oldest go."
+      },
+      "backups": "Backups",
+      "backups_sub": "The cluster's state (stacks, nodes, storage, settings, users) and its certificate authority, sealed with a passphrase.",
+      "backup_now": "Back up now",
+      "backup_holds": "A backup is the whole cluster",
+      "backup_holds_text": "With its passphrase it holds every secret of the cluster, its CA's key among them. Keep the file and the passphrase apart.",
+      "backup_done": "The backup was downloaded.",
+      "download": "Download",
+      "passphrase": "Passphrase",
+      "passphrase_again": "The passphrase again",
+      "passphrase_help": "At least 12 characters. Without it the backup cannot be opened, by anybody.",
+      "passphrase_short": "At least 12 characters.",
+      "passphrase_differs": "The two are not the same.",
+      "passphrase_set": "Set",
+      "passphrase_unset": "Not set",
+      "passphrase_change": "Change the backup passphrase",
+      "passphrase_keep": "The managers keep it to seal their scheduled backups; it is never shown again. Keep a copy of it apart from the backups.",
+      "passphrase_off_title": "Stop the scheduled backups?",
+      "passphrase_off_body": "The passphrase is removed and the managers write no more backups. The ones already written stay.",
+      "stored": "Stored backups",
+      "stored_sub": "The scheduled backups on the manager that answered; each manager keeps its own.",
+      "no_backups": "No backups here yet",
+      "no_backups_text": "Set a passphrase and the managers write them on their schedule.",
+      "taken": "Taken",
+      "size": "Size",
+      "on_manager": "Manager",
+      "restore": "Bringing a cluster back",
+      "restore_text": "On a new manager, before its first start, run the line below with the backup's file and its passphrase; it then starts as the cluster it was, and the workers' certificates are still good.",
+      "restore_command": "freightdock-manager restore <file>",
+      "default_plain": "Default {value}."
     }
   },
   "components": {

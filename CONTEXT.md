@@ -67,7 +67,7 @@ web/
                            page draws)
   assets/js/pages/         cluster (the cluster: managers, nodes, events, commands, recoveries, join tokens; the
                            landing page), cluster-stacks (the cluster's Compose stacks and their workloads), integrations (shares,
-                           fencing provider, timings, each manager's own settings: "Cluster" 23), users
+                           fencing provider, timings, backups, each manager's own settings: "Cluster" 23, 24), users
                            (users and teams), activity, signins (the auth log), settings (appearance, then
                            signin-settings: providers and two-factor), account, changelog, setup, login, auth (the
                            cards both share), two-factor (the QR code and key, recovery codes), notfound
@@ -137,6 +137,8 @@ read-only token only reads.
 | `POST /api/cluster/stack-check` | admin | the same body, nothing deployed: the services and the ports their file asks for, the warnings, where the workloads would go (`placements`) or why not (`unplaced`) ("Cluster" 19) |
 | `POST /api/cluster/stacks/{name}/{start,stop,restart}`, `DELETE /api/cluster/stacks/{name}` | admin | the stack's workloads run, stop, restart or go |
 | `GET /api/cluster/settings`, `PUT /api/cluster/settings` | admin | the cluster's settings, each with its source and default, and what the answering manager's environment sets; some changed (a value, or null for the managers' own; `proxmox: {url, fingerprint, token?}` or null), passed on whole, the keys on record ("Cluster" 23) |
+| `POST /api/cluster/backup` | admin | `{passphrase}`: a sealed backup of the cluster now, as a download, on record without the passphrase ("Cluster" 24) |
+| `GET /api/cluster/backups`, `GET /api/cluster/backups/{name}` | admin | the answering manager's scheduled backups; one as a download ("Cluster" 24) |
 | `POST /api/cluster/settings/proxmox/fingerprint`, `POST /api/cluster/settings/proxmox/test` | admin | `{url}`: the certificate the Proxmox API shows, read by a manager; `{url, fingerprint, token?}` or `{}`: the provider tried from a manager, `{version, guests}` (nothing changed) |
 | `GET /api/cluster/floating` | session | the floating addresses and each one's holder ("Cluster" 15) |
 | `PUT /api/cluster/stacks/{name}/exposures` | admin | `{exposures: [{service, container_port, protocol, address, port}]}`: what the stack exposes on the pool, all of it ("Cluster" 17) |

@@ -58,6 +58,32 @@ export const post = (path, body, opts) => api(path, { ...opts, method: 'POST', b
 export const put = (path, body, opts) => api(path, { ...opts, method: 'PUT', body });
 export const del = (path, opts) => api(path, { ...opts, method: 'DELETE' });
 
+/** POSTs `body` to `path` and saves the answer as a file (a backup): the name the server gives, else `fallback`.
+ *  Throws ApiError as `api` does. */
+export async function download(path, body, fallback) {
+  let r;
+  try {
+    r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify(body), credentials: 'same-origin' });
+  } catch {
+    throw new ApiError(0, t('api.unreachable'));
+  }
+  if (!r.ok) {
+    let data = null;
+    try { data = await r.json(); } catch { data = null; }
+    if (r.status === 401) onUnauthorized();
+    throw new ApiError(r.status, (data && data.error) || t('api.answered', { status: String(r.status) }));
+  }
+  const named = /filename="([^"]+)"/.exec(r.headers.get('Content-Disposition') || '');
+  const url = URL.createObjectURL(await r.blob());
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = named ? named[1] : fallback;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 /** A WebSocket to `path` on this server, over wss: when the page is https. */
 export function socket(path) {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';

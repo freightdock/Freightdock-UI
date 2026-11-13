@@ -1237,7 +1237,10 @@
         "fence_reboot_s": "Start på nytt etter",
         "recovery_delay_s": "Ventetid før gjenoppretting",
         "fence": "Fencing",
-        "auto_authorize": "Godkjenn arbeidere som kommer tilbake"
+        "auto_authorize": "Godkjenn arbeidere som kommer tilbake",
+        "backup_passphrase": "Passfrase",
+        "backup_every_h": "Hver",
+        "backup_keep": "Behold"
       },
       "help": {
         "heartbeat_ms": "Hvor ofte hver arbeider rapporterer.",
@@ -1248,8 +1251,40 @@
         "fence_reboot_s": "Så lenge etter det starter den på nytt om den ikke fikk stoppet dem.",
         "recovery_delay_s": "Hvor lenge arbeidslastene til en fencet arbeider venter før de kjøres et annet sted.",
         "fence": "Av er en uhørt arbeider bare utilgjengelig: ingenting flyttes.",
-        "auto_authorize": "En arbeider som kommer tilbake fencet, kjører arbeidslaster igjen av seg selv; av må en administrator godkjenne den."
-      }
+        "auto_authorize": "En arbeider som kommer tilbake fencet, kjører arbeidslaster igjen av seg selv; av må en administrator godkjenne den.",
+        "backup_passphrase": "Det de planlagte sikkerhetskopiene forsegles med. Ingen skrives uten den.",
+        "backup_every_h": "Timer mellom hver managers sikkerhetskopier; 0 skriver ingen.",
+        "backup_keep": "Hvor mange sikkerhetskopier hver manager beholder; de eldste går."
+      },
+      "backups": "Sikkerhetskopier",
+      "backups_sub": "Klyngens tilstand (stakker, noder, lagring, innstillinger, brukere) og sertifikatutstederen, forseglet med en passfrase.",
+      "backup_now": "Ta sikkerhetskopi nå",
+      "backup_holds": "En sikkerhetskopi er hele klyngen",
+      "backup_holds_text": "Med passfrasen holder den alle klyngens hemmeligheter, også nøkkelen til sertifikatutstederen. Hold filen og passfrasen hver for seg.",
+      "backup_done": "Sikkerhetskopien ble lastet ned.",
+      "download": "Last ned",
+      "passphrase": "Passfrase",
+      "passphrase_again": "Passfrasen igjen",
+      "passphrase_help": "Minst 12 tegn. Uten den kan ingen åpne sikkerhetskopien.",
+      "passphrase_short": "Minst 12 tegn.",
+      "passphrase_differs": "De to er ikke like.",
+      "passphrase_set": "Satt",
+      "passphrase_unset": "Ikke satt",
+      "passphrase_change": "Endre passfrasen for sikkerhetskopier",
+      "passphrase_keep": "Managerne beholder den for å forsegle de planlagte sikkerhetskopiene; den vises aldri igjen. Ta vare på en kopi av den et annet sted enn sikkerhetskopiene.",
+      "passphrase_off_title": "Stoppe de planlagte sikkerhetskopiene?",
+      "passphrase_off_body": "Passfrasen fjernes, og managerne skriver ingen flere sikkerhetskopier. De som allerede er skrevet, blir liggende.",
+      "stored": "Lagrede sikkerhetskopier",
+      "stored_sub": "De planlagte sikkerhetskopiene på manageren som svarte; hver manager har sine egne.",
+      "no_backups": "Ingen sikkerhetskopier her ennå",
+      "no_backups_text": "Sett en passfrase, så skriver managerne dem etter planen.",
+      "taken": "Tatt",
+      "size": "Størrelse",
+      "on_manager": "Manager",
+      "restore": "Hente tilbake en klynge",
+      "restore_text": "På en ny manager, før første oppstart, kjør linjen under med sikkerhetskopiens fil og passfrase; den starter da som klyngen den var, og arbeidernes sertifikater gjelder fortsatt.",
+      "restore_command": "freightdock-manager restore <fil>",
+      "default_plain": "Standard {value}."
     }
   },
   "components": {

@@ -3,10 +3,11 @@
 // token and pinned certificate, read and tried from a manager; which guest each worker is), the cluster's timings
 // (heartbeat, when a node is suspect or unreachable, the self-fencing timers, recovery), each saying where its value
 // comes from, and what each manager's own environment sets, shown and not changed (a node needs it to reach the
-// cluster at all). The cluster's settings are replicated: one change is every manager's.
+// cluster at all). The cluster's settings are replicated: one change is every manager's. Backups of the cluster: one
+// now as a download, or each manager's scheduled ones with the passphrase they are sealed with (set, never shown).
 
-import { h, mount } from '../dom.js';
-import { get, post, put } from '../api.js';
+import { h, mount, bytes, when } from '../dom.js';
+import { get, post, put, download } from '../api.js';
 import { loadInto, table } from '../view.js';
 import { pageHeader } from '../../finui/components/page-header/page-header.js';
 import { card } from '../../finui/components/card/card.js';
@@ -39,10 +40,11 @@ export function integrationsPage({ el, signal }) {
   const reload = loadInto(body, {
     signal,
     load: async (s) => {
-      const [c, st, n] = await Promise.all([get('/api/cluster/settings', { signal: s }), get('/api/cluster/storage', { signal: s }).catch(() => null), get('/api/cluster/nodes', { signal: s }).catch(() => [])]);
-      return { c, st, n };
+      const [c, st, n, b] = await Promise.all([get('/api/cluster/settings', { signal: s }), get('/api/cluster/storage', { signal: s }).catch(() => null), get('/api/cluster/nodes', { signal: s }).catch(() => []),
+        get('/api/cluster/backups', { signal: s }).catch(() => null)]);
+      return { c, st, n, b };
     },
-    draw: ({ c, st, n }) => {
+    draw: ({ c, st, n, b }) => {
       const s = c.settings || {};
       return h('div', { class: 'stack' },
         card({ title: t('pages.integrations.shares'), sub: t('pages.integrations.shares_sub'),
@@ -54,6 +56,10 @@ export function integrationsPage({ el, signal }) {
             button({ size: 'sm', variant: s.proxmox ? null : 'primary', onClick: () => proxmoxDialog(s.proxmox, reload) }, s.proxmox ? t('pages.integrations.change') : t('pages.integrations.set_up')),
             s.proxmox && s.proxmox.source === 'cluster' ? button({ size: 'sm', variant: 'danger', onClick: () => removeProxmox(reload) }, t('common.remove')) : null),
           body: h('div', { class: 'stack' }, proxmoxFacts(s.proxmox), guestTable(n || [], !!s.proxmox, reload)) }),
+        card({ title: t('pages.integrations.backups'), sub: t('pages.integrations.backups_sub'),
+          actions: button({ size: 'sm', variant: 'primary', onClick: () => backupNow() }, t('pages.integrations.backup_now')),
+          body: backups(s, reload) }),
+        card({ title: t('pages.integrations.stored'), sub: t('pages.integrations.stored_sub'), body: storedBackups(b, !!s.backup_passphrase_set) }),
         card({ title: t('pages.integrations.timings'), sub: t('pages.integrations.timings_sub'), body: timings(s, reload) }),
         card({ title: t('pages.integrations.manager'), sub: t('pages.integrations.manager_sub'), body: managerFacts(c.manager || {}) }));
     },
@@ -230,6 +236,110 @@ function timings(s, reload) {
     if (Object.keys(patch).length) save(patch); else toast({ text: t('pages.integrations.nothing_changed'), tone: 'info' });
   });
   return form;
+}
+
+/** A passphrase field typed twice; `value()` is the passphrase, or null with the field marked when they differ or
+ *  it is too short. */
+function passphraseFields(prefix) {
+  const one = formField({ id: `${prefix}-1`, type: 'password', autocomplete: 'new-password', label: t('pages.integrations.passphrase'), help: t('pages.integrations.passphrase_help') });
+  const two = formField({ id: `${prefix}-2`, type: 'password', autocomplete: 'new-password', label: t('pages.integrations.passphrase_again') });
+  const value = () => {
+    const p = one.input.value;
+    if ([...p].length < 12) { one.setError(t('pages.integrations.passphrase_short')); return null; }
+    if (p !== two.input.value) { two.setError(t('pages.integrations.passphrase_differs')); return null; }
+    one.setError(''); two.setError('');
+    return p;
+  };
+  return { el: h('div', { class: 'stack' }, one.el, two.el), first: one.input, value, error: (m) => one.setError(m) };
+}
+
+/** A backup now: sealed by a manager with the passphrase typed here, downloaded, kept nowhere. */
+function backupNow() {
+  const p = passphraseFields('int-bk-now');
+  const go = button({ variant: 'primary', type: 'submit' }, t('pages.integrations.download'));
+  const form = h('form', { class: 'stack', novalidate: true }, p.el, callout({ tone: 'warning', title: t('pages.integrations.backup_holds'), body: t('pages.integrations.backup_holds_text') }),
+    h('div', { class: 'row row--end' }, go));
+  const m = openModal({ title: t('pages.integrations.backup_now'), body: form, initialFocus: p.first });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const pass = p.value();
+    if (!pass) return;
+    go.disabled = true;
+    try {
+      await download('/api/cluster/backup', { passphrase: pass }, 'freightdock.fdbk');
+      m.close();
+      toast({ text: t('pages.integrations.backup_done'), tone: 'good' });
+    } catch (x) { go.disabled = false; p.error(x.message); }
+  });
+}
+
+/** The scheduled backups: the passphrase (set or not), how often and how many; how to bring one back. */
+function backups(s, reload) {
+  const set = !!s.backup_passphrase_set;
+  const every = s.backup_every_h || {}, keep = s.backup_keep || {};
+  const save = async (patch) => {
+    try { await put('/api/cluster/settings', patch); toast({ text: t('pages.integrations.saved'), tone: 'good' }); reload(); } catch (e) { toast({ text: e.message, tone: 'critical' }); }
+  };
+  const num = (key, v, unit) => {
+    const input = h('input', { class: ['fui-field__input', 'fui-field__input--num'], id: `int-${key}`, type: 'number', min: v.min, max: v.max, value: v.value, inputMode: 'numeric' });
+    const row = settingRow({ id: `int-row-${key}`, label: t(`pages.integrations.label.${key}`), labelFor: `int-${key}`,
+      help: h('span', null, t(`pages.integrations.help.${key}`), ' ', unit ? t('pages.integrations.default_is', { value: v.default, unit }) : t('pages.integrations.default_plain', { value: v.default })),
+      control: h('div', { class: 'row nowrap' }, input, unit ? h('span', { class: 'sub' }, unit) : null, source(v.source)) });
+    return { key, input, row, v };
+  };
+  const fields = [num('backup_every_h', every, 'h'), num('backup_keep', keep, '')];
+  const passRow = settingRow({ id: 'int-row-backup_passphrase', label: t('pages.integrations.label.backup_passphrase'), help: t('pages.integrations.help.backup_passphrase'),
+    control: h('div', { class: 'row nowrap' },
+      status({ tone: set ? 'good' : 'warning' }, set ? t('pages.integrations.passphrase_set') : t('pages.integrations.passphrase_unset')),
+      button({ size: 'sm', onClick: () => passphraseDialog(set, reload) }, set ? t('pages.integrations.change') : t('pages.integrations.set_up')),
+      set ? button({ size: 'sm', variant: 'ghost', onClick: async () => {
+        if (await confirm({ title: t('pages.integrations.passphrase_off_title'), body: t('pages.integrations.passphrase_off_body') })) save({ backup_passphrase: null });
+      } }, t('common.remove')) : null) });
+  const go = button({ variant: 'primary', type: 'submit' }, t('common.save'));
+  const form = h('form', { class: 'stack', novalidate: true }, h('div', { class: 'fui-setting-row__rows' }, passRow, fields.map((f) => f.row)), h('div', { class: 'fui-setting-row__actions' }, go));
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const patch = {};
+    for (const f of fields) {
+      const n = Number(f.input.value);
+      if (f.input.value !== '' && n !== f.v.value) patch[f.key] = n;
+    }
+    if (Object.keys(patch).length) save(patch); else toast({ text: t('pages.integrations.nothing_changed'), tone: 'info' });
+  });
+  return h('div', { class: 'stack' }, form,
+    callout({ tone: 'info', title: t('pages.integrations.restore'), body: h('span', null, t('pages.integrations.restore_text'), ' ', h('code', null, t('pages.integrations.restore_command'))) }));
+}
+
+/** The scheduled backups on the manager that answered, newest first, each to download. */
+function storedBackups(b, set) {
+  return b ? table({
+    rows: b.backups || [], empty: [t('pages.integrations.no_backups'), set ? '' : t('pages.integrations.no_backups_text')], label: t('pages.integrations.stored'),
+    columns: [
+      { label: t('pages.integrations.taken'), cell: (x) => when(x.taken_at / 1000), sort: (x) => x.taken_at },
+      { label: t('pages.integrations.size'), cell: (x) => bytes(x.size), sort: (x) => x.size },
+      { label: t('pages.integrations.on_manager'), cell: (x) => h('span', { class: 'mono' }, String(x.manager || '').slice(0, 8)) },
+      { label: '', nosort: true, cell: (x) => h('div', { class: 'row row--end' }, button({ size: 'sm', href: `/api/cluster/backups/${encodeURIComponent(x.name)}`, download: x.name }, t('pages.integrations.download'))) },
+    ],
+  }) : emptyState(t('pages.cluster.no_answer'), '');
+}
+
+function passphraseDialog(set, reload) {
+  const p = passphraseFields('int-bk-pass');
+  const go = button({ variant: 'primary', type: 'submit' }, t('common.save'));
+  const form = h('form', { class: 'stack', novalidate: true }, p.el, h('p', { class: 'sub' }, t('pages.integrations.passphrase_keep')), h('div', { class: 'row row--end' }, go));
+  const m = openModal({ title: set ? t('pages.integrations.passphrase_change') : t('pages.integrations.label.backup_passphrase'), body: form, initialFocus: p.first });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const pass = p.value();
+    if (!pass) return;
+    go.disabled = true;
+    try {
+      await put('/api/cluster/settings', { backup_passphrase: pass });
+      m.close();
+      toast({ text: t('pages.integrations.saved'), tone: 'good' });
+      reload();
+    } catch (x) { go.disabled = false; p.error(x.message); }
+  });
 }
 
 /** What only a manager's environment sets: shown as the manager answering has it, never changed here. */

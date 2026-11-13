@@ -110,6 +110,10 @@ pub const RULES: &[(&str, &str, Rule)] = &[
     ("PUT", "/api/cluster/settings", Admin),
     ("POST", "/api/cluster/settings/proxmox/fingerprint", Admin),
     ("POST", "/api/cluster/settings/proxmox/test", Admin),
+    // A backup holds the whole cluster (sealed): administrators only, even to list them.
+    ("POST", "/api/cluster/backup", Admin),
+    ("GET", "/api/cluster/backups", Admin),
+    ("GET", "/api/cluster/backups/{name}", Admin),
     // The CA that signed the web server's certificate: a certificate, public, fetched before anybody trusts it.
     ("GET", "/api/tls/ca.pem", Public),
 ];
