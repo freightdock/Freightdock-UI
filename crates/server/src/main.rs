@@ -12,6 +12,7 @@ mod changelog;
 mod cluster;
 mod db;
 mod error;
+mod mcp;
 mod oidc;
 mod outbound;
 mod replica;

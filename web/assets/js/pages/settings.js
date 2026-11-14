@@ -1,6 +1,7 @@
 // Settings, for administrators. Appearance: the FinUI preset everybody's Freightdock wears, a code made at FinUI create
 // (finui.finstats.no/create) and pasted here. Sign-in: the providers (single sign-on and directories) and two-factor,
-// drawn by signin-settings.js; the local sign-in always stays beside them.
+// drawn by signin-settings.js; the local sign-in always stays beside them. AI agents (MCP): the switch for the MCP
+// server and every API token there is ("MCP" 6).
 
 import { h, icon, ago, when, num } from '../dom.js';
 import { get, put, post, del } from '../api.js';
@@ -17,6 +18,7 @@ import { callout } from '../../finui/components/callout/callout.js';
 import { codeLine } from '../../finui/components/code-block/code-block.js';
 import { toast } from '../../finui/components/toast/toast.js';
 import { signinSettings } from './signin-settings.js';
+import { claudeLine, caHelp } from './account.js';
 import { facts } from '../../finui/components/facts/facts.js';
 import { t } from '../i18n.js';
 
@@ -86,10 +88,46 @@ function appearanceCard(cfg, presets) {
     meaning) });
 }
 
+/** AI agents (MCP), "MCP" 6: the switch for the whole Freightdock, the address and the Claude Code line, every API
+ *  token there is with its owner (an Administrator revokes any of them here; each person makes their own in Account),
+ *  and the CA to trust when Freightdock made its own certificate. */
+function mcpCard(cfg, again) {
+  const url = `${location.origin}${cfg.path}`;
+  const sw = toggle({ checked: cfg.enabled, labelledby: 'mcp-on-label', describedby: 'mcp-on-help', onChange: async (on, revert) => {
+    if (!on && cfg.active && !(await confirm({ title: t('pages.settings.mcp_off_title'), action: t('pages.account.turn_off'), body: t('pages.settings.mcp_off_body', { count: cfg.active }) }))) { revert(true); return; }
+    try { await put('/api/settings/mcp', { enabled: on }); toast({ text: on ? t('pages.settings.mcp_on_done') : t('pages.settings.mcp_off_done'), tone: 'good' }); again(); }
+    catch (e) { revert(!on); toast({ text: e.message, tone: 'critical' }); }
+  } });
+  const revoke = async (tok) => {
+    if (!(await confirm({ title: t('pages.settings.revoke_title', { owner: tok.owner.name, name: tok.name }), action: t('pages.account.revoke'), body: t('pages.settings.revoke_body') }))) return;
+    try { await del(`/api/settings/mcp/tokens/${tok.id}`); toast({ text: t('pages.account.revoked'), tone: 'good' }); again(); } catch (e) { toast({ text: e.message, tone: 'critical' }); }
+  };
+  const tokens = table({
+    rows: cfg.tokens, filter: 'auto', label: t('pages.account.api_tokens'), empty: [t('pages.account.no_tokens'), t('pages.settings.no_tokens_text')],
+    columns: [
+      { label: t('common.name'), cell: (tok) => h('div', { class: 'name-cell' }, h('span', { class: 'truncate' }, tok.name), h('span', { class: 'sub mono' }, `fdk_…${tok.hint}`)), sort: (tok) => tok.name },
+      { label: t('pages.settings.whose'), cell: (tok) => h('span', null, tok.owner.name, tok.owner.disabled ? h('span', { class: 'faint' }, ' ' + t('pages.settings.disabled_paren')) : null), sort: (tok) => tok.owner.name },
+      { label: t('pages.account.may'), cell: (tok) => (tok.read_only ? status({ tone: 'info' }, t('pages.account.read_only')) : status({ tone: 'warning' }, t('pages.settings.owner_may'))) },
+      { label: t('common.state'), cell: (tok) => (tok.active ? status({ tone: 'good' }, t('pages.users.active')) : status({ tone: 'critical' }, tok.owner.disabled ? t('pages.settings.owner_disabled') : t('pages.settings.expired'))), sort: (tok) => (tok.active ? 1 : 0) },
+      { label: t('pages.account.last_used'), cell: (tok) => (tok.last_used_at ? h('span', { class: 'nowrap', title: tok.last_used_ip ? t('pages.account.used_from', { when: when(tok.last_used_at), ip: tok.last_used_ip }) : when(tok.last_used_at) }, ago(tok.last_used_at)) : h('span', { class: 'faint' }, t('common.never'))), sort: (tok) => tok.last_used_at || 0 },
+      { label: t('pages.account.expires'), cell: (tok) => (tok.expires_at ? h('span', { class: 'nowrap' }, when(tok.expires_at)) : h('span', { class: 'faint' }, t('common.never'))), sort: (tok) => tok.expires_at || Infinity },
+      { label: '', nosort: true, cell: (tok) => h('div', { class: 'cell-actions' }, button({ variant: 'icon', size: 'sm', 'aria-label': t('pages.settings.revoke_label', { owner: tok.owner.name, name: tok.name }), onClick: () => revoke(tok) }, icon('trash', 14))) },
+    ],
+  });
+  return card({ title: t('pages.settings.mcp'), sub: t('pages.settings.mcp_sub'), body: h('div', { class: 'stack' },
+    h('div', { class: 'fui-setting-row__rows' }, settingRow({ id: 'mcp-on', label: t('pages.settings.mcp_server'), help: t('pages.settings.mcp_help'), control: sw })),
+    facts([[t('pages.account.mcp_address'), url, { wide: true, mono: true }], [t('pages.settings.active_tokens'), num(cfg.active)], [t('pages.account.signs_in_with'), t('pages.account.signs_in_with_value')]]),
+    h('span', { class: 'faint' }, t('pages.settings.connect_claude')),
+    codeLine(claudeLine(url, '<token>'), { label: t('pages.account.copy_command') }),
+    h('div', { class: 'row' }, button({ href: '/account', size: 'sm' }, icon('key', 14), t('pages.settings.own_token')), h('span', { class: 'faint' }, t('pages.settings.each_person'))),
+    caHelp(cfg.ca),
+    tokens) });
+}
 
 export function settingsPage({ el, signal }) {
-  const look = h('div'), sso = h('div'), twoFactor = h('div');
-  el.append(pageHeader(t('nav.settings'), t('pages.settings.sub')), h('div', { class: 'stack' }, look, sso, twoFactor));
+  const look = h('div'), sso = h('div'), twoFactor = h('div'), mcp = h('div');
+  el.append(pageHeader(t('nav.settings'), t('pages.settings.sub')), h('div', { class: 'stack' }, look, sso, twoFactor, mcp));
+  loadInto(mcp, { signal, load: (s) => get('/api/settings/mcp', { signal: s }), draw: mcpCard });
   // The axes' names come from FinUI's own presets.json, so what a code picks reads as FinUI create says it.
   loadInto(look, { signal, load: (s) => Promise.all([get('/api/settings/appearance', { signal: s }), fetch('/assets/finui/create/presets.json', { signal: s }).then((r) => r.json())]),
     draw: ([cfg, presets]) => appearanceCard(cfg, presets) });

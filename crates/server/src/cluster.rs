@@ -753,7 +753,7 @@ async fn stack_action(State(app): State<App>, a: Authed, Path((name, action)): P
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::sync::{Arc, Mutex};
 
     use axum::body::Body;
@@ -836,7 +836,7 @@ mod tests {
         (format!("http://{addr}"), asked)
     }
 
-    async fn connected(token: &str) -> (App, Arc<Mutex<Vec<String>>>, tempfile::TempDir) {
+    pub(crate) async fn connected(token: &str) -> (App, Arc<Mutex<Vec<String>>>, tempfile::TempDir) {
         let (api, asked) = fake_manager().await;
         let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join("admin.token");

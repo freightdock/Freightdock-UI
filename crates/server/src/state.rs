@@ -26,6 +26,8 @@ pub struct AppState {
     pub cluster: std::sync::OnceLock<std::sync::Arc<crate::cluster::Cluster>>,
     /// The data folder, where the setup token waits until setup is done.
     pub data_dir: std::sync::OnceLock<std::path::PathBuf>,
+    /// The MCP sessions `initialize` began ("MCP" 1).
+    pub mcp: crate::mcp::Sessions,
 }
 
 impl AppState {
@@ -41,6 +43,7 @@ impl AppState {
             setup_token: Default::default(),
             cluster: Default::default(),
             data_dir: Default::default(),
+            mcp: Default::default(),
         })
     }
 }

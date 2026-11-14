@@ -115,6 +115,14 @@ pub const RULES: &[(&str, &str, Rule)] = &[
     ("POST", "/api/cluster/settings/proxmox/test", Admin),
     ("POST", "/api/cluster/settings/redfish/fingerprint", Admin),
     ("POST", "/api/cluster/settings/redfish/test", Admin),
+    // `/mcp` signs in by itself, with an API token only, and calls back through this router ("MCP" 3).
+    ("POST", "/mcp", Public),
+    ("GET", "/mcp", Public),
+    ("DELETE", "/mcp", Public),
+    ("GET", "/api/settings/mcp", Admin),
+    ("PUT", "/api/settings/mcp", Admin),
+    ("DELETE", "/api/settings/mcp/tokens/{id}", Admin),
+    ("GET", "/api/mcp/status", Session),
     // A backup holds the whole cluster (sealed): administrators only, even to list them.
     ("POST", "/api/cluster/backup", Admin),
     // A registry's login: who the cluster pulls as. An Administrator's, to see too.

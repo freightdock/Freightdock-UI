@@ -49,10 +49,11 @@ crates/server/             the `freightdock` binary
                            routes, an administrator's reset, the `two_factor` setting
   src/secret.rs            Sealer: XChaCha20-Poly1305 under <data>/secret.key
   src/state.rs             AppState (db, limiter, sealer, oidc, tickets, the TLS CA, the setup token, the cluster,
-                           the data folder)
+                           the data folder, the MCP sessions)
   src/tls.rs               HTTPS: the certificate's names (host, interfaces, FREIGHTDOCK_TLS_NAMES), the renewal
                            rule (verdict), the acceptor; GET /api/tls/ca.pem
   src/tokens.rs            API tokens: make, parse, the bearer header, lookup; /api/tokens
+  src/mcp.rs               /mcp, the MCP server: sessions, JSON-RPC, the cluster's tools as calls through the router
   src/web.rs               the embedded UI, /assets/finui.css joined (the preset's overlay after tokens.css), the SPA fallback;
                            harden: CSP, X-Frame-Options, nosniff, Referrer-Policy on every answer, no-store on /api
   tests/log_time.rs        the real binary logs in the zone TZ names
@@ -172,6 +173,9 @@ read-only token only reads.
 | `GET /api/tokens` | session | your API tokens (never the tokens): name, hint, read_only, created/expires/last used |
 | `POST /api/tokens` | session, not a token | `{name, expires_days?, read_only?}` answers `{id, name, token}`, the token once |
 | `DELETE /api/tokens/{id}` | session, not a token | revokes one of yours |
+| `POST /mcp`, `DELETE /mcp` | an API token (signs in itself) | the MCP server ("MCP"): one JSON-RPC message a POST, `Mcp-Session-Id` from `initialize`; DELETE ends the session; `GET /mcp` is 405 |
+| `GET/PUT /api/settings/mcp`, `DELETE /api/settings/mcp/tokens/{id}` | admin | the MCP switch `{enabled}`, every API token with its owner; revoke anybody's (from a session) |
+| `GET /api/mcp/status` | session | `{enabled, path, ca}`, for Account |
 | `GET /api/audit` | admin | the activity log, newest first; `?action=&user=&since=&until=&before=&limit=`, `&format=csv` |
 | `GET /api/auth-log` | admin | the auth log, newest first; `?event=&method=&ok=&user=&ip=&since=&until=&before=&limit=`, `&format=csv` |
 | `GET/POST /api/users`, `PUT/DELETE /api/users/{id}`, `POST /api/users/{id}/password` | admin | `{id, name, role, disabled, kind: local/sso/ldap, email, teams, totp, created_at, last_login_at}`; `{name, password, role}`; `{name, role, disabled}` (never the last administrator, never oneself); a new password (local only; ends their sessions and revokes their API tokens) |
@@ -213,7 +217,7 @@ end-to-end suite against managers and workers is to be written.
 - Roles are two: an Administrator changes the cluster, anybody else signed in reads it. Roles per stack or node come
   back with the features that need them.
 - Back through the managers so far: a node's Docker pages ("Cluster" 25, without consoles yet), backups (24),
-  registries (26) and notifications (27). Still set aside: the MCP server and the import from Portainer.
+  registries (26) and notifications (27). The MCP server is back over the cluster ("MCP" 7). Still set aside: the import from Portainer.
 - Sign-in: an account is linked to one provider or directory at a time ("SSO" 13); GitHub's orgs and teams are read
   to 500 each; Active Directory's nested groups are followed only with its preset's in-chain filter (memberOf is direct
   groups only), and that filter is checked by unit tests, not against a real Active Directory.

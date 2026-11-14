@@ -600,7 +600,19 @@
       "reads_the_cluster": "A user: you read the cluster; an administrator changes it",
       "certificate": "Freightdock's certificate",
       "certificate_sub": "The authority that signed it, to trust once on each machine.",
-      "no_ca": "Freightdock serves a certificate somebody gave it here, so there is nothing of Freightdock’s to trust."
+      "no_ca": "Freightdock serves a certificate somebody gave it here, so there is nothing of Freightdock’s to trust.",
+      "mcp_address": "MCP address",
+      "signs_in_with": "Signs in with",
+      "signs_in_with_value": "An API token, as Authorization: Bearer",
+      "connect_claude": "Connect Claude Code to Freightdock with it:",
+      "mcp_off": "The MCP server is turned off in this Freightdock: an administrator turns it on in Settings, under AI agents (MCP).",
+      "transport": "Transport",
+      "make_above": "Make a token above, then run this with it in place of <token>:",
+      "agent_may": "The agent may do what you may, or only look with a read-only token; every change it makes is in the activity log under the token’s name.",
+      "connect_agent": "Connect an AI agent",
+      "connect_agent_sub": "Freightdock is an MCP server: an agent such as Claude Code can look at the cluster's nodes, stacks and events, deploy, start and stop stacks and read a container's logs through it, as you.",
+      "node_tool": "Claude Code, and any Node tool",
+      "copy_command": "Copy the command"
     },
     "settings": {
       "preset_placeholder": "None: FinUI as it ships",
@@ -613,7 +625,31 @@
       "appearance_sub": "How Freightdock looks, for everybody on it",
       "preset": "FinUI preset",
       "preset_help": "A code made at FinUI create: colours, corners, density and more. Paste the code, or the address or install line that holds it.",
-      "sub": "How Freightdock looks, and how it lets people in."
+      "sub": "How Freightdock looks, and how it lets people in.",
+      "mcp_off_title": "Turn the MCP server off?",
+      "mcp_off_body": {
+        "one": "Every AI agent that uses it is refused from now on ({count} active token), until it is turned on again. The tokens stay good for the API.",
+        "other": "Every AI agent that uses it is refused from now on ({count} active tokens), until it is turned on again. The tokens stay good for the API."
+      },
+      "mcp_on_done": "The MCP server is on.",
+      "mcp_off_done": "The MCP server is off.",
+      "revoke_title": "Revoke {owner}’s token {name}?",
+      "revoke_body": "Whatever uses it is refused from now on. They can make a new one in Account.",
+      "no_tokens_text": "Each person makes their own in Account.",
+      "whose": "Whose",
+      "disabled_paren": "(disabled)",
+      "owner_may": "What its owner may",
+      "owner_disabled": "Owner disabled",
+      "expired": "Expired",
+      "revoke_label": "Revoke {owner}’s token {name}",
+      "mcp": "AI agents (MCP)",
+      "mcp_sub": "Freightdock as an MCP server, for Claude Code and other agents",
+      "mcp_server": "MCP server",
+      "mcp_help": "Let AI agents in at /mcp with an API token, for the whole of this Freightdock. Off, /mcp refuses everybody; the tokens still work for the API.",
+      "active_tokens": "Active API tokens",
+      "connect_claude": "Connect Claude Code with a token in place of <token>:",
+      "own_token": "Make your own token in Account",
+      "each_person": "Each person makes theirs there; a token acts as its owner."
     },
     "signin_settings": {
       "copy_redirect": "Copy the redirect URI",

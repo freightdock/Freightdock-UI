@@ -13,6 +13,7 @@ whole series.
 ## [1.0.0] - 2026-11-09 to 2026-11-10
 
 First light
+- **AI agents can look after the cluster**: Freightdock is an MCP server again, at `/mcp`. With an API token from your Account page, Claude Code or another agent can see the cluster's nodes, stacks, events and storage, check and deploy a stack, start, stop or remove one, read a container's logs and let a fenced node back in, as you and no more: a read-only token only looks, and every change is in the activity log under the token's name. An Administrator turns it off for everybody, and revokes anybody's token, in Settings.
 - **Fencing through a server's BMC**: a bare-metal worker can be powered off through its iDRAC, iLO or other Redfish service when the cluster stops hearing it, and is called fenced only once the BMC says its power is off. Set one BMC account on the Integrations page (its password never shown again), then each worker's BMC address and certificate, read from the BMC and pinned.
 - **The Backups card's passphrase button says what it does** ("Set the passphrase"); it said "Set up Proxmox".
 - **Shared storage says how it is doing on each node**: the Shares card shows, per node that uses a storage, its free space or why it fails (an NFS export no longer mounted, a write that fails, a server that stopped answering). A node whose storage fails gets no new workload with volumes on it, and the notification channels can tell when storage fails and when it answers again.

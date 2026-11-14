@@ -600,7 +600,19 @@
       "reads_the_cluster": "Bruker: du leser klyngen; en administrator endrer den",
       "certificate": "Freightdocks sertifikat",
       "certificate_sub": "Utstederen som signerte det, til å stole på én gang på hver maskin.",
-      "no_ca": "Freightdock bruker et sertifikat noen andre har gitt det her, så det er ikke noe av Freightdocks å stole på."
+      "no_ca": "Freightdock bruker et sertifikat noen andre har gitt det her, så det er ikke noe av Freightdocks å stole på.",
+      "mcp_address": "MCP-adresse",
+      "signs_in_with": "Logger inn med",
+      "signs_in_with_value": "Et API-token, som Authorization: Bearer",
+      "connect_claude": "Koble Claude Code til Freightdock med det:",
+      "mcp_off": "MCP-serveren er slått av i denne Freightdock: en administrator slår den på i Innstillinger, under AI-agenter (MCP).",
+      "transport": "Transport",
+      "make_above": "Lag et token ovenfor, og kjør så dette med det i stedet for <token>:",
+      "agent_may": "Agenten kan gjøre det du kan, eller bare se med et skrivebeskyttet token; alle endringer den gjør, står i aktivitetsloggen under tokenets navn.",
+      "connect_agent": "Koble til en AI-agent",
+      "connect_agent_sub": "Freightdock er en MCP-server: en agent som Claude Code kan se klyngens noder, stakker og hendelser, rulle ut, starte og stoppe stakker og lese loggene til en container gjennom den, som deg.",
+      "node_tool": "Claude Code, og alle Node-verktøy",
+      "copy_command": "Kopier kommandoen"
     },
     "settings": {
       "preset_placeholder": "Ingen: FinUI slik den leveres",
@@ -613,7 +625,31 @@
       "appearance_sub": "Hvordan Freightdock ser ut, for alle som bruker den",
       "preset": "FinUI-preset",
       "preset_help": "En kode laget i FinUI create: farger, hjørner, tetthet og mer. Lim inn koden, eller adressen eller installasjonslinjen som har den.",
-      "sub": "Hvordan Freightdock ser ut, og hvordan det slipper folk inn."
+      "sub": "Hvordan Freightdock ser ut, og hvordan det slipper folk inn.",
+      "mcp_off_title": "Slå av MCP-serveren?",
+      "mcp_off_body": {
+        "one": "Alle AI-agenter som bruker den, avvises fra nå av ({count} aktivt token), til den slås på igjen. Tokenene virker fortsatt for API-et.",
+        "other": "Alle AI-agenter som bruker den, avvises fra nå av ({count} aktive tokener), til den slås på igjen. Tokenene virker fortsatt for API-et."
+      },
+      "mcp_on_done": "MCP-serveren er på.",
+      "mcp_off_done": "MCP-serveren er av.",
+      "revoke_title": "Trekke tilbake tokenet {name} til {owner}?",
+      "revoke_body": "Det som bruker det, avvises fra nå av. De kan lage et nytt i Konto.",
+      "no_tokens_text": "Hver person lager sitt eget i Konto.",
+      "whose": "Hvem sitt",
+      "disabled_paren": "(deaktivert)",
+      "owner_may": "Det eieren kan",
+      "owner_disabled": "Eieren er deaktivert",
+      "expired": "Utløpt",
+      "revoke_label": "Trekk tilbake tokenet {name} til {owner}",
+      "mcp": "AI-agenter (MCP)",
+      "mcp_sub": "Freightdock som MCP-server, for Claude Code og andre agenter",
+      "mcp_server": "MCP-server",
+      "mcp_help": "Slipp AI-agenter inn på /mcp med et API-token, for hele denne Freightdock. Av: /mcp avviser alle; tokenene virker fortsatt for API-et.",
+      "active_tokens": "Aktive API-tokener",
+      "connect_claude": "Koble til Claude Code med et token i stedet for <token>:",
+      "own_token": "Lag ditt eget token i Konto",
+      "each_person": "Hver person lager sitt der; et token handler som eieren."
     },
     "signin_settings": {
       "copy_redirect": "Kopier omdirigerings-URI-en",

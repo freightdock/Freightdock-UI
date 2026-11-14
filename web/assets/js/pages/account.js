@@ -1,5 +1,6 @@
 // Who you are signed in as, signing out, your password, two-factor, linking to single sign-on, your API tokens (for
-// scripts, shown once when made), and the CA to trust for Freightdock's own certificate.
+// scripts and AI agents, shown once when made), how to connect an agent to the MCP server ("MCP" 1), and the CA to
+// trust for Freightdock's own certificate.
 
 import { h, ago, when, num } from '../dom.js';
 import { t, LANGUAGES, storedLanguage, pickLanguage, setLanguage } from '../i18n.js';
@@ -35,11 +36,19 @@ function goToProvider(address) {
   return true;
 }
 
+/** Where an AI agent reaches Freightdock's MCP server: this address, as the browser sees it. */
+const mcpUrl = () => `${location.origin}/mcp`;
+
+/** The line that adds Freightdock to Claude Code. */
+export const claudeLine = (url, token) => `claude mcp add --transport http freightdock ${url} --header "Authorization: Bearer ${token}"`;
+
 /** The token, once: it is not shown again. */
 function showToken(made) {
   openModal({ title: t('pages.account.your_token', { name: made.name }), wide: true, body: h('div', { class: 'stack' },
     callout({ tone: 'info', body: t('pages.account.copy_now') }),
     codeLine(made.token, { label: t('pages.account.copy_token') }),
+    h('span', { class: 'faint' }, t('pages.account.connect_claude')),
+    codeLine(claudeLine(mcpUrl(), made.token), { label: t('pages.account.copy_command') }),
     made.read_only ? h('p', { class: 'faint' }, t('pages.account.read_only_note')) : null) });
 }
 
@@ -48,12 +57,13 @@ export const CA_URL = '/api/tls/ca.pem';
 
 /** Trusting Freightdock's CA: the download, and how a machine is told to trust it. With no CA (a certificate of one's
  *  own, or a proxy in front) there is nothing to trust here. */
-function caHelp(hasCa) {
+export function caHelp(hasCa) {
   if (!hasCa) return null;
   const how = (label, line) => h('div', { class: 'stack stack--tight' }, h('span', { class: 'faint' }, label), codeLine(line, { label: t('pages.account.copy_label', { label }) }));
   return h('div', { class: 'stack' },
     h('p', { class: 'faint' }, t('pages.account.ca_intro')),
     h('div', { class: 'row' }, button({ href: CA_URL, download: 'freightdock-ca.pem', size: 'sm' }, icon('download', 14), t('pages.account.download_ca'))),
+    how(t('pages.account.node_tool'), 'NODE_EXTRA_CA_CERTS="$HOME/freightdock-ca.pem" claude'),
     h('details', null, h('summary', null, t('pages.account.whole_machine')), h('div', { class: 'stack' },
       how('Debian, Ubuntu', 'sudo cp freightdock-ca.pem /usr/local/share/ca-certificates/freightdock-ca.crt && sudo update-ca-certificates'),
       how('Fedora, Arch', 'sudo trust anchor --store freightdock-ca.pem'),
@@ -68,6 +78,18 @@ function caCard(signal) {
   const slot = h('div');
   loadInto(slot, { signal, load: (s) => fetch(CA_URL, { method: 'HEAD', signal: s }).then((r) => r.ok), draw: (has) => caHelp(has) || h('p', { class: 'faint' }, t('pages.account.no_ca')) });
   return card({ title: t('pages.account.certificate'), sub: t('pages.account.certificate_sub'), body: slot });
+}
+
+/** How to connect an AI agent: the MCP address, and the line for Claude Code once you have a token. */
+function agentCard(signal) {
+  const slot = h('div');
+  loadInto(slot, { signal, load: (s) => get('/api/mcp/status', { signal: s }), draw: (st) => h('div', { class: 'stack' },
+    st.enabled ? null : callout({ tone: 'warning', body: t('pages.account.mcp_off') }),
+    facts([[t('pages.account.mcp_address'), mcpUrl(), { wide: true, mono: true }], [t('pages.account.transport'), 'Streamable HTTP'], [t('pages.account.signs_in_with'), t('pages.account.signs_in_with_value')]]),
+    h('span', { class: 'faint' }, t('pages.account.make_above')),
+    codeLine(claudeLine(mcpUrl(), '<token>'), { label: t('pages.account.copy_command') }),
+    h('p', { class: 'faint' }, t('pages.account.agent_may'))) });
+  return card({ title: t('pages.account.connect_agent'), sub: t('pages.account.connect_agent_sub'), body: slot });
 }
 
 function newTokenDialog(after) {
@@ -261,6 +283,7 @@ export function accountPage({ el, signal, query }) {
       me.sso ? null : twoFactorCard(signal),
       signin.kind === 'local' ? ssoCard(query) : null,
       tokensCard(signal),
+      agentCard(signal),
       caCard(signal)));
 }
 

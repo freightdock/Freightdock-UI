@@ -106,6 +106,12 @@ the token is looked up with its owner as they are now (role, disabled), the requ
 token signs in carries it (`User.token`), so `audit::record` writes `via: token <name>` without any route knowing.
 Tokens are made and revoked only with a session.
 
+**MCP** (`mcp.rs`, "MCP"). `/mcp` is the Streamable HTTP transport without a stream: one JSON-RPC message a POST,
+answered as JSON. It signs in by API token only and refuses another site's `Origin`. A tool builds a request to the
+UI's own `/api/cluster/...` route with the caller's token and sends it through `api::router` in process, so the guard,
+the call to the managers and `audit::record` are the same as for the browser. Sessions are kept in memory
+(`AppState.mcp`); an Administrator's switch (the `mcp` setting) turns `/mcp` off for everybody.
+
 **Sign-in providers** (`signin/`). The providers are a list (`settings` key `sso`, `signin/providers.rs`): each has an
 id, a kind (`oidc`, `github`, `ldap`), the preset it was made from, and who may come in (administrator and user groups,
 e-mail domains), whether a first sign-in lands in the local account of the same name (`link_by_name`), and team rules;

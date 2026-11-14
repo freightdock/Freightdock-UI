@@ -1027,7 +1027,8 @@ pointer to what replaced it.
 
 ## MCP
 
-**Set aside** (G8.3, 2026-11-12, "Cluster" 10): the feature these items are about is not in the cluster UI. They are kept, numbered, for when it comes back through the managers; until then they describe nothing in this repository.
+**Back** (2026-11-14) over the cluster: set aside at G8.3 ("Cluster" 10), it now works on the managers' cluster through
+`/api/cluster/...` (7). Where an item still speaks of Docker hosts, read the cluster's nodes and stacks.
 
 1. Freightdock is an MCP server at `/mcp` (from 1.0.0), so an AI agent can manage its Docker hosts: the Streamable HTTP
    transport, JSON-RPC 2.0, one message a POST answered as plain JSON, `Mcp-Session-Id` from `initialize` on (a session
@@ -1048,8 +1049,8 @@ pointer to what replaced it.
    error (-32602). Results are JSON text, trimmed for a reader with a context to keep: lists as `docker ps` shows them
    (inspect gives the rest), logs to their last 32 KiB unless asked for more, any answer to 256 KiB, cut where it says
    so.
-5. A tool names its host by `env`, an environment's id or name, and works on the local Docker when it is left out:
-   an agent should not need to look up an id to do the common thing.
+5. **Superseded by 7.** A tool names its host by `env`, an environment's id or name, and works on the local Docker when
+   it is left out: an agent should not need to look up an id to do the common thing.
 6. An administrator turns the MCP server on or off for the whole instance, in Settings under AI agents (MCP), kept as
    the `mcp` setting (from 1.0.0). It is on when the setting is not there, for an instance made before the switch and a
    new one alike (owner's decision, 2026-11-10: a Claude Code connection that works keeps working, and every request
@@ -1058,6 +1059,14 @@ pointer to what replaced it.
    The same card lists every API token with its owner, active or not, and an administrator revokes any of them there,
    from a session only ("Sign-in" 10); each person still makes their own in Account. The switch and each revoke are in
    the activity log (`settings.mcp`, `token.revoke` with whose it was).
+7. The tools are the cluster's (2026-11-14): the cluster and its managers, nodes, stacks (check, deploy, start, stop,
+   restart, remove), events, recoveries, shared storage, a node's containers and a container's logs through its
+   worker ("Cluster" 25), letting a fenced node back in, and the activity log. Each is one of the UI's own
+   `/api/cluster/...` routes (2), so the managers check what they check for the UI and a node's Docker stays an
+   Administrator's. A node is named by its id, its name here, its hostname or its `name` label, and a stack by its
+   name, so an agent can say "w1" or "web" as a person would; an unknown node is answered with the ones there are.
+   Results are the managers' JSON, cut at 256 KiB (4). The sessions are the UI's, in memory: when the managers move
+   the UI to another node a client is answered 404 and initializes again, as the transport has it.
 
 ## History
 

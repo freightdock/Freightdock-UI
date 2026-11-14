@@ -55,6 +55,7 @@ pub fn router(app: App) -> Router {
         .merge(crate::tls::router())
         .merge(crate::users::router())
         .merge(crate::cluster::router())
+        .merge(crate::mcp::router())
         // Last, so it is on every route above: each is held to its rule in access::routes::RULES ("Access" 5).
         .route_layer(axum::middleware::from_fn_with_state(app.clone(), crate::access::routes::guard))
         .with_state(app)
