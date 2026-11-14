@@ -1049,7 +1049,7 @@
     "cluster_node": {
       "title": "Node",
       "sub": "A node of the cluster: what it is, and what runs on it.",
-      "sub_named": "Its hostname is {hostname}; the name is Freightdock's only.",
+      "sub_named": "Its hostname is {hostname}; the managers call it by this name too.",
       "back": "All nodes",
       "rename": "Rename",
       "details": "Details",
@@ -1069,7 +1069,7 @@
       "state_word": "State",
       "container": "Container",
       "name": "Name",
-      "name_help": "Shown in Freightdock instead of the hostname. The node and the managers keep its hostname. Empty gives the hostname back.",
+      "name_help": "Shown instead of the hostname, here and by the managers (as its name label). The node keeps its hostname. Empty gives the hostname back.",
       "rename_title": "Rename {name}",
       "renamed": "The node's name is saved.",
       "state": {

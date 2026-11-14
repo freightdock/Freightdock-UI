@@ -1502,3 +1502,8 @@ registries, templates, teams) and describe nothing here.
     `redfish.system`), read from the BMC by a manager like Proxmox's. Why one account: a cluster's BMCs are set up
     alike, and a password per node would be a secret in a label, which every reader of the nodes sees. The managers
     power the system off and call the worker fenced only once the BMC says its power is off.
+30. A node's name given here is the managers' too (2026-11-14): renaming a node also sets its `name` label (its other
+    labels kept), and an empty name takes the label away. Why: the managers call a node by its `name` label in their
+    notifications, CLI, metrics and errors, and two names for one node (one here, another there) read as two nodes.
+    The managers are told first, so a name they refuse is not given here either. It amends 12: the name is no
+    longer Freightdock's alone, and a stack placed by `node.labels.name` follows the new name at its next deploy.

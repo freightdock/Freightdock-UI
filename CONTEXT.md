@@ -129,7 +129,7 @@ read-only token only reads.
 | `GET /api/cluster/nodes`, `GET /api/cluster/events?after=&node=`, `GET /api/cluster/commands/{id}` | session | the manager's answer, as it is |
 | `POST /api/cluster/nodes/{id}/commands` | admin | `{op, ...}` to the node; 202 and the command |
 | `GET /api/cluster/nodes/{id}` | session | one node, with the containers it reports and its name here |
-| `PUT /api/cluster/nodes/{id}/name` | admin | `{name}`: the name it is shown by in Freightdock only; empty takes it away ("Cluster" 12) |
+| `PUT /api/cluster/nodes/{id}/name` | admin | `{name}`: the name it is shown by, also set as its `name` label on the managers; empty takes both away ("Cluster" 12, 30) |
 | `PUT /api/cluster/managers/{id}/name` | admin | `{name}`, by raft id: a manager's name in Freightdock only; empty takes it away ("Cluster" 14) |
 | `PUT /api/cluster/name` | admin | `{name}`: the cluster's name in Freightdock only, given back as `name` by `GET /api/cluster`; empty takes it away ("Cluster" 18) |
 | `DELETE /api/cluster/nodes/{id}` | admin | the node out of the cluster |

@@ -1049,7 +1049,7 @@
     "cluster_node": {
       "title": "Node",
       "sub": "En node i klyngen: hva den er, og hva som kjører på den.",
-      "sub_named": "Vertsnavnet er {hostname}; navnet finnes bare i Freightdock.",
+      "sub_named": "Vertsnavnet er {hostname}; managerne kaller den ved dette navnet også.",
       "back": "Alle noder",
       "rename": "Gi nytt navn",
       "details": "Detaljer",
@@ -1069,7 +1069,7 @@
       "state_word": "Tilstand",
       "container": "Container",
       "name": "Navn",
-      "name_help": "Vises i Freightdock i stedet for vertsnavnet. Noden og managerne beholder vertsnavnet. Tomt gir vertsnavnet tilbake.",
+      "name_help": "Vises i stedet for vertsnavnet, her og hos managerne (som name-etiketten). Noden beholder vertsnavnet. Tomt gir vertsnavnet tilbake.",
       "rename_title": "Gi {name} nytt navn",
       "renamed": "Navnet på noden er lagret.",
       "state": {

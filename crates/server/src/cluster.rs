@@ -262,11 +262,25 @@ struct NameBody {
     name: String,
 }
 
-/// Gives a node a name to be shown by, here only: the managers and the node keep its hostname ("Cluster" 12). An
-/// empty name takes it away.
+/// Gives a node a name to be shown by ("Cluster" 12), and the managers the same one as its `name` label, so their
+/// notifications, CLI and metrics call it so too ("Cluster" 30); its other labels are kept. An empty name takes both
+/// away. The managers are told first: a name they refuse is not given here either.
 async fn rename_node(State(app): State<App>, a: Authed, Path(id): Path<String>, Json(b): Json<NameBody>) -> ApiResult<Json<Value>> {
     id_or_404(&id, "node")?;
-    give_name(&app, a, "node_names", "node_id", "cluster.node.rename", id, b.name).await
+    let name = b.name.trim().to_string();
+    if name.chars().count() > 64 || name.chars().any(char::is_control) {
+        return Err(ApiError::bad("A name is at most 64 characters, on one line.").field("name"));
+    }
+    let c = cluster(&app)?;
+    let (_, node) = c.call(reqwest::Method::GET, &format!("/v1/nodes/{id}"), None).await?;
+    let mut labels: std::collections::BTreeMap<String, String> = serde_json::from_value(node["labels"].clone()).unwrap_or_default();
+    if name.is_empty() {
+        labels.remove("name");
+    } else {
+        labels.insert("name".into(), name.clone());
+    }
+    c.call(reqwest::Method::PUT, &format!("/v1/nodes/{id}/labels"), Some(json!({ "labels": labels }))).await?;
+    give_name(&app, a, "node_names", "node_id", "cluster.node.rename", id, name).await
 }
 
 /// The same for a manager, by its raft id (a number): shown instead of its address ("Cluster" 14).
@@ -777,6 +791,10 @@ pub(crate) mod tests {
                 }
                 // What was sent, given back by the two that echo it.
                 let got: Value = serde_json::from_slice(&axum::body::to_bytes(req.into_body(), 1 << 20).await.unwrap_or_default()).unwrap_or(Value::Null);
+                // Labels are kept with what was sent, for a test to read.
+                if line.ends_with("/labels") {
+                    *seen.lock().unwrap().last_mut().unwrap() = format!("{line} {got}");
+                }
                 // A slow change, for a caller that goes before the answer.
                 if got["action"] == "container.restart" {
                     tokio::time::sleep(Duration::from_millis(400)).await;
@@ -787,7 +805,7 @@ pub(crate) mod tests {
                     "GET /v1/events?after=4" => (StatusCode::OK, json!([{ "seq": 5, "kind": "connected" }]).to_string()),
                     "POST /v1/nodes/6f1c7c2e-0000-4000-8000-000000000001/commands" => (StatusCode::ACCEPTED, json!({ "id": "cmd-1", "status": "pending" }).to_string()),
                     "POST /v1/join-tokens" => (StatusCode::OK, json!({ "token": "FDCT1-x" }).to_string()),
-                    "PUT /v1/nodes/6f1c7c2e-0000-4000-8000-000000000001/labels" => (StatusCode::OK, json!({ "all_labels": { "zone": "a" } }).to_string()),
+                    "PUT /v1/nodes/6f1c7c2e-0000-4000-8000-000000000001/labels" => (StatusCode::OK, json!({ "all_labels": got["labels"] }).to_string()),
                     "POST /v1/nodes/6f1c7c2e-0000-4000-8000-000000000001/authorize" => (StatusCode::OK, json!({ "fencing": { "state": "authorized" } }).to_string()),
                     "GET /v1/recoveries?stack=web" => (StatusCode::OK, json!([{ "workload_id": "web.nginx.1", "to": null, "reason": "pinned" }]).to_string()),
                     "GET /v1/stacks" => (StatusCode::OK, json!([{ "name": "web", "workloads": [] }]).to_string()),
@@ -796,7 +814,7 @@ pub(crate) mod tests {
                     "POST /v1/stacks/web/stop" => (StatusCode::CONFLICT, json!({ "error": "the cluster says no" }).to_string()),
                     "POST /v1/stacks/web/restart" => (StatusCode::OK, json!({ "restarting": 1, "busy": 0 }).to_string()),
                     "DELETE /v1/stacks/web" => (StatusCode::NO_CONTENT, String::new()),
-                    "GET /v1/nodes/6f1c7c2e-0000-4000-8000-000000000001" => (StatusCode::OK, json!({ "id": "6f1c7c2e-0000-4000-8000-000000000001", "hostname": "docker", "containers": [] }).to_string()),
+                    "GET /v1/nodes/6f1c7c2e-0000-4000-8000-000000000001" => (StatusCode::OK, json!({ "id": "6f1c7c2e-0000-4000-8000-000000000001", "hostname": "docker", "labels": { "zone": "a", "name": "old" }, "containers": [] }).to_string()),
                     "PUT /v1/stacks/web/exposures" => (StatusCode::OK, json!({ "name": "web", "exposures": [{ "service": "nginx", "container_port": 80, "protocol": "tcp", "address": "192.0.2.10", "port": 443 }] }).to_string()),
                     "GET /v1/traffic" => (StatusCode::OK, json!({ "reporting": ["6f1c7c2e-0000-4000-8000-000000000001"], "workloads": [], "flows": [{ "from": { "kind": "outside" }, "to": { "kind": "workload", "id": "web.nginx.1" }, "port": 80, "out_bps": 10 }] }).to_string()),
                     "GET /v1/floating" => (StatusCode::OK, json!([{ "address": "192.0.2.10", "holder": "6f1c7c2e-0000-4000-8000-000000000001", "since": 1 }]).to_string()),
@@ -1198,14 +1216,19 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
-    async fn a_node_s_name_is_freightdock_s_own_an_administrator_s_to_give_and_on_record() {
+    async fn a_node_s_name_is_an_administrator_s_to_give_on_record_and_the_managers_name_it_so_too() {
         let (app, asked, _d) = connected("t0k3n").await;
         let (cookie, csrf) = signed_in(&app).await;
         let node = "6f1c7c2e-0000-4000-8000-000000000001";
         let rename = |name: &str| Request::put(format!("/api/cluster/nodes/{node}/name")).header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).header(header::HOST, "freightdock.test").header(header::CONTENT_TYPE, "application/json").body(json_body(json!({ "name": name }))).unwrap();
         let (s, _, b) = call(&app, rename("  web box  ")).await;
         assert_eq!((s, b["name"].clone()), (StatusCode::OK, json!("web box")));
-        assert_eq!(asked.lock().unwrap().len(), 0, "the managers are not told");
+        let put = |asked: &Mutex<Vec<String>>| -> Value {
+            let all = asked.lock().unwrap();
+            let line = all.iter().rev().find(|l| l.starts_with("PUT ")).expect("the managers are told").clone();
+            serde_json::from_str::<Value>(line.split_once(' ').unwrap().1.split_once(' ').unwrap().1).unwrap()["labels"].clone()
+        };
+        assert_eq!(put(&asked), json!({ "zone": "a", "name": "web box" }), "its name label, the other labels kept");
         let (_, _, b) = call(&app, get("/api/cluster/nodes", &cookie)).await;
         assert_eq!(b[0]["name"], "web box", "shown with the managers' nodes");
         let (s, _, b) = call(&app, get(&format!("/api/cluster/nodes/{node}"), &cookie)).await;
@@ -1216,6 +1239,7 @@ pub(crate) mod tests {
         assert_eq!(call(&app, rename(&"x".repeat(65))).await.0, StatusCode::BAD_REQUEST, "64 characters at most");
         let (s, _, b) = call(&app, rename("")).await;
         assert_eq!((s, b["name"].clone()), (StatusCode::OK, Value::Null), "an empty name gives the hostname back");
+        assert_eq!(put(&asked), json!({ "zone": "a" }), "and the managers' name label goes");
         let (_, _, b) = call(&app, get("/api/cluster/nodes", &cookie)).await;
         assert_eq!(b[0].get("name"), None);
     }
