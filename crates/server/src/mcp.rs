@@ -309,6 +309,17 @@ fn stack_name(args: &Value) -> Result<String, String> {
     Ok(s.to_string())
 }
 
+/// The container `asked` names on a node, from the node's list: a workload (`web.nginx.1`), a container's name or the
+/// start of its id, so an agent can name it as the stacks show it. Not in the list, it is passed on as it was.
+fn container_ref(list: &Value, asked: &str) -> String {
+    let found = list.as_array().into_iter().flatten().find(|c| {
+        c["workload"].as_str() == Some(asked)
+            || c["names"].as_array().into_iter().flatten().any(|n| n.as_str().map(|n| n.trim_start_matches('/')) == Some(asked))
+            || (asked.len() >= 12 && c["id"].as_str().is_some_and(|id| id.starts_with(asked)))
+    });
+    found.and_then(|c| c["id"].as_str()).unwrap_or(asked).to_string()
+}
+
 /// Text past `max` bytes, cut on a character and saying so.
 pub fn capped(mut s: String, max: usize) -> String {
     if s.len() <= max {
@@ -393,7 +404,7 @@ pub fn tools() -> Vec<Value> {
         tool("container_logs", "A container's logs", "The last lines a container on a node wrote, standard output and error together. An Administrator's.",
             json!({
                 "node": n(),
-                "container": { "type": "string", "description": "The container's name or id on that node, as node_containers shows them." },
+                "container": { "type": "string", "description": "The workload (such as web.nginx.1), or the container's name or id on that node, as node_containers shows them." },
                 "tail": { "type": "integer", "minimum": 1, "maximum": 5000, "default": 200, "description": "Lines from the end." },
                 "timestamps": { "type": "boolean", "default": false, "description": "Docker's time before each line." },
             }), &["node", "container"], READ),
@@ -475,7 +486,9 @@ async fn run(caller: &Caller, name: &str, args: &Value) -> Result<Value, String>
         "node_containers" => get(format!("/api/cluster/nodes/{}/docker{}", caller.node(args).await?, query(&[("action", "containers".into())]))).await,
         "container_logs" => {
             let node = caller.node(args).await?;
-            let target = args["container"].as_str().map(str::trim).filter(|s| !s.is_empty()).ok_or("Say which container: container is required.")?;
+            let asked = args["container"].as_str().map(str::trim).filter(|s| !s.is_empty()).ok_or("Say which container: container is required.")?;
+            let list = get(format!("/api/cluster/nodes/{node}/docker{}", query(&[("action", "containers".into())]))).await.unwrap_or(Value::Null);
+            let target = container_ref(&list, asked);
             let tail = args["tail"].as_u64().unwrap_or(200).clamp(1, 5000);
             let mut q = vec![("action", "logs".to_string()), ("target", target.to_string()), ("tail", tail.to_string())];
             if args["timestamps"].as_bool() == Some(true) {
@@ -697,6 +710,18 @@ mod tests {
         assert_eq!((b["selector"].clone(), b["nodes"].clone()), (json!("zone=a"), json!([])));
         assert!(deploy_body(&json!({ "stack": "Web", "compose": "x" })).unwrap_err().contains("not a stack's name"));
         assert!(deploy_body(&json!({ "stack": "web" })).unwrap_err().contains("compose"));
+    }
+
+    #[test]
+    fn a_container_is_named_by_its_workload_its_name_or_its_id() {
+        let list = json!([{ "id": "3a8979504093c0c553dfa9311ad7681ea74ee35d", "names": ["/freightdock-ui-1"], "workload": "freightdock.ui.1" }, { "id": "e3774c00", "names": ["other"] }]);
+        let id = "3a8979504093c0c553dfa9311ad7681ea74ee35d";
+        assert_eq!(container_ref(&list, "freightdock.ui.1"), id);
+        assert_eq!(container_ref(&list, "freightdock-ui-1"), id);
+        assert_eq!(container_ref(&list, "3a8979504093"), id);
+        assert_eq!(container_ref(&list, "3a89"), "3a89", "too short to be sure: passed on");
+        assert_eq!(container_ref(&list, "web"), "web", "not there: passed on, the worker says so");
+        assert_eq!(container_ref(&Value::Null, "web"), "web");
     }
 
     fn mcp(token: Option<&str>, session: Option<&str>, body: Value) -> Request<Body> {
