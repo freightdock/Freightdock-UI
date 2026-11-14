@@ -1198,9 +1198,9 @@ pub(crate) mod tests {
         let options = json!({ "name": "web", "compose": "services: {}", "description": "The shop", "env": "TAG=1\n", "selector": ["zone=a"], "mode": null, "names": { "web": "shop-web" } });
         let (_, _, b) = call(&app, change("POST", "/api/cluster/stacks", options)).await;
         assert_eq!((&b["got"]["description"], &b["got"]["env"], &b["got"]["selector"], &b["got"]["names"]["web"]), (&json!("The shop"), &json!("TAG=1\n"), &json!(["zone=a"]), &json!("shop-web")), "the options go with the deploy");
+        assert_eq!(b["got"].get("mode"), Some(&Value::Null), "null (as the file says) is passed on, not left out");
         let (_, _, b) = call(&app, change("POST", "/api/cluster/stacks", json!({ "name": "web", "compose": "services: {}", "stopped": true }))).await;
         assert_eq!(b["got"]["stopped"], json!(true), "a stack can be made without being started");
-        assert_eq!(b["got"].get("mode"), Some(&Value::Null), "null (as the file says) is passed on, not left out");
         let (s, _, b) = call(&app, change("POST", "/api/cluster/stack-check", chosen)).await;
         assert_eq!((s, &b["services"]["web"]["ports"][0]["host_port"], &b["got"]["nodes"]), (StatusCode::OK, &json!(8080), &json!(["n1"])), "a check is passed on whole");
         let (s, _, b) = call(&app, change("POST", "/api/cluster/stacks/web/restart", json!({}))).await;
@@ -1213,8 +1213,8 @@ pub(crate) mod tests {
         let (s, _, _) = call(&app, change("DELETE", "/api/cluster/stacks/..%2Fnodes", Value::Null)).await;
         assert_eq!(s, StatusCode::NOT_FOUND);
         let actions: Vec<String> = app.db.call(|c| Ok(c.prepare("SELECT action || ' ' || COALESCE(target, '') FROM audit ORDER BY id")?.query_map([], |r| r.get(0))?.collect::<Result<_, _>>()?)).await.unwrap();
-        assert_eq!(actions.iter().filter(|a| a.starts_with("cluster.stack")).cloned().collect::<Vec<_>>(), vec!["cluster.stack.deploy web", "cluster.stack.deploy web", "cluster.stack.deploy web", "cluster.stack.restart web", "cluster.stack.remove web"]);
-        assert_eq!(asked.lock().unwrap().len(), 7, "a check changes nothing, so it is not on record");
+        assert_eq!(actions.iter().filter(|a| a.starts_with("cluster.stack")).cloned().collect::<Vec<_>>(), vec!["cluster.stack.deploy web", "cluster.stack.deploy web", "cluster.stack.deploy web", "cluster.stack.deploy web", "cluster.stack.restart web", "cluster.stack.remove web"]);
+        assert_eq!(asked.lock().unwrap().len(), 8, "a check changes nothing, so it is not on record");
     }
 
     #[tokio::test]
