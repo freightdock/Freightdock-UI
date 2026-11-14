@@ -1470,3 +1470,9 @@ pointer to what replaced it.
     storage answer for it, so one no workload has used yet says so instead of a guess. The managers place no new
     workload with volumes on a storage on a node where it fails, and tell `storage.unhealthy` and `storage.back`
     through the notification channels (27).
+29. A bare-metal worker is fenced through its BMC with Redfish (G12.5, 2026-11-14), set on the Integrations page
+    beside Proxmox: one account for every BMC (the cluster's `redfish` setting, the password never shown) and, per
+    worker, its BMC's address and pinned certificate as labels (`redfish.host`, `redfish.fingerprint`,
+    `redfish.system`), read from the BMC by a manager like Proxmox's. Why one account: a cluster's BMCs are set up
+    alike, and a password per node would be a secret in a label, which every reader of the nodes sees. The managers
+    power the system off and call the worker fenced only once the BMC says its power is off.

@@ -191,6 +191,8 @@ pub fn router() -> Router<App> {
         .route("/api/cluster/settings", get(settings).put(set_settings))
         .route("/api/cluster/settings/proxmox/fingerprint", post(proxmox_fingerprint))
         .route("/api/cluster/settings/proxmox/test", post(proxmox_test))
+        .route("/api/cluster/settings/redfish/fingerprint", post(redfish_fingerprint))
+        .route("/api/cluster/settings/redfish/test", post(redfish_test))
         .route("/api/cluster/backup", post(take_backup))
         .route("/api/cluster/registries", get(registries))
         .route("/api/cluster/registries/{host}", axum::routing::put(set_registry).delete(remove_registry))
@@ -568,6 +570,18 @@ async fn proxmox_test(State(app): State<App>, _a: Authed, Json(b): Json<Value>) 
     Ok(Json(cluster(&app)?.call(reqwest::Method::POST, "/v1/settings/proxmox/test", Some(b)).await?.1))
 }
 
+/// The certificate a node's BMC shows, read by a manager (the managers are the ones that will talk to it).
+async fn redfish_fingerprint(State(app): State<App>, _a: Authed, Json(b): Json<Value>) -> ApiResult<Json<Value>> {
+    let host = b["host"].as_str().unwrap_or("").to_string();
+    Ok(Json(cluster(&app)?.call(reqwest::Method::POST, "/v1/settings/redfish/fingerprint", Some(json!({ "host": host }))).await?.1))
+}
+
+/// Tries the Redfish account from a manager against each redfish node's BMC: the account given, or the one in use.
+/// Changes nothing.
+async fn redfish_test(State(app): State<App>, _a: Authed, Json(b): Json<Value>) -> ApiResult<Json<Value>> {
+    Ok(Json(cluster(&app)?.call(reqwest::Method::POST, "/v1/settings/redfish/test", Some(b)).await?.1))
+}
+
 /// The floating addresses (G10.3) and each one's holder.
 async fn floating(State(app): State<App>, _a: Authed) -> ApiResult<Json<Value>> {
     Ok(Json(cluster(&app)?.call(reqwest::Method::GET, "/v1/floating", None).await?.1))
@@ -794,6 +808,8 @@ mod tests {
                     "GET /v1/settings" => (StatusCode::OK, json!({ "settings": { "fence_stop_s": { "value": 30, "source": "default" }, "proxmox": null }, "manager": {} }).to_string()),
                     "PUT /v1/settings" => (StatusCode::OK, json!({ "got": got }).to_string()),
                     "POST /v1/settings/proxmox/fingerprint" => (StatusCode::OK, json!({ "fingerprint": "AB:CD", "got": got }).to_string()),
+                    "POST /v1/settings/redfish/fingerprint" => (StatusCode::OK, json!({ "host": "192.0.2.31:443", "fingerprint": "AB:CD", "got": got }).to_string()),
+                    "POST /v1/settings/redfish/test" => (StatusCode::OK, json!({ "systems": [{ "name": "w1", "bmc": "192.0.2.31:443", "system": "/redfish/v1/Systems/1", "power": "On" }], "got": got }).to_string()),
                     "POST /v1/settings/proxmox/test" => (StatusCode::BAD_GATEWAY, json!({ "error": "the Proxmox API at https://pve.example:8006: no answer" }).to_string()),
                     "POST /v1/backup" if got["passphrase"] == "correct horse battery" => (StatusCode::OK, "FDBK1sealed".to_string()),
                     "POST /v1/backup" => (StatusCode::BAD_REQUEST, json!({ "error": "a backup's passphrase is at least 12 characters" }).to_string()),
@@ -998,6 +1014,19 @@ mod tests {
         assert_eq!(log[0].0, "cluster.settings.change");
         assert!(log[0].1.contains("fence_stop_s") && log[0].1.contains("proxmox") && !log[0].1.contains("s3cret"), "{log:?}");
         assert!(asked.lock().unwrap().iter().any(|l| l == "PUT /v1/settings"));
+    }
+
+    #[tokio::test]
+    async fn a_bmc_s_certificate_is_read_and_the_redfish_account_tried_through_a_manager() {
+        let (app, asked, _d) = connected("t0k3n").await;
+        let (cookie, csrf) = signed_in(&app).await;
+        let probe = post("/api/cluster/settings/redfish/fingerprint").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).body(json_body(json!({ "host": "192.0.2.31" }))).unwrap();
+        let (s, _, b) = call(&app, probe).await;
+        assert_eq!((s, b["fingerprint"].clone(), b["got"].clone()), (StatusCode::OK, json!("AB:CD"), json!({ "host": "192.0.2.31" })), "the host alone is passed on");
+        let test = post("/api/cluster/settings/redfish/test").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).body(json_body(json!({ "username": "fence", "password": "s3cret" }))).unwrap();
+        let (s, _, b) = call(&app, test).await;
+        assert_eq!((s, b["systems"][0]["power"].clone(), b["got"]["password"].clone()), (StatusCode::OK, json!("On"), json!("s3cret")));
+        assert!(asked.lock().unwrap().iter().any(|l| l == "POST /v1/settings/redfish/test"));
     }
 
     #[tokio::test]

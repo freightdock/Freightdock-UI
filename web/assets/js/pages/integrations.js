@@ -1,6 +1,7 @@
 // Integrations ("Cluster" 23): everything the cluster works with and how it behaves, in one place, for an
-// administrator. The shared storage (moved here from the Cluster page), the fencing provider (Proxmox: its address,
-// token and pinned certificate, read and tried from a manager; which guest each worker is), the cluster's timings
+// administrator. The shared storage (moved here from the Cluster page), the fencing providers (Proxmox: its address,
+// token and pinned certificate, read and tried from a manager; Redfish: one account for the nodes' BMCs ("Cluster"
+// 29); which guest or BMC each worker is), the cluster's timings
 // (heartbeat, when a node is suspect or unreachable, the self-fencing timers, recovery), each saying where its value
 // comes from, and what each manager's own environment sets, shown and not changed (a node needs it to reach the
 // cluster at all). The cluster's settings are replicated: one change is every manager's. Backups of the cluster: one
@@ -65,7 +66,7 @@ export function integrationsPage({ el, signal }) {
             s.proxmox ? button({ size: 'sm', onClick: () => tryProxmox(null) }, t('pages.integrations.test')) : null,
             button({ size: 'sm', variant: s.proxmox ? null : 'primary', onClick: () => proxmoxDialog(s.proxmox, reload) }, s.proxmox ? t('pages.integrations.change') : t('pages.integrations.set_up')),
             s.proxmox && s.proxmox.source === 'cluster' ? button({ size: 'sm', variant: 'danger', onClick: () => removeProxmox(reload) }, t('common.remove')) : null),
-          body: h('div', { class: 'stack' }, proxmoxFacts(s.proxmox), guestTable(n || [], !!s.proxmox, reload)) }),
+          body: h('div', { class: 'stack' }, proxmoxFacts(s.proxmox), redfishBlock(s.redfish, reload), guestTable(n || [], { proxmox: !!s.proxmox, redfish: !!s.redfish }, reload)) }),
         card({ title: t('pages.integrations.backups'), sub: t('pages.integrations.backups_sub'),
           actions: button({ size: 'sm', variant: 'primary', onClick: () => backupNow() }, t('pages.integrations.backup_now')),
           body: backups(s, reload) }),
@@ -150,29 +151,105 @@ async function removeProxmox(reload) {
   try { await put('/api/cluster/settings', { proxmox: null }); toast({ text: t('pages.integrations.saved'), tone: 'good' }); reload(); } catch (e) { toast({ text: e.message, tone: 'critical' }); }
 }
 
-/** Each worker and how it is fenced: by itself, or powered off through Proxmox as the guest named by its labels. */
-function guestTable(nodes, provider, reload) {
+/** The Redfish account the managers log in to the nodes' BMCs with: its user, never its password. */
+function redfishBlock(r, reload) {
+  const actions = h('div', { class: 'row' },
+    r ? button({ size: 'sm', onClick: () => tryRedfish() }, t('pages.integrations.test')) : null,
+    button({ size: 'sm', onClick: () => redfishDialog(r, reload) }, r ? t('pages.integrations.change') : t('pages.integrations.redfish_set_up')),
+    r && r.source === 'cluster' ? button({ size: 'sm', variant: 'danger', onClick: () => removeRedfish(reload) }, t('common.remove')) : null);
+  return h('div', { class: 'stack' },
+    h('div', { class: 'row' }, h('strong', null, t('pages.integrations.redfish')), actions),
+    r ? facts([[t('pages.integrations.redfish_user'), r.username, { mono: true }], [t('pages.integrations.from'), source(r.source)]])
+      : h('p', { class: 'sub' }, t('pages.integrations.redfish_none')));
+}
+
+function redfishDialog(r, reload) {
+  const user = formField({ id: 'int-rf-user', label: t('pages.integrations.redfish_user'), placeholder: 'freightdock-fence', autocomplete: 'off' });
+  const pw = formField({ id: 'int-rf-pw', type: 'password', autocomplete: 'new-password', label: t('pages.integrations.redfish_password'),
+    placeholder: r ? t('pages.integrations.redfish_password_kept') : '', help: t('pages.integrations.redfish_password_help') });
+  if (r) user.input.value = r.username;
+  const body = () => {
+    const b = { username: user.input.value.trim() };
+    if (pw.input.value) b.password = pw.input.value;
+    return b;
+  };
+  const result = h('div');
+  const test = button({ onClick: async () => { test.disabled = true; mount(result, await redfishResult(body())); test.disabled = false; } }, t('pages.integrations.test'));
+  const go = button({ variant: 'primary', type: 'submit' }, t('common.save'));
+  const form = h('form', { class: 'stack', novalidate: true }, user.el, pw.el,
+    h('p', { class: 'sub' }, t('pages.integrations.redfish_rights')), result, h('div', { class: 'row row--end' }, test, go));
+  const m = openModal({ title: t('pages.integrations.redfish'), body: form, initialFocus: user.input });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    go.disabled = true;
+    try {
+      await put('/api/cluster/settings', { redfish: body() });
+      m.close();
+      toast({ text: t('pages.integrations.saved'), tone: 'good' });
+      reload();
+    } catch (x) { go.disabled = false; pw.setError(x.message); }
+  });
+}
+
+/** What a try of the account found: each redfish worker's BMC, its system and its power state. */
+async function redfishResult(b) {
+  try {
+    const r = await post('/api/cluster/settings/redfish/test', b || {});
+    const sys = r.systems || [];
+    return callout({ tone: sys.some((x) => x.error) ? 'warning' : 'good', title: t('pages.integrations.redfish_tried', { n: sys.length }),
+      body: sys.length ? h('ul', null, sys.map((x) => h('li', null, `${x.name}: `, x.bmc ? h('span', { class: 'mono' }, x.bmc) : null, ' ',
+        x.error ? x.error : t('pages.integrations.power_is', { power: x.power }))))
+        : t('pages.integrations.redfish_no_nodes') });
+  } catch (e) {
+    return callout({ tone: 'critical', title: t('pages.integrations.test_failed_redfish'), body: e.message });
+  }
+}
+
+async function tryRedfish() {
+  const out = h('div', null, t('pages.integrations.testing_redfish'));
+  openModal({ title: t('pages.integrations.test'), body: out });
+  mount(out, await redfishResult(null));
+}
+
+async function removeRedfish(reload) {
+  if (!(await confirm({ title: t('pages.integrations.redfish_remove_title'), body: t('pages.integrations.redfish_remove_body') }))) return;
+  try { await put('/api/cluster/settings', { redfish: null }); toast({ text: t('pages.integrations.saved'), tone: 'good' }); reload(); } catch (e) { toast({ text: e.message, tone: 'critical' }); }
+}
+
+const BY = { proxmox: ['by_proxmox', 'by_proxmox_unset'], redfish: ['by_redfish', 'by_redfish_unset'] };
+
+/** Each worker and how it is fenced: by itself, powered off through Proxmox as the guest named by its labels, or
+ *  through its BMC. */
+function guestTable(nodes, set, reload) {
   const l = (n) => n.all_labels || n.labels || {};
+  const by = (n) => {
+    const p = l(n)['fence.provider'];
+    if (!BY[p]) return status({ tone: 'info' }, t('pages.integrations.by_self'));
+    return status({ tone: set[p] ? 'good' : 'critical' }, t(`pages.integrations.${BY[p][set[p] ? 0 : 1]}`));
+  };
+  const what = (n) => {
+    const x = l(n);
+    if (x['fence.provider'] === 'proxmox') return h('span', { class: 'mono' }, `${x['proxmox.node'] || '?'}/${x['proxmox.type'] || 'lxc'}/${x['proxmox.vmid'] || '?'}`);
+    if (x['fence.provider'] === 'redfish') return h('span', { class: 'mono' }, x['redfish.system'] ? `${x['redfish.host'] || '?'} ${x['redfish.system']}` : (x['redfish.host'] || '?'));
+    return h('span', { class: 'sub' }, '–');
+  };
   return table({
     rows: nodes, empty: [t('pages.integrations.no_workers'), ''], label: t('pages.integrations.guests'),
     columns: [
       { label: t('pages.integrations.worker'), cell: (n) => h('a', { href: `/cluster/nodes/${n.id}` }, nodeName(n)), sort: (n) => nodeName(n) },
-      { label: t('pages.integrations.fenced_by'), cell: (n) => (l(n)['fence.provider'] === 'proxmox'
-        ? status({ tone: provider ? 'good' : 'critical' }, provider ? t('pages.integrations.by_proxmox') : t('pages.integrations.by_proxmox_unset'))
-        : status({ tone: 'info' }, t('pages.integrations.by_self'))), sort: (n) => l(n)['fence.provider'] || '' },
-      { label: t('pages.integrations.guest'), cell: (n) => (l(n)['fence.provider'] === 'proxmox'
-        ? h('span', { class: 'mono' }, `${l(n)['proxmox.node'] || '?'}/${l(n)['proxmox.type'] || 'lxc'}/${l(n)['proxmox.vmid'] || '?'}`) : h('span', { class: 'sub' }, '–')) },
+      { label: t('pages.integrations.fenced_by'), cell: by, sort: (n) => l(n)['fence.provider'] || '' },
+      { label: t('pages.integrations.guest'), cell: what },
       { label: '', nosort: true, cell: (n) => h('div', { class: 'row row--end' }, button({ size: 'sm', onClick: () => guestDialog(n, reload) }, t('pages.integrations.change'))) },
     ],
   });
 }
 
-const FENCE_KEYS = ['fence.provider', 'proxmox.node', 'proxmox.vmid', 'proxmox.type'];
+const FENCE_KEYS = ['fence.provider', 'proxmox.node', 'proxmox.vmid', 'proxmox.type', 'redfish.host', 'redfish.fingerprint', 'redfish.system'];
 
 /** How one worker is fenced: its labels, the others kept as they are. */
 function guestDialog(n, reload) {
   const own = { ...(n.labels || {}) };
-  let by = own['fence.provider'] === 'proxmox' ? 'proxmox' : 'self';
+  let by = BY[own['fence.provider']] ? own['fence.provider'] : 'self';
   let kind = own['proxmox.type'] || 'lxc';
   const pve = formField({ id: 'int-g-node', label: t('pages.integrations.pve_node'), placeholder: 'pve1', help: t('pages.integrations.pve_node_help') });
   const vmid = formField({ id: 'int-g-vmid', label: t('pages.integrations.vmid'), placeholder: '201', inputMode: 'numeric', help: t('pages.integrations.vmid_help') });
@@ -182,12 +259,25 @@ function guestDialog(n, reload) {
     options: [{ value: 'lxc', label: t('pages.integrations.lxc') }, { value: 'qemu', label: t('pages.integrations.qemu') }], onChange: (v) => { kind = v; } });
   const px = h('div', { class: 'stack' }, pve.el, vmid.el, h('div', { class: 'fui-field' }, h('span', { class: 'fui-field__label' }, t('pages.integrations.guest_kind')), kindSeg));
   px.hidden = by !== 'proxmox';
+  const bmc = formField({ id: 'int-g-bmc', label: t('pages.integrations.bmc_host'), placeholder: '192.0.2.31', help: t('pages.integrations.bmc_host_help') });
+  const bfp = formField({ id: 'int-g-bfp', label: t('pages.integrations.proxmox_fingerprint'), placeholder: 'AB:CD:...', help: t('pages.integrations.bmc_fingerprint_help') });
+  const sys = formField({ id: 'int-g-sys', label: t('pages.integrations.bmc_system'), placeholder: 'System.Embedded.1', help: t('pages.integrations.bmc_system_help') });
+  bmc.input.value = own['redfish.host'] || '';
+  bfp.input.value = own['redfish.fingerprint'] || '';
+  sys.input.value = own['redfish.system'] || '';
+  const read = button({ size: 'sm', onClick: async () => {
+    read.disabled = true;
+    try { bfp.input.value = (await post('/api/cluster/settings/redfish/fingerprint', { host: bmc.input.value.trim() })).fingerprint; bfp.setError(''); } catch (e) { bmc.setError(e.message); }
+    read.disabled = false;
+  } }, t('pages.integrations.read_fingerprint'));
+  const rf = h('div', { class: 'stack' }, bmc.el, h('div', { class: 'row' }, read), bfp.el, sys.el);
+  rf.hidden = by !== 'redfish';
   const bySeg = segmented({ label: t('pages.integrations.fenced_by'), value: by, size: 'sm',
-    options: [{ value: 'self', label: t('pages.integrations.by_self') }, { value: 'proxmox', label: t('pages.integrations.by_proxmox') }],
-    onChange: (v) => { by = v; px.hidden = v !== 'proxmox'; } });
+    options: [{ value: 'self', label: t('pages.integrations.by_self') }, { value: 'proxmox', label: t('pages.integrations.by_proxmox') }, { value: 'redfish', label: t('pages.integrations.by_redfish') }],
+    onChange: (v) => { by = v; px.hidden = v !== 'proxmox'; rf.hidden = v !== 'redfish'; } });
   const go = button({ variant: 'primary', type: 'submit' }, t('common.save'));
   const form = h('form', { class: 'stack', novalidate: true },
-    h('div', { class: 'fui-field' }, h('span', { class: 'fui-field__label' }, t('pages.integrations.fenced_by')), bySeg), px,
+    h('div', { class: 'fui-field' }, h('span', { class: 'fui-field__label' }, t('pages.integrations.fenced_by')), bySeg), px, rf,
     h('p', { class: 'sub' }, t('pages.integrations.by_help')), h('div', { class: 'row row--end' }, go));
   const m = openModal({ title: t('pages.integrations.guest_title', { name: nodeName(n) }), body: form });
   form.addEventListener('submit', async (e) => {
@@ -196,6 +286,11 @@ function guestDialog(n, reload) {
     if (by === 'proxmox') {
       if (!/^\d+$/.test(vmid.input.value.trim())) { vmid.setError(t('pages.integrations.vmid_help')); return; }
       Object.assign(labels, { 'fence.provider': 'proxmox', 'proxmox.node': pve.input.value.trim(), 'proxmox.vmid': vmid.input.value.trim(), 'proxmox.type': kind });
+    } else if (by === 'redfish') {
+      if (!bmc.input.value.trim()) { bmc.setError(t('pages.integrations.bmc_host_help')); return; }
+      if (!bfp.input.value.trim()) { bfp.setError(t('pages.integrations.bmc_fingerprint_help')); return; }
+      Object.assign(labels, { 'fence.provider': 'redfish', 'redfish.host': bmc.input.value.trim(), 'redfish.fingerprint': bfp.input.value.trim() });
+      if (sys.input.value.trim()) labels['redfish.system'] = sys.input.value.trim();
     }
     go.disabled = true;
     try {
@@ -203,7 +298,7 @@ function guestDialog(n, reload) {
       m.close();
       toast({ text: t('pages.integrations.saved'), tone: 'good' });
       reload();
-    } catch (x) { go.disabled = false; pve.setError(x.message); }
+    } catch (x) { go.disabled = false; (by === 'redfish' ? bmc : pve).setError(x.message); }
   });
 }
 

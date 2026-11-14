@@ -113,6 +113,8 @@ pub const RULES: &[(&str, &str, Rule)] = &[
     ("PUT", "/api/cluster/settings", Admin),
     ("POST", "/api/cluster/settings/proxmox/fingerprint", Admin),
     ("POST", "/api/cluster/settings/proxmox/test", Admin),
+    ("POST", "/api/cluster/settings/redfish/fingerprint", Admin),
+    ("POST", "/api/cluster/settings/redfish/test", Admin),
     // A backup holds the whole cluster (sealed): administrators only, even to list them.
     ("POST", "/api/cluster/backup", Admin),
     // A registry's login: who the cluster pulls as. An Administrator's, to see too.

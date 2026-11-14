@@ -145,6 +145,7 @@ read-only token only reads.
 | `POST /api/cluster/backup` | admin | `{passphrase}`: a sealed backup of the cluster now, as a download, on record without the passphrase ("Cluster" 24) |
 | `GET /api/cluster/backups`, `GET /api/cluster/backups/{name}` | admin | the answering manager's scheduled backups; one as a download ("Cluster" 24) |
 | `POST /api/cluster/settings/proxmox/fingerprint`, `POST /api/cluster/settings/proxmox/test` | admin | `{url}`: the certificate the Proxmox API shows, read by a manager; `{url, fingerprint, token?}` or `{}`: the provider tried from a manager, `{version, guests}` (nothing changed) |
+| `POST /api/cluster/settings/redfish/fingerprint`, `POST /api/cluster/settings/redfish/test` | admin | `{host}`: the certificate a BMC shows, read by a manager; `{username, password?}` or `{}`: the Redfish account tried on each redfish worker's BMC, `{systems}` (nothing changed) ("Cluster" 29) |
 | `GET /api/cluster/floating` | session | the floating addresses and each one's holder ("Cluster" 15) |
 | `PUT /api/cluster/stacks/{name}/exposures` | admin | `{exposures: [{service, container_port, protocol, address, port}]}`: what the stack exposes on the pool, all of it ("Cluster" 17) |
 | `GET /api/cluster/traffic` | session | each node's latest flows, their ends named by the managers ("Cluster" 16) |
