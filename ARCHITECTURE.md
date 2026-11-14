@@ -112,6 +112,11 @@ UI's own `/api/cluster/...` route with the caller's token and sends it through `
 the call to the managers and `audit::record` are the same as for the browser. Sessions are kept in memory
 (`AppState.mcp`); an Administrator's switch (the `mcp` setting) turns `/mcp` off for everybody.
 
+**Import from Portainer** (`portainer/`, "Portainer"). A GET-only client (`client.rs`) reads Portainer's status,
+environments, stacks and a stack's file with the sealed token. `plan` says what each stack would be in the cluster or
+why not, against the managers' stack names; the import deploys each ticked one through the managers, stopped unless
+asked to start.
+
 **Sign-in providers** (`signin/`). The providers are a list (`settings` key `sso`, `signin/providers.rs`): each has an
 id, a kind (`oidc`, `github`, `ldap`), the preset it was made from, and who may come in (administrator and user groups,
 e-mail domains), whether a first sign-in lands in the local account of the same name (`link_by_name`), and team rules;

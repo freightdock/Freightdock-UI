@@ -15,6 +15,7 @@ mod error;
 mod mcp;
 mod oidc;
 mod outbound;
+mod portainer;
 mod replica;
 mod secret;
 mod signin;

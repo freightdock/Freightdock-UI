@@ -123,6 +123,11 @@ pub const RULES: &[(&str, &str, Rule)] = &[
     ("PUT", "/api/settings/mcp", Admin),
     ("DELETE", "/api/settings/mcp/tokens/{id}", Admin),
     ("GET", "/api/mcp/status", Session),
+    ("GET", "/api/portainer", Admin),
+    ("PUT", "/api/portainer", Admin),
+    ("DELETE", "/api/portainer", Admin),
+    ("POST", "/api/portainer/scan", Admin),
+    ("POST", "/api/portainer/import", Admin),
     // A backup holds the whole cluster (sealed): administrators only, even to list them.
     ("POST", "/api/cluster/backup", Admin),
     // A registry's login: who the cluster pulls as. An Administrator's, to see too.

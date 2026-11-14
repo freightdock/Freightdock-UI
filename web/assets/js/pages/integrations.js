@@ -8,6 +8,7 @@
 // now as a download, or each manager's scheduled ones with the passphrase they are sealed with (set, never shown).
 // Private registries: a login per registry the workers pull with ("Cluster" 26), the password never shown.
 // Notifications: channels the leading manager tells the cluster's news through ("Cluster" 27), each secret never shown.
+// Import from Portainer ("Portainer" 11): a Portainer's Compose stacks, read only, brought in as cluster stacks.
 
 import { h, mount, bytes, when, ago } from '../dom.js';
 import { get, post, put, del, download } from '../api.js';
@@ -18,7 +19,7 @@ import { status } from '../../finui/components/badge/badge.js';
 import { button } from '../../finui/components/button/button.js';
 import { emptyState } from '../../finui/components/empty/empty.js';
 import { openModal } from '../../finui/components/modal/modal.js';
-import { formField } from '../../finui/components/field/field.js';
+import { formField, textArea } from '../../finui/components/field/field.js';
 import { segmented } from '../../finui/components/segmented/segmented.js';
 import { settingRow } from '../../finui/components/setting-row/setting-row.js';
 import { toggle } from '../../finui/components/toggle/toggle.js';
@@ -44,12 +45,12 @@ export function integrationsPage({ el, signal }) {
   const reload = loadInto(body, {
     signal,
     load: async (s) => {
-      const [c, st, n, b, rg, nt] = await Promise.all([get('/api/cluster/settings', { signal: s }), get('/api/cluster/storage', { signal: s }).catch(() => null), get('/api/cluster/nodes', { signal: s }).catch(() => []),
+      const [c, st, n, b, rg, nt, pt] = await Promise.all([get('/api/cluster/settings', { signal: s }), get('/api/cluster/storage', { signal: s }).catch(() => null), get('/api/cluster/nodes', { signal: s }).catch(() => []),
         get('/api/cluster/backups', { signal: s }).catch(() => null), get('/api/cluster/registries', { signal: s }).catch(() => null),
-        get('/api/cluster/notifications', { signal: s }).catch(() => null)]);
-      return { c, st, n, b, rg, nt };
+        get('/api/cluster/notifications', { signal: s }).catch(() => null), get('/api/portainer', { signal: s }).catch(() => null)]);
+      return { c, st, n, b, rg, nt, pt };
     },
-    draw: ({ c, st, n, b, rg, nt }) => {
+    draw: ({ c, st, n, b, rg, nt, pt }) => {
       const s = c.settings || {};
       return h('div', { class: 'stack' },
         card({ title: t('pages.integrations.shares'), sub: t('pages.integrations.shares_sub'),
@@ -69,10 +70,90 @@ export function integrationsPage({ el, signal }) {
           actions: button({ size: 'sm', variant: 'primary', onClick: () => backupNow() }, t('pages.integrations.backup_now')),
           body: backups(s, reload) }),
         card({ title: t('pages.integrations.stored'), sub: t('pages.integrations.stored_sub'), body: storedBackups(b, !!s.backup_passphrase_set) }),
+        pt ? portainerCard(pt, reload) : null,
         card({ title: t('pages.integrations.timings'), sub: t('pages.integrations.timings_sub'), body: timings(s, reload) }),
         card({ title: t('pages.integrations.manager'), sub: t('pages.integrations.manager_sub'), body: managerFacts(c.manager || {}) }));
     },
   });
+}
+
+/** Import from Portainer: the connection (its token never shown), and a look at its stacks to bring in. */
+function portainerCard(p, reload) {
+  const actions = h('div', { class: 'row' },
+    p.connected ? button({ size: 'sm', variant: 'primary', onClick: () => portainerScan() }, t('pages.integrations.portainer_look')) : null,
+    button({ size: 'sm', onClick: () => portainerDialog(p, reload) }, p.connected ? t('pages.integrations.change') : t('pages.integrations.portainer_connect')),
+    p.connected ? button({ size: 'sm', variant: 'danger', onClick: () => forgetPortainer(reload) }, t('pages.integrations.portainer_forget')) : null);
+  const body = p.connected
+    ? facts([[t('pages.integrations.portainer_url'), p.url, { mono: true }], [t('pages.integrations.portainer_version'), p.version], [t('pages.integrations.portainer_trust'), p.trust]])
+    : h('p', { class: 'sub' }, t('pages.integrations.portainer_none'));
+  return card({ title: t('pages.integrations.portainer'), sub: t('pages.integrations.portainer_sub'), actions, body });
+}
+
+function portainerDialog(p, reload) {
+  const url = formField({ id: 'int-pt-url', label: t('pages.integrations.portainer_url'), placeholder: 'https://portainer.example:9443' });
+  const token = formField({ id: 'int-pt-token', type: 'password', autocomplete: 'off', label: t('pages.integrations.portainer_token'),
+    placeholder: p.connected ? t('pages.integrations.portainer_token_kept') : 'ptr_…', help: t('pages.integrations.portainer_token_help') });
+  const ca = textArea({ id: 'int-pt-ca', label: t('pages.integrations.portainer_ca'), help: t('pages.integrations.portainer_ca_help'), placeholder: '-----BEGIN CERTIFICATE-----', rows: 4 });
+  let skip = !!p.skip_verify;
+  const skipBox = checkbox({ label: t('pages.integrations.portainer_skip'), help: t('pages.integrations.portainer_skip_help'), checked: skip, onChange: (v) => { skip = v; } });
+  if (p.connected) { url.input.value = p.url; ca.input.value = p.ca || ''; }
+  const go = button({ variant: 'primary', type: 'submit' }, t('pages.integrations.portainer_connect'));
+  const form = h('form', { class: 'stack', novalidate: true }, url.el, token.el, ca.el, skipBox, h('div', { class: 'row row--end' }, go));
+  const m = openModal({ title: t('pages.integrations.portainer'), body: form, initialFocus: url.input });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    url.setError(''); token.setError('');
+    go.disabled = true;
+    try {
+      const b = { url: url.input.value.trim(), ca: ca.input.value, skip_verify: skip };
+      if (token.input.value.trim()) b.token = token.input.value.trim();
+      await put('/api/portainer', b);
+      m.close();
+      toast({ text: t('pages.integrations.saved'), tone: 'good' });
+      reload();
+    } catch (x) { go.disabled = false; (x.field === 'token' ? token : url).setError(x.message); }
+  });
+}
+
+async function forgetPortainer(reload) {
+  if (!(await confirm({ title: t('pages.integrations.portainer_forget_title'), body: t('pages.integrations.portainer_forget_body') }))) return;
+  try { await del('/api/portainer'); toast({ text: t('pages.integrations.saved'), tone: 'good' }); reload(); } catch (e) { toast({ text: e.message, tone: 'critical' }); }
+}
+
+/** Portainer's stacks, each ticked when it can come, and the import: made stopped unless they are to start now. */
+async function portainerScan() {
+  const out = h('div', null, t('pages.integrations.portainer_reading'));
+  const m = openModal({ title: t('pages.integrations.portainer_stacks'), wide: true, body: out });
+  let r;
+  try { r = await post('/api/portainer/scan', {}); } catch (e) { mount(out, callout({ tone: 'critical', title: t('pages.integrations.portainer_failed'), body: e.message })); return; }
+  const picked = new Set(r.stacks.filter((s) => !s.why).map((s) => s.id));
+  let start = false;
+  const rows = table({
+    rows: r.stacks, empty: [t('pages.integrations.portainer_no_stacks'), ''], label: t('pages.integrations.portainer_stacks'),
+    columns: [
+      { label: '', nosort: true, cell: (s) => checkbox({ label: s.name, checked: picked.has(s.id), disabled: !!s.why, onChange: (v) => { if (v) picked.add(s.id); else picked.delete(s.id); } }) },
+      { label: t('pages.integrations.portainer_env'), cell: (s) => s.env, sort: (s) => s.env },
+      { label: t('pages.integrations.portainer_as'), cell: (s) => (s.why ? h('span', { class: 'sub' }, s.why) : h('span', null, h('span', { class: 'mono' }, s.target),
+        s.git ? h('span', { class: 'sub' }, ' ' + t('pages.integrations.portainer_git')) : null,
+        s.active ? null : h('span', { class: 'sub' }, ' ' + t('pages.integrations.portainer_inactive')))) },
+    ],
+  });
+  const startBox = checkbox({ label: t('pages.integrations.portainer_start'), help: t('pages.integrations.portainer_start_help'), onChange: (v) => { start = v; } });
+  const result = h('div');
+  const go = button({ variant: 'primary', onClick: async () => {
+    if (!picked.size) return;
+    go.disabled = true;
+    try {
+      const done = await post('/api/portainer/import', { stacks: [...picked], start });
+      const ok = done.results.filter((x) => x.ok);
+      mount(result, callout({ tone: ok.length === done.results.length ? 'good' : 'warning', title: t('pages.integrations.portainer_done', { count: ok.length }),
+        body: h('ul', null, done.results.map((x) => h('li', null, `${x.name || x.id}: `, x.ok ? h('span', { class: 'mono' }, x.stack) : x.error,
+          x.ok && x.left_out && x.left_out.length ? ' ' + t('pages.integrations.portainer_left_out', { names: x.left_out.join(', ') }) : null))) }));
+    } catch (e) { mount(result, callout({ tone: 'critical', title: t('pages.integrations.portainer_failed'), body: e.message })); }
+    go.disabled = false;
+  } }, t('pages.integrations.portainer_import'));
+  mount(out, h('div', { class: 'stack' }, h('p', { class: 'sub' }, t('pages.integrations.portainer_from', { url: r.url, version: r.version })), rows, startBox, result, h('div', { class: 'row row--end' }, go)));
+  void m;
 }
 
 function source(x) {

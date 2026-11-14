@@ -1181,7 +1181,11 @@ pointer to what replaced it.
 
 ## Portainer
 
-**Set aside** (G8.3, 2026-11-12, "Cluster" 10): the feature these items are about is not in the cluster UI. They are kept, numbered, for when it comes back through the managers; until then they describe nothing in this repository.
+**Back** (2026-11-14) for the cluster, as 11 to 13 say. Of 1 to 10, what still holds: 1 (administrators, the CSRF
+token, the activity log; the token sealed, tried before it is saved, kept when the field is left empty for the same
+address), 2 (GET only, no redirect, read again at the import) and 3 (the certificate checked, pasted, or not checked by
+an explicit choice). 4 to 10 were about the single-host Freightdock (environments, adoption in place, groups, tags,
+registries, templates, teams) and describe nothing here.
 
 1. Importing from Portainer is for administrators, with the CSRF token, and each step is in the activity log
    (`portainer.connect`, `.forget`, `.import`, `.people`, and each thing made under its own action, `stack.adopt` with
@@ -1233,6 +1237,19 @@ pointer to what replaced it.
    roles are given per environment or group ("Access" 1), by an administrator. The copy in `portainer_people` is
    still kept when asked for. Each team made is `team.create` and each member added `team.update`, both `from
    Portainer`, in the activity log.
+11. A Portainer Compose stack comes into the cluster as a cluster stack (2026-11-14): its file as Portainer gives it,
+   its variables as the stack's `.env` (written as Portainer writes `stack.env`; a name Compose would not take is left
+   out and said), a description naming where it came from, and its name made a stack name (lower case, `-` for
+   anything else, at most 40). Nothing is adopted: the cluster places it on its own nodes, wherever Portainer ran it.
+   A Git stack comes as its file, not followed. What cannot come says why and is not ticked: Swarm and Kubernetes
+   stacks, one with more Compose files than the API gives out, one whose name the cluster has; of two that would have
+   one name, the active one, else the one changed last.
+12. An imported stack is made stopped unless the Administrator asks to start it (the managers' `"stopped": true`):
+   Portainer's copy still runs where it was, and the same stack started twice would take its ports and volumes twice.
+   The page says to stop it in Portainer first, then start it here.
+13. An import is one deploy per stack through the managers, so they check the file as they check one typed in, and a
+   stack they refuse says their sentence and leaves the others. Each one brought in is `portainer.import` in the
+   activity log, with Portainer's stack id and environment and whether it was started.
 
 ## Users
 

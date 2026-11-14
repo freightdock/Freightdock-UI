@@ -204,7 +204,7 @@ pub fn router() -> Router<App> {
         .route("/api/cluster/backups/{name}", get(backup_file))
 }
 
-fn cluster(app: &App) -> ApiResult<&Cluster> {
+pub(crate) fn cluster(app: &App) -> ApiResult<&Cluster> {
     app.cluster.get().map(|c| c.as_ref()).ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "this Freightdock is not connected to a cluster"))
 }
 
