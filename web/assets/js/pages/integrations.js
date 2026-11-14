@@ -413,7 +413,7 @@ function timings(s, reload) {
       help: help(key, t('pages.integrations.default_is', { value: v.default, unit })),
       control: h('div', { class: 'row nowrap' }, input, h('span', { class: 'sub' }, unit), source(v.source), back(key)) });
   });
-  const switches = ['fence', 'auto_authorize'].map((key) => {
+  const switches = ['fence', 'auto_authorize', 'shells'].map((key) => {
     const v = s[key] || {};
     return settingRow({ id: `int-row-${key}`, label: t(`pages.integrations.label.${key}`), help: help(key, ''),
       control: h('div', { class: 'row nowrap' }, source(v.source), back(key),

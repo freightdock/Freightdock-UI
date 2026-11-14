@@ -165,6 +165,13 @@ recovery codes are SHA-256 hashes in `recovery_codes`, deleted as they are used.
 The single-host product's Docker endpoints (the local socket, TLS hosts, agents over a yamux tunnel) are gone. A
 node's Docker is the worker's; a node's pages come back through it, asked of the managers ("Cluster" 10).
 
+A shell ("Cluster" 35) is the one route that is not a call and its answer: `cluster::shell` asks the manager first
+(`check=1`), and for a WebSocket from this origin opens the manager's own with the browser's key
+(`Cluster::upgrade`, the same HTTPS client and CA as every call) and, once both sides have switched, copies bytes
+between the two upgraded connections. The manager pumps the WebSocket into a `shell::Pipe`: the worker's own gRPC
+stream (WorkerSession.Shell, dialled back on a ShellOpen), or another manager's (ManagerPeer.Shell) when the node is
+connected there. The browser end is `components/terminal` (xterm.js from `vendor/xterm`) on `pages/terminal.js`.
+
 ## 6. The web UI
 
 `web/` is embedded with rust-embed (`web.rs`); a debug build reads it from disk. `/assets/finui.css` is FinUI's

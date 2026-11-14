@@ -18,7 +18,8 @@ The single-host milestones M0 to M6 are history (git log of the old Freightdock 
 
 In the owner's order, external integrations last:
 
-- [x] A node's Docker pages (containers, images, volumes, networks, logs) through its worker. Consoles not yet.
+- [x] A node's Docker pages (containers, images, volumes, networks, logs) through its worker, and shells on the node
+      and in its containers ("Cluster" 35).
 - [x] Registries with saved sign-ins, for the managers to pull with.
 - [x] Notifications from the managers' events.
 - [x] Backups of the managers' state.

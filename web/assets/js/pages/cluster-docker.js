@@ -40,7 +40,7 @@ export function clusterDockerPage({ el, params, signal }) {
     button({ size: 'sm', href: `/cluster/nodes/${encodeURIComponent(id)}` }, t('pages.cluster_docker.back'))))).catch(() => {});
   loadInto(info, { signal, load: (s) => read('info', {}, s), draw: (i) => card({ title: t('pages.cluster_docker.engine'), body: engine(i) }) });
 
-  const ctx = { read, change, signal };
+  const ctx = { id, read, change, signal };
   mount(body, card({ body: tabs({
     label: t('pages.cluster_docker.title'),
     tabs: [
@@ -92,6 +92,7 @@ function containerTable(rows, c) {
       { label: t('pages.cluster_docker.state'), cell: (x) => h('div', { class: 'stack' }, status({ tone: STATE_TONES[x.state] || 'info' }, tOr(`pages.cluster_node.state.${x.state}`, x.state || '')), h('span', { class: 'sub' }, x.status || '')), sort: (x) => x.state },
       { label: t('pages.cluster_docker.ports'), cell: (x) => h('span', { class: 'mono sub' }, ports(x.ports)) },
       { label: '', nosort: true, cell: (x) => h('div', { class: 'row row--end nowrap fd-docker-actions' },
+        x.state === 'running' ? button({ size: 'sm', href: `/cluster/nodes/${encodeURIComponent(c.id)}/shell?container=${encodeURIComponent(name(x))}` }, t('pages.cluster_node.shell')) : null,
         button({ size: 'sm', onClick: () => logs(c, x.id, name(x)) }, t('pages.cluster_docker.logs')),
         button({ size: 'sm', onClick: () => inspect(c, x.id, name(x)) }, t('pages.cluster_docker.inspect')),
         x.cluster ? null : x.state === 'running'

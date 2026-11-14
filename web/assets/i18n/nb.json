@@ -1104,7 +1104,8 @@
       "overlay_error": "feiler",
       "overlay_waiting": "venter på managerne",
       "overlay_up": "oppe, versjon {v}",
-      "docker": "Docker"
+      "docker": "Docker",
+      "shell": "Skall"
     },
     "dashboard": {
       "title": "Oversikt",
@@ -1300,7 +1301,8 @@
         "auto_authorize": "Godkjenn arbeidere som kommer tilbake",
         "backup_passphrase": "Passfrase",
         "backup_every_h": "Hver",
-        "backup_keep": "Behold"
+        "backup_keep": "Behold",
+        "shells": "Skall"
       },
       "help": {
         "heartbeat_ms": "Hvor ofte hver arbeider rapporterer.",
@@ -1314,7 +1316,8 @@
         "auto_authorize": "En arbeider som kommer tilbake fencet, kjører arbeidslaster igjen av seg selv; av må en administrator godkjenne den.",
         "backup_passphrase": "Det de planlagte sikkerhetskopiene forsegles med. Ingen skrives uten den.",
         "backup_every_h": "Timer mellom hver managers sikkerhetskopier; 0 skriver ingen.",
-        "backup_keep": "Hvor mange sikkerhetskopier hver manager beholder; de eldste går."
+        "backup_keep": "Hvor mange sikkerhetskopier hver manager beholder; de eldste går.",
+        "shells": "En administrator kan åpne et skall på en node, eller i en container, fra siden dens. Av kan ingen, verken fra UI-et eller API-et. Eieren av en node kan fortsatt slå av vertsskallet på selve noden."
       },
       "backups": "Sikkerhetskopier",
       "backups_sub": "Klyngens tilstand (stakker, noder, lagring, innstillinger, brukere) og sertifikatutstederen, forseglet med en passfrase.",
@@ -1628,6 +1631,24 @@
       "confirm_body": "Alt på {disks} slettes. Det kan ikke angres.",
       "started": "Ceph settes opp ({n} steg)",
       "none_free": "Ingen av de {n} diskene er ledige: {why}."
+    },
+    "terminal": {
+      "page_title": "Skall",
+      "title_host": "Skall på {node}",
+      "title_container": "Skall i {container} på {node}",
+      "sub_host": "Et innloggingsskall som root på selve noden. Det du skriver lagres ikke; at du åpnet det, gjør.",
+      "sub_container": "bash, eller sh der den mangler, i containeren. Det du skriver lagres ikke; at du åpnet det, gjør.",
+      "back": "Tilbake",
+      "again": "Åpne igjen",
+      "failed": "Skallet kunne ikke åpnes",
+      "ended": "Skallet ble avsluttet",
+      "ended_code": "Skallet ble avsluttet (avslutningskode {code})",
+      "ended_why": "Skallet ble avsluttet: {why}",
+      "state": {
+        "connecting": "Kobler til…",
+        "open": "Åpent",
+        "failed": "Kunne ikke åpnes"
+      }
     }
   },
   "components": {

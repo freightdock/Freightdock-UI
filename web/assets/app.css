@@ -344,3 +344,9 @@
 .fd-deploy__name { gap: 12px; }
 .fd-deploy__name > label { min-width: 8rem; }
 .fd-deploy__name > input { flex: 1; max-width: 24rem; }
+
+/* ------------------------------------------------------------ a shell's terminal ("Cluster" 35) */
+/* The terminal fills what is left of the page; xterm.js paints inside it in the tokens the component reads. */
+.fd-terminal { height: calc(100dvh - 260px); min-height: 320px; padding: 8px; border-radius: var(--radius); background: var(--bg-sunken); overflow: hidden; }
+.fd-terminal:empty { display: none; }
+.fd-terminal .xterm { height: 100%; }

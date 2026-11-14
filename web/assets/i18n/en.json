@@ -1104,7 +1104,8 @@
       "overlay_error": "failing",
       "overlay_waiting": "waiting for the managers",
       "overlay_up": "up, version {v}",
-      "docker": "Docker"
+      "docker": "Docker",
+      "shell": "Shell"
     },
     "dashboard": {
       "title": "Dashboard",
@@ -1300,7 +1301,8 @@
         "auto_authorize": "Authorize returning workers",
         "backup_passphrase": "Passphrase",
         "backup_every_h": "Every",
-        "backup_keep": "Keep"
+        "backup_keep": "Keep",
+        "shells": "Shells"
       },
       "help": {
         "heartbeat_ms": "How often each worker reports.",
@@ -1314,7 +1316,8 @@
         "auto_authorize": "A worker that comes back fenced runs workloads again by itself; off, an administrator authorizes it.",
         "backup_passphrase": "What the scheduled backups are sealed with. None is written without it.",
         "backup_every_h": "Hours between each manager's backups; 0 writes none.",
-        "backup_keep": "How many backups each manager keeps; the oldest go."
+        "backup_keep": "How many backups each manager keeps; the oldest go.",
+        "shells": "An administrator may open a shell on a node, or in a container, from its page. Off, nobody can, from the UI or the API. A node's owner can still turn off its own host shell on the node."
       },
       "backups": "Backups",
       "backups_sub": "The cluster's state (stacks, nodes, storage, settings, users) and its certificate authority, sealed with a passphrase.",
@@ -1628,6 +1631,24 @@
       "confirm_body": "Everything on {disks} is erased. This cannot be undone.",
       "started": "Ceph is being set up ({n} steps)",
       "none_free": "None of its {n} disks is free: {why}."
+    },
+    "terminal": {
+      "page_title": "Shell",
+      "title_host": "Shell on {node}",
+      "title_container": "Shell in {container} on {node}",
+      "sub_host": "A login shell as root on the node itself. What you type is not recorded; that you opened it is.",
+      "sub_container": "bash, or sh where there is none, in the container. What you type is not recorded; that you opened it is.",
+      "back": "Back",
+      "again": "Open again",
+      "failed": "The shell could not be opened",
+      "ended": "The shell ended",
+      "ended_code": "The shell ended (exit code {code})",
+      "ended_why": "The shell ended: {why}",
+      "state": {
+        "connecting": "Connecting…",
+        "open": "Open",
+        "failed": "Could not open"
+      }
     }
   },
   "components": {

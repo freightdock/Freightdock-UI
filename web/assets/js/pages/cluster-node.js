@@ -1,6 +1,7 @@
 // One node of the cluster: what the managers know of it, the stacks' workloads placed on it and the containers it
 // says it runs, asked again every few seconds. An administrator gives it a name to be shown by, in Freightdock only
-// ("Cluster" 12): the managers and the node keep its hostname. An administrator opens its Docker from here ("Cluster" 25).
+// ("Cluster" 12): the managers and the node keep its hostname. An administrator opens its Docker from here ("Cluster" 25), and a shell on it or in a
+// container it runs ("Cluster" 35).
 
 import { h, mount, bytes, shortId } from '../dom.js';
 import { get, put } from '../api.js';
@@ -44,13 +45,14 @@ export function clusterNodePage({ el, params, signal }) {
         h('div', { class: 'row' },
           button({ size: 'sm', href: '/cluster' }, t('pages.cluster_node.back')),
           isAdmin() && (n.report || {}).docker ? button({ size: 'sm', href: `/cluster/nodes/${encodeURIComponent(n.id)}/docker` }, t('pages.cluster_node.docker')) : null,
+          isAdmin() && (n.report || {}).shells && n.report.host_shell ? button({ size: 'sm', href: `/cluster/nodes/${encodeURIComponent(n.id)}/shell` }, t('pages.cluster_node.shell')) : null,
           isAdmin() ? button({ size: 'sm', onClick: () => rename(n, reload) }, t('pages.cluster_node.rename')) : null)));
       const placed = [];
       for (const s of st || []) for (const w of s.workloads || []) if (w.node_id === n.id) placed.push({ ...w, stack: s.name, image: ((s.services || {})[w.service] || {}).image });
       return h('div', { class: 'stack' },
         card({ title: t('pages.cluster_node.details'), body: details(n, manager, raft) }),
         card({ title: t('pages.cluster_node.workloads'), body: workloadTable(placed) }),
-        card({ title: t('pages.cluster_node.containers'), body: n.containers ? containerTable(n.containers) : emptyState(t('pages.cluster_node.no_report'), t('pages.cluster_node.no_report_text')) }));
+        card({ title: t('pages.cluster_node.containers'), body: n.containers ? containerTable(n.containers, n) : emptyState(t('pages.cluster_node.no_report'), t('pages.cluster_node.no_report_text')) }));
     },
   });
   const timer = setInterval(() => { if (!document.hidden) reload(); }, EVERY_MS);
@@ -101,7 +103,8 @@ function workloadTable(rows) {
   });
 }
 
-function containerTable(rows) {
+function containerTable(rows, n) {
+  const shells = isAdmin() && (n.report || {}).shells;
   return table({
     rows, filter: false, dense: true, empty: [t('pages.cluster_node.no_containers'), ''],
     columns: [
@@ -109,6 +112,8 @@ function containerTable(rows) {
       { label: t('pages.cluster.image'), cell: (c) => h('span', { class: 'mono sub' }, c.image || '') },
       { label: t('pages.cluster_node.state_word'), cell: (c) => status({ tone: STATE_TONES[c.state] || 'info' }, tOr(`pages.cluster_node.state.${c.state}`, c.state || '')) },
       { label: t('pages.cluster_node.container'), cell: (c) => h('span', { class: 'mono sub', title: c.container_id || '' }, shortId(c.container_id || '')) },
+      ...(shells ? [{ label: '', nosort: true, cell: (c) => (c.state === 'running' && c.container_id ? h('div', { class: 'row row--end' },
+        button({ size: 'sm', href: `/cluster/nodes/${encodeURIComponent(n.id)}/shell?container=${encodeURIComponent(c.container_id)}` }, t('pages.cluster_node.shell'))) : '') }] : []),
     ],
   });
 }

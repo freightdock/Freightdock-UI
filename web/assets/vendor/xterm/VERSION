@@ -1,0 +1,24 @@
+xterm.js is xterm.js and its fit addon bundled by esbuild into one minified ES module, made once in a throwaway node
+container and never edited by hand; xterm.css is the package's own stylesheet, as it ships. MIT, see LICENSE.
+
+Built 2026-11-14 from the npm registry, exact versions:
+
+  @xterm/xterm 5.5.0
+  @xterm/addon-fit 0.10.0
+  esbuild 0.28.2 (the tool only; none of it is in the bundle)
+
+What it exports is what the terminal (web/assets/js/components/terminal) uses: Terminal and FitAddon.
+
+To build it again (from the repository's root; needs Docker only, and writes nothing but these two files here):
+
+  mkdir -p /tmp/xt-build && cat > /tmp/xt-build/entry.js <<'EOT'
+  export { Terminal } from '@xterm/xterm';
+  export { FitAddon } from '@xterm/addon-fit';
+  EOT
+  docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v /tmp/xt-build:/b -v "$PWD/web/assets/vendor/xterm:/out" \
+    -w /b node:22-alpine sh -c '
+    npm init -y >/dev/null &&
+    npm install --no-audit --no-fund --save-exact @xterm/xterm@5.5.0 @xterm/addon-fit@0.10.0 esbuild@0.28.2 &&
+    npx esbuild entry.js --bundle --format=esm --minify --legal-comments=none --outfile=/out/xterm.js &&
+    cp node_modules/@xterm/xterm/css/xterm.css /out/'
+  rm -rf /tmp/xt-build

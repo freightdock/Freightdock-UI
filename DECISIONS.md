@@ -1536,3 +1536,16 @@ registries, templates, teams) and describe nothing here.
     fields, a key left empty keeping the one set, passed to the managers and never kept here, sent back or put in the
     activity log, where the setup is on record with its filesystem, nodes and disks. The setup is said to be started by
     the user who started it.
+
+35. Shells on a node and in its containers (2026-11-14): an administrator opens one from the node's page (the host's,
+    a login shell as root) or from a running container (the node's page or its Docker page), on a page of its own,
+    `/cluster/nodes/{id}/shell?container=`, drawn by xterm.js (vendored like CodeMirror, MIT, pre-built) in FinUI's
+    tokens read as the page draws them. Freightdock first asks whether it may be opened, since a browser is never told
+    why a WebSocket failed, then opens one from its own origin only (a WebSocket is not held to CORS, so a missing or
+    foreign `Origin` is refused) and splices it, bytes as they are, to the manager's: Freightdock frames nothing and
+    keeps nothing typed or written. The opening is in the activity log (`cluster.shell`, the node and what on it) and
+    is an event on the managers. The cluster's `shells` setting (on by default, in Integrations beside fencing) turns
+    them off for everybody; a node's owner turns the host's off on the node itself (`FREIGHTDOCK_WORKER_HOST_SHELL=off`),
+    which no setting overrides. Reason: a shell is what an administrator needs to look at a node or a container
+    without leaving the UI, and an administrator can already run any container, so it adds no power, only a way in
+    that is on record.

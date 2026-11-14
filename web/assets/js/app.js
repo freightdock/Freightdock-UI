@@ -24,6 +24,7 @@ import { clusterNetworkPage } from './pages/cluster-network.js';
 import { clusterDeployPage } from './pages/cluster-deploy.js';
 import { clusterNodePage } from './pages/cluster-node.js';
 import { clusterDockerPage } from './pages/cluster-docker.js';
+import { terminalPage } from './pages/terminal.js';
 import { clusterManagerPage } from './pages/cluster-manager.js';
 import { integrationsPage } from './pages/integrations.js';
 import { dashboardPage } from './pages/dashboard.js';
@@ -42,6 +43,7 @@ route('/cluster/stacks/:name/edit', clusterDeployPage, { title: (p) => t('pages.
 route('/cluster/network', clusterNetworkPage, { title: t('nav.cluster_network') });
 route('/cluster/nodes/:id', clusterNodePage, { title: t('pages.cluster_node.title') });
 route('/cluster/nodes/:id/docker', clusterDockerPage, { title: t('pages.cluster_docker.title') });
+route('/cluster/nodes/:id/shell', terminalPage, { title: t('pages.terminal.page_title') });
 route('/cluster/managers/:id', clusterManagerPage, { title: t('pages.cluster_manager.title') });
 route('/integrations', integrationsPage, { title: t('nav.integrations') });
 route('/account', accountPage, { title: t('nav.account') });

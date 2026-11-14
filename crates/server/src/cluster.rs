@@ -109,6 +109,40 @@ impl Cluster {
     /// One call to a manager: the one that answered last, else the next. Only a connection that could not be made
     /// goes on to the next, so a change is never sent twice. Its answer comes back as it is; its refusals as the same
     /// status with its sentence.
+    /// A WebSocket to the manager (`path`, a GET), opened with the browser's own key so the manager's answer is the
+    /// browser's: the manager's 101 with its headers, and the upgraded connection to splice to the browser's.
+    pub(crate) async fn upgrade(&self, path: &str, key: &str) -> ApiResult<(reqwest::header::HeaderMap, reqwest::Upgraded)> {
+        let token = self.token_now().await?;
+        let n = self.endpoints.len();
+        let at = self.current.load(Ordering::Relaxed) % n;
+        let e = &self.endpoints[at];
+        let r = e.http.get(format!("{}{path}", e.base)).bearer_auth(token.trim())
+            .header(reqwest::header::CONNECTION, "Upgrade").header(reqwest::header::UPGRADE, "websocket")
+            .header("sec-websocket-version", "13").header("sec-websocket-key", key)
+            .send().await.map_err(|err| {
+                tracing::warn!("the cluster manager at {}: {err}", e.given);
+                ApiError::new(StatusCode::BAD_GATEWAY, "the cluster's manager does not answer")
+            })?;
+        if r.status() != reqwest::StatusCode::SWITCHING_PROTOCOLS {
+            let status = StatusCode::from_u16(r.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+            let said = r.json::<Value>().await.ok().and_then(|v| v["error"].as_str().map(str::to_string)).unwrap_or_else(|| format!("the manager answered {status}"));
+            return Err(ApiError::new(if status == StatusCode::UNAUTHORIZED { StatusCode::BAD_GATEWAY } else { status }, said));
+        }
+        let headers = r.headers().clone();
+        let up = r.upgrade().await.map_err(|err| ApiError::new(StatusCode::BAD_GATEWAY, format!("the manager's shell: {err}")))?;
+        Ok((headers, up))
+    }
+
+    async fn token_now(&self) -> ApiResult<String> {
+        Ok(match &self.token {
+            Given::Value(t) => t.clone(),
+            Given::File(f) => tokio::fs::read_to_string(f).await.map_err(|e| {
+                tracing::warn!("the cluster manager's token in {}: {e}", f.display());
+                ApiError::new(StatusCode::SERVICE_UNAVAILABLE, "Freightdock cannot read the manager's token")
+            })?,
+        })
+    }
+
     pub(crate) async fn call(&self, method: reqwest::Method, path: &str, body: Option<Value>) -> ApiResult<(StatusCode, Value)> {
         let (status, bytes) = self.call_bytes(method, path, body).await?;
         Ok((status, if bytes.trim_ascii().is_empty() { Value::Null } else { serde_json::from_slice(&bytes).unwrap_or(Value::Null) }))
@@ -116,13 +150,7 @@ impl Cluster {
 
     /// As `call`, the answer as bytes: a backup is not JSON.
     pub(crate) async fn call_bytes(&self, method: reqwest::Method, path: &str, body: Option<Value>) -> ApiResult<(StatusCode, Vec<u8>)> {
-        let token = match &self.token {
-            Given::Value(t) => t.clone(),
-            Given::File(f) => tokio::fs::read_to_string(f).await.map_err(|e| {
-                tracing::warn!("the cluster manager's token in {}: {e}", f.display());
-                ApiError::new(StatusCode::SERVICE_UNAVAILABLE, "Freightdock cannot read the manager's token")
-            })?,
-        };
+        let token = self.token_now().await?;
         let n = self.endpoints.len();
         let first = self.current.load(Ordering::Relaxed) % n;
         let mut answered = None;
@@ -174,6 +202,7 @@ pub fn router() -> Router<App> {
         .route("/api/cluster/nodes/{id}/labels", axum::routing::put(set_labels))
         .route("/api/cluster/nodes/{id}/authorize", post(authorize))
         .route("/api/cluster/nodes/{id}/docker", get(docker_read).post(docker_change))
+        .route("/api/cluster/nodes/{id}/shell", get(shell))
         .route("/api/cluster/commands/{id}", get(command_status))
         .route("/api/cluster/events", get(events))
         .route("/api/cluster/recoveries", get(recoveries))
@@ -366,6 +395,60 @@ async fn docker_read(State(app): State<App>, _a: Authed, Path(id): Path<String>,
         url.finish()
     };
     Ok(Json(cluster(&app)?.call(reqwest::Method::GET, &format!("/v1/nodes/{id}/docker?{query}"), None).await?.1))
+}
+
+#[derive(Deserialize)]
+struct ShellQuery {
+    #[serde(default)]
+    container: String,
+    #[serde(default)]
+    cols: u32,
+    #[serde(default)]
+    rows: u32,
+}
+
+/// A shell on a node or in one of its containers ("Cluster" 35). Asked without an upgrade, only whether it may be
+/// opened (204, or the manager's why not: a browser is never told why a WebSocket failed). Asked as a WebSocket from
+/// this origin, the browser's handshake goes to the manager and, once it switches, the two connections are spliced:
+/// Freightdock passes the bytes and keeps none. Opening one is on record; nothing typed is.
+async fn shell(State(app): State<App>, a: Authed, peer: crate::api::Peer, Path(id): Path<String>, Query(q): Query<ShellQuery>, req: axum::extract::Request) -> ApiResult<axum::response::Response> {
+    use axum::response::IntoResponse;
+    id_or_404(&id, "node")?;
+    let c = q.container.trim();
+    if !(c.is_empty() || (c.len() <= 128 && c.chars().all(|ch| ch.is_ascii_alphanumeric() || "_.-".contains(ch)) && !c.starts_with(['.', '-']))) {
+        return Err(ApiError::not_found("container"));
+    }
+    let h = req.headers();
+    let upgrading = h.get(axum::http::header::UPGRADE).and_then(|v| v.to_str().ok()).is_some_and(|v| v.eq_ignore_ascii_case("websocket"));
+    if !upgrading {
+        cluster(&app)?.call(reqwest::Method::GET, &format!("/v1/nodes/{id}/shell?container={c}&check=1"), None).await?;
+        return Ok(StatusCode::NO_CONTENT.into_response());
+    }
+    // A WebSocket is not held to CORS: only a page of this origin may open one, and it must say where it is from.
+    if !h.contains_key(axum::http::header::ORIGIN) || !peer.same_origin {
+        return Err(ApiError::new(StatusCode::FORBIDDEN, "a shell is opened from Freightdock's own pages only"));
+    }
+    let key = h.get("sec-websocket-key").and_then(|v| v.to_str().ok()).filter(|k| k.len() <= 64).ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "a WebSocket's key is needed"))?.to_string();
+    let path = format!("/v1/nodes/{id}/shell?container={c}&cols={}&rows={}", q.cols.min(1000), q.rows.min(1000));
+    let (headers, manager) = cluster(&app)?.upgrade(&path, &key).await?;
+    let on = if c.is_empty() { "the host".to_string() } else { format!("container {c}") };
+    audit::record(&app.db, Some(&a.session.user), a.ip, Entry { action: "cluster.shell", target: Some(id.clone()), detail: Some(on) }).await;
+    let browser = hyper::upgrade::on(req);
+    tokio::spawn(async move {
+        match browser.await {
+            Ok(b) => {
+                let mut b = hyper_util::rt::TokioIo::new(b);
+                let mut m = manager;
+                let _ = tokio::io::copy_bidirectional(&mut b, &mut m).await;
+            }
+            Err(e) => tracing::warn!(node = %id, "the browser's side of a shell: {e}"),
+        }
+    });
+    let mut res = axum::response::Response::builder().status(StatusCode::SWITCHING_PROTOCOLS).header(axum::http::header::CONNECTION, "Upgrade").header(axum::http::header::UPGRADE, "websocket");
+    if let Some(accept) = headers.get("sec-websocket-accept").and_then(|v| v.to_str().ok()) {
+        res = res.header("sec-websocket-accept", accept);
+    }
+    res.body(axum::body::Body::empty()).map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
 }
 
 /// A change to the node's Docker (the worker refuses the cluster's own); on record with what and on what.
@@ -929,6 +1012,8 @@ pub(crate) mod tests {
                     "GET /v1/backups" => (StatusCode::OK, json!({ "backups": [{ "name": "freightdock-20261113-200000.fdbk", "taken_at": 1, "size": 11, "manager": "m1" }] }).to_string()),
                     "GET /v1/backups/freightdock-20261113-200000.fdbk" => (StatusCode::OK, "FDBK1stored".to_string()),
                     "GET /v1/nodes/6f1c7c2e-0000-4000-8000-000000000001/docker?action=logs&target=web&tail=50" => (StatusCode::OK, json!({ "lines": ["hi"], "cut": false }).to_string()),
+                    "GET /v1/nodes/6f1c7c2e-0000-4000-8000-000000000001/shell?container=web&check=1" => (StatusCode::NO_CONTENT, String::new()),
+                    "GET /v1/nodes/6f1c7c2e-0000-4000-8000-000000000001/shell?container=&check=1" => (StatusCode::FORBIDDEN, json!({ "error": "the host's shell is turned off on this node (FREIGHTDOCK_WORKER_HOST_SHELL)" }).to_string()),
                     "POST /v1/nodes/6f1c7c2e-0000-4000-8000-000000000001/docker" => (StatusCode::OK, json!({ "got": got }).to_string()),
                     "GET /v1/registries" => (StatusCode::OK, json!([{ "host": "ghcr.io", "username": "bot", "at": 1 }]).to_string()),
                     "PUT /v1/registries/ghcr.io" => (StatusCode::OK, json!({ "got": got }).to_string()),
@@ -1104,6 +1189,32 @@ pub(crate) mod tests {
         let log: Vec<(String, String)> = app.db.call(|c| Ok(c.prepare("SELECT action, target FROM audit WHERE action LIKE 'cluster.storage.%' ORDER BY id")?.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<Result<_, _>>()?)).await.unwrap();
         assert_eq!(log, vec![("cluster.storage.add".to_string(), "nas".to_string()), ("cluster.storage.remove".to_string(), "nas".to_string())]);
         assert!(!asked.lock().unwrap().iter().any(|l| l.contains("nodes")), "{:?}", asked.lock().unwrap());
+    }
+
+    #[tokio::test]
+    async fn a_shell_is_an_administrator_s_asked_first_and_opened_from_this_origin_only() {
+        let (app, asked, _d) = connected("t0k3n").await;
+        let (cookie, _csrf) = signed_in(&app).await;
+        let n = "6f1c7c2e-0000-4000-8000-000000000001";
+        let ask = |q: &str| Request::get(format!("/api/cluster/nodes/{n}/shell{q}")).header(header::COOKIE, &cookie).header(header::HOST, "freightdock.test").body(Body::empty()).unwrap();
+        assert_eq!(call(&app, ask("?container=web")).await.0, StatusCode::NO_CONTENT, "may be opened");
+        let (s, _, b) = call(&app, ask("")).await;
+        assert_eq!(s, StatusCode::FORBIDDEN);
+        assert!(b["error"].as_str().unwrap().contains("FREIGHTDOCK_WORKER_HOST_SHELL"), "the manager's sentence: {b}");
+        assert_eq!(call(&app, ask("?container=-it")).await.0, StatusCode::NOT_FOUND, "only a container's name reaches the manager");
+        let upgrade = |origin: Option<&str>| {
+            let mut r = Request::get(format!("/api/cluster/nodes/{n}/shell?container=web")).header(header::COOKIE, &cookie).header(header::HOST, "freightdock.test")
+                .header(header::CONNECTION, "Upgrade").header(header::UPGRADE, "websocket").header("sec-websocket-version", "13").header("sec-websocket-key", "dGhlIHNhbXBsZSBub25jZQ==");
+            if let Some(o) = origin {
+                r = r.header(header::ORIGIN, o);
+            }
+            r.body(Body::empty()).unwrap()
+        };
+        let before = asked.lock().unwrap().len();
+        assert_eq!(call(&app, upgrade(Some("https://evil.example"))).await.0, StatusCode::FORBIDDEN, "another site's page opens no shell");
+        assert_eq!(call(&app, upgrade(None)).await.0, StatusCode::FORBIDDEN, "nor a page that does not say where it is from");
+        assert_eq!(asked.lock().unwrap().len(), before, "the manager is not asked");
+        assert!(!asked.lock().unwrap().iter().any(|l| l.contains("-it")));
     }
 
     #[tokio::test]
