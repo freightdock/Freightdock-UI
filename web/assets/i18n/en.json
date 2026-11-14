@@ -1218,7 +1218,7 @@
       "guest_kind": "Guest",
       "lxc": "Container (LXC)",
       "qemu": "Virtual machine",
-      "by_help": "Fenced by itself, the worker stops its workloads when it hears no manager. Through Proxmox, the leader powers its guest off and waits until Proxmox says it is stopped.",
+      "by_help": "Fenced by itself, the worker stops its workloads when it hears no manager. Through Proxmox or Redfish, the leader powers its guest or server off and waits until Proxmox or the BMC says it is off.",
       "timings": "Timings",
       "timings_sub": "How nodes are watched and how long fencing and recovery take.",
       "timings_note": "Workers take new timers at once; nothing restarts.",
@@ -1398,7 +1398,9 @@
       "bmc_host_help": "The BMC's host or address, port 443 unless given.",
       "bmc_fingerprint_help": "The BMC certificate's SHA-256. Read it, then compare it with the one the BMC's own page shows.",
       "bmc_system": "System id",
-      "bmc_system_help": "Only when the BMC manages more than one system: its id under /redfish/v1/Systems."
+      "bmc_system_help": "Only when the BMC manages more than one system: its id under /redfish/v1/Systems.",
+      "proxmox_none": "Not set up. Workers that are Proxmox guests can be powered off through its API once it is.",
+      "passphrase_set_up": "Set the passphrase"
     },
     "cluster_docker": {
       "title": "Docker",

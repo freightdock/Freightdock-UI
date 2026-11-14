@@ -62,11 +62,9 @@ export function integrationsPage({ el, signal }) {
           actions: nt ? button({ size: 'sm', onClick: () => channelDialog(null, nt.events, reload) }, t('pages.integrations.channel_add')) : null,
           body: nt ? channelTable(nt, reload) : emptyState(t('pages.cluster.no_answer'), '') }),
         card({ title: t('pages.integrations.fencing'), sub: t('pages.integrations.fencing_sub'),
-          actions: h('div', { class: 'row' },
-            s.proxmox ? button({ size: 'sm', onClick: () => tryProxmox(null) }, t('pages.integrations.test')) : null,
-            button({ size: 'sm', variant: s.proxmox ? null : 'primary', onClick: () => proxmoxDialog(s.proxmox, reload) }, s.proxmox ? t('pages.integrations.change') : t('pages.integrations.set_up')),
-            s.proxmox && s.proxmox.source === 'cluster' ? button({ size: 'sm', variant: 'danger', onClick: () => removeProxmox(reload) }, t('common.remove')) : null),
-          body: h('div', { class: 'stack' }, proxmoxFacts(s.proxmox), redfishBlock(s.redfish, reload), guestTable(n || [], { proxmox: !!s.proxmox, redfish: !!s.redfish }, reload)) }),
+          body: h('div', { class: 'stack' },
+            s.proxmox || s.redfish ? null : callout({ tone: 'info', title: t('pages.integrations.no_provider'), body: t('pages.integrations.no_provider_text') }),
+            proxmoxBlock(s.proxmox, reload), redfishBlock(s.redfish, reload), guestTable(n || [], { proxmox: !!s.proxmox, redfish: !!s.redfish }, reload)) }),
         card({ title: t('pages.integrations.backups'), sub: t('pages.integrations.backups_sub'),
           actions: button({ size: 'sm', variant: 'primary', onClick: () => backupNow() }, t('pages.integrations.backup_now')),
           body: backups(s, reload) }),
@@ -81,8 +79,18 @@ function source(x) {
   return status({ tone: SOURCE_TONES[x] || 'info' }, t(`pages.integrations.source.${x || 'default'}`));
 }
 
+/** Proxmox: its address, token id and pinned certificate, with what can be done about it. */
+function proxmoxBlock(p, reload) {
+  const actions = h('div', { class: 'row' },
+    p ? button({ size: 'sm', onClick: () => tryProxmox() }, t('pages.integrations.test')) : null,
+    button({ size: 'sm', onClick: () => proxmoxDialog(p, reload) }, p ? t('pages.integrations.change') : t('pages.integrations.set_up')),
+    p && p.source === 'cluster' ? button({ size: 'sm', variant: 'danger', onClick: () => removeProxmox(reload) }, t('common.remove')) : null);
+  return h('div', { class: 'stack' },
+    h('div', { class: 'row' }, h('strong', null, t('pages.integrations.proxmox')), actions),
+    p ? proxmoxFacts(p) : h('p', { class: 'sub' }, t('pages.integrations.proxmox_none')));
+}
+
 function proxmoxFacts(p) {
-  if (!p) return callout({ tone: 'info', title: t('pages.integrations.no_provider'), body: t('pages.integrations.no_provider_text') });
   return facts([
     [t('pages.integrations.proxmox_url'), p.url, { mono: true }],
     [t('pages.integrations.proxmox_token'), p.token_id, { mono: true }],
@@ -597,7 +605,7 @@ function backups(s, reload) {
   const passRow = settingRow({ id: 'int-row-backup_passphrase', label: t('pages.integrations.label.backup_passphrase'), help: t('pages.integrations.help.backup_passphrase'),
     control: h('div', { class: 'row nowrap' },
       status({ tone: set ? 'good' : 'warning' }, set ? t('pages.integrations.passphrase_set') : t('pages.integrations.passphrase_unset')),
-      button({ size: 'sm', onClick: () => passphraseDialog(set, reload) }, set ? t('pages.integrations.change') : t('pages.integrations.set_up')),
+      button({ size: 'sm', onClick: () => passphraseDialog(set, reload) }, set ? t('pages.integrations.change') : t('pages.integrations.passphrase_set_up')),
       set ? button({ size: 'sm', variant: 'ghost', onClick: async () => {
         if (await confirm({ title: t('pages.integrations.passphrase_off_title'), body: t('pages.integrations.passphrase_off_body') })) save({ backup_passphrase: null });
       } }, t('common.remove')) : null) });

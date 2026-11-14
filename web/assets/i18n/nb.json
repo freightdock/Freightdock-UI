@@ -1218,7 +1218,7 @@
       "guest_kind": "Gjest",
       "lxc": "Container (LXC)",
       "qemu": "Virtuell maskin",
-      "by_help": "Fencet av seg selv stopper arbeideren arbeidslastene når den ikke hører noen manager. Gjennom Proxmox slår lederen av gjesten og venter til Proxmox sier den er stoppet.",
+      "by_help": "Fencet av seg selv stopper arbeideren arbeidslastene når den ikke hører noen manager. Gjennom Proxmox eller Redfish slår lederen av gjesten eller serveren og venter til Proxmox eller BMC-en sier at den er av.",
       "timings": "Tider",
       "timings_sub": "Hvordan nodene følges med på, og hvor lang tid fencing og gjenoppretting tar.",
       "timings_note": "Arbeiderne tar i bruk nye tider med en gang; ingenting startes på nytt.",
@@ -1398,7 +1398,9 @@
       "bmc_host_help": "BMC-ens vertsnavn eller adresse, port 443 om ikke annet er gitt.",
       "bmc_fingerprint_help": "BMC-sertifikatets SHA-256. Les det, og sammenlign med det BMC-ens egen side viser.",
       "bmc_system": "System-id",
-      "bmc_system_help": "Bare når BMC-en styrer mer enn ett system: id-en under /redfish/v1/Systems."
+      "bmc_system_help": "Bare når BMC-en styrer mer enn ett system: id-en under /redfish/v1/Systems.",
+      "proxmox_none": "Ikke satt opp. Arbeidere som er Proxmox-gjester kan slås av gjennom API-et når det er gjort.",
+      "passphrase_set_up": "Sett passfrasen"
     },
     "cluster_docker": {
       "title": "Docker",
