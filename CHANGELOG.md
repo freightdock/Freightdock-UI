@@ -13,6 +13,8 @@ whole series.
 ## [1.0.0] - 2026-11-09 to 2026-11-10
 
 First light
+- **Deploy without starting**: a new stack can be made and placed without running, to look it over first or while its old copy still runs elsewhere.
+- **An end-to-end suite** against a real one-node cluster made for it in Docker, run with `qa/e2e.sh`.
 - **A node's name is the cluster's too**: renaming a node in Freightdock also gives it that name on the managers, so notifications, the command line and metrics call it what you see here.
 - **Import from Portainer** on the Integrations page: connect to a Portainer with an access token (kept sealed), see its Compose stacks and which can come, and bring the ones you tick into the cluster with their variables. They are made stopped unless you ask, so you can stop each in Portainer first and nothing runs twice. Freightdock only reads Portainer.
 - **AI agents can look after the cluster**: Freightdock is an MCP server again, at `/mcp`. With an API token from your Account page, Claude Code or another agent can see the cluster's nodes, stacks, events and storage, check and deploy a stack, start, stop or remove one, read a container's logs and let a fenced node back in, as you and no more: a read-only token only looks, and every change is in the activity log under the token's name. An Administrator turns it off for everybody, and revokes anybody's token, in Settings.

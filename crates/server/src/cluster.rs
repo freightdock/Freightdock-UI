@@ -699,8 +699,8 @@ struct DeployBody {
     rest: serde_json::Map<String, Value>,
 }
 
-/// The options a deploy may give beside its file.
-const OPTIONS: [&str; 5] = ["description", "env", "selector", "mode", "names"];
+/// The options a deploy may give beside its file; `stopped` makes it without starting it ("Cluster" 31).
+const OPTIONS: [&str; 6] = ["description", "env", "selector", "mode", "names", "stopped"];
 
 impl DeployBody {
     /// As the manager takes it, with only what was given.
@@ -1198,6 +1198,8 @@ pub(crate) mod tests {
         let options = json!({ "name": "web", "compose": "services: {}", "description": "The shop", "env": "TAG=1\n", "selector": ["zone=a"], "mode": null, "names": { "web": "shop-web" } });
         let (_, _, b) = call(&app, change("POST", "/api/cluster/stacks", options)).await;
         assert_eq!((&b["got"]["description"], &b["got"]["env"], &b["got"]["selector"], &b["got"]["names"]["web"]), (&json!("The shop"), &json!("TAG=1\n"), &json!(["zone=a"]), &json!("shop-web")), "the options go with the deploy");
+        let (_, _, b) = call(&app, change("POST", "/api/cluster/stacks", json!({ "name": "web", "compose": "services: {}", "stopped": true }))).await;
+        assert_eq!(b["got"]["stopped"], json!(true), "a stack can be made without being started");
         assert_eq!(b["got"].get("mode"), Some(&Value::Null), "null (as the file says) is passed on, not left out");
         let (s, _, b) = call(&app, change("POST", "/api/cluster/stack-check", chosen)).await;
         assert_eq!((s, &b["services"]["web"]["ports"][0]["host_port"], &b["got"]["nodes"]), (StatusCode::OK, &json!(8080), &json!(["n1"])), "a check is passed on whole");

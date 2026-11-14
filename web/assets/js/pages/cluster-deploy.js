@@ -117,6 +117,9 @@ function deployer({ existing, stack, nodes, pool, storage, signal }) {
   const reach = exposureEditor({ pool, stack: existing, initial: stack ? stack.exposures || [] : [] });
 
   const err = h('p', { class: 'fui-field__error', role: 'alert' });
+  // A new stack can be made without being started ("Cluster" 31): to look it over, or while its old copy still runs.
+  let cold = false;
+  const coldBox = existing ? null : checkbox({ label: t('pages.cluster_deploy.stopped'), checked: false, onChange: (on) => { cold = on; } });
   const go = button({ variant: 'primary', type: 'submit' }, existing ? t('pages.cluster_deploy.redeploy') : t('pages.cluster_stacks.deploy'));
   const form = h('form', { class: 'stack', novalidate: true },
     card({ title: t('pages.cluster_deploy.file'), body: h('div', { class: 'stack' }, name.el, aboutField, file.el, envField, found) }),
@@ -124,7 +127,8 @@ function deployer({ existing, stack, nodes, pool, storage, signal }) {
     card({ title: t('pages.cluster_deploy.mode'), sub: t('pages.cluster_deploy.mode_sub'), actions: survivePick, body: survival }),
     card({ title: t('pages.cluster_stacks.reach'), sub: t('pages.cluster_deploy.reach_sub'), body: reach.el }),
     err,
-    h('div', { class: 'row row--end' }, button({ href: '/cluster/stacks' }, t('common.cancel')), go));
+    coldBox ? h('p', { class: 'sub' }, t('pages.cluster_deploy.stopped_help')) : null,
+    h('div', { class: 'row row--end' }, coldBox, button({ href: '/cluster/stacks' }, t('common.cancel')), go));
 
   const options = () => ({
     description: about.value.trim(), env: env.value,
@@ -173,7 +177,7 @@ function deployer({ existing, stack, nodes, pool, storage, signal }) {
     if (b.exposures === null) { err.textContent = t('pages.cluster_stacks.exposure_incomplete'); return; }
     go.disabled = true;
     try {
-      const r = await post('/api/cluster/stacks', b);
+      const r = await post('/api/cluster/stacks', cold ? { ...b, stopped: true } : b);
       toast({ text: t('pages.cluster_stacks.deployed', { name: b.name }), tone: 'good' });
       for (const w of r.warnings || []) toast({ text: w, tone: 'warning' });
       navigate('/cluster/stacks');

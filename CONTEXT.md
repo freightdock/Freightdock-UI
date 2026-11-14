@@ -211,9 +211,10 @@ real binary in a zone and reads its first log line. `web::tests` hold the two ca
 text is asked for, no words left outside `t()`, the languages agree), and makes FinUI's preset overlay again from the
 copied `preset.js` to see `web/assets/finui/p` is what FinUI makes.
 
-The old end-to-end suite against `docker:dind` and the screenshot script went with the single-host product. Against a
-real cluster, the UI is checked by hand on the test cluster (the Manager repository's PROGRESS.md says how); an
-end-to-end suite against managers and workers is to be written.
+`qa/e2e.sh` is the end-to-end suite ("Cluster" 32): `qa/cluster.sh up` makes a throwaway one-node cluster (a manager
+and a worker in a privileged `docker:dind` container, from `../dist`'s static binaries, the UI image `FD_IMAGE` beside
+them, published on `127.0.0.1:17443`), `qa/e2e.mjs` drives the UI's API against it, and `qa/cluster.sh down` takes it
+away (left up for a look when a step fails; `qa/cluster.sh logs` shows the three logs). It needs Docker and Node.
 
 ## Known gaps
 

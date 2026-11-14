@@ -1154,6 +1154,8 @@
       "counted_by": "Talt av"
     },
     "cluster_deploy": {
+      "stopped": "Opprett den uten å starte den",
+      "stopped_help": "Den plasseres og tas vare på, og ingenting av den kjører før du starter den på Stabler-siden.",
       "title": "Ny stabel",
       "sub": "En Compose-fil, hvor den kjører, og hva av den som nås utenfor klyngen. Managerne sjekker den mens du skriver; ingenting kjører før du deployer.",
       "back": "Tilbake til stabler",

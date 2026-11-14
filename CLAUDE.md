@@ -42,6 +42,7 @@ FREIGHTDOCK_DATA_DIR=./data FREIGHTDOCK_BIND=127.0.0.1:7443 FREIGHTDOCK_CLUSTER_
                                              # serve (HTTPS, self-signed cert made in ./data/tls), beside a manager
 FREIGHTDOCK_TLS=off FREIGHTDOCK_BIND=127.0.0.1:7080 cargo run           # plain HTTP, behind a proxy
 qa/js-check.sh                               # node --check on every module and the i18n check, in a node container
+qa/e2e.sh                                    # the end-to-end suite on a throwaway one-node cluster (Docker, Node, ../dist)
 docker build -t freightdock .                # the image
 ```
 

@@ -1154,6 +1154,8 @@
       "counted_by": "Counted by"
     },
     "cluster_deploy": {
+      "stopped": "Make it without starting it",
+      "stopped_help": "It is placed and kept, and nothing of it runs until you start it on the Stacks page.",
       "title": "New stack",
       "sub": "A Compose file, where it runs, and what of it is reached from outside the cluster. The managers check it as you write; nothing runs until you deploy.",
       "back": "Back to stacks",

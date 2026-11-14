@@ -1507,3 +1507,13 @@ registries, templates, teams) and describe nothing here.
     notifications, CLI, metrics and errors, and two names for one node (one here, another there) read as two nodes.
     The managers are told first, so a name they refuse is not given here either. It amends 12: the name is no
     longer Freightdock's alone, and a stack placed by `node.labels.name` follows the new name at its next deploy.
+31. A new stack can be made without being started (2026-11-14): "Make it without starting it" when it is deployed, the
+    managers' `"stopped": true`. It is placed and kept, and runs once started on the Stacks page. Why: to look a stack
+    over before it runs, and for one whose old copy still runs elsewhere (the Portainer import, "Portainer" 12); the
+    end-to-end suite found the option was dropped on its way to the managers.
+32. The end-to-end suite runs against a real cluster made for it (2026-11-14): `qa/cluster.sh` starts a manager and a
+    worker in one privileged `docker:dind` container, from the static binaries, with the UI beside them on the
+    manager's admin token; `qa/e2e.mjs` drives the UI's API as the browser does (setup, sign-in, the node, stacks,
+    roles, MCP, the activity log) and takes away what it made. Why one throwaway container: it needs no test cluster,
+    no LAN address and nothing of the host but Docker, so it runs anywhere the old `docker:dind` suite ran. The UI runs
+    beside the manager rather than as its system workload, which needs an address of a LAN's pool.

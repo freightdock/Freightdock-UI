@@ -8,7 +8,7 @@ The single-host milestones M0 to M6 are history (git log of the old Freightdock 
 ## Next
 
 - [x] G8.5: the managers run the UI as a system workload, reachable on its pool address; one UI writing at a time.
-- [ ] An end-to-end suite against a real cluster (managers and workers), as `qa/run.sh` was against `docker:dind`.
+- [x] An end-to-end suite against a real cluster (managers and workers): `qa/e2e.sh` ("Cluster" 32).
 - [ ] Screenshots of the cluster UI, made by a script and never by hand ("Project" 9).
 
 ## Set aside, to come back through the managers
