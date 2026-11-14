@@ -215,6 +215,7 @@ copied `preset.js` to see `web/assets/finui/p` is what FinUI makes.
 and a worker in a privileged `docker:dind` container, from `../dist`'s static binaries, the UI image `FD_IMAGE` beside
 them, published on `127.0.0.1:17443`), `qa/e2e.mjs` drives the UI's API against it, and `qa/cluster.sh down` takes it
 away (left up for a look when a step fails; `qa/cluster.sh logs` shows the three logs). It needs Docker and Node.
+`qa/screenshots.sh` makes the screenshots the same way, with Chromium, into `docs/screenshots/` ("Cluster" 33).
 
 ## Known gaps
 

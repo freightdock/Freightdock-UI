@@ -42,7 +42,7 @@ pointer to what replaced it.
    does not show what it is about. Hand-made ones carried the old name and the owner's own registry into the
    repository; a generated one shows only what the tool made, and is made again whenever the UI changes.
 
-   **Superseded** by "Cluster" 10: `qa/screenshots.sh` drove the single-host product and went with it; screenshots of the cluster UI are taken on the test cluster until a script makes them again.
+   **Superseded** by "Cluster" 10: `qa/screenshots.sh` drove the single-host product and went with it; screenshots of the cluster UI are taken on the test cluster until a script makes them again. Back for the cluster UI with "Cluster" 33.
 ## Database
 
 1. One SQLite file in WAL mode; every transaction IMMEDIATE, so a transaction that reads and then writes is never refused
@@ -1517,3 +1517,9 @@ registries, templates, teams) and describe nothing here.
     roles, MCP, the activity log) and takes away what it made. Why one throwaway container: it needs no test cluster,
     no LAN address and nothing of the host but Docker, so it runs anywhere the old `docker:dind` suite ran. The UI runs
     beside the manager rather than as its system workload, which needs an address of a LAN's pool.
+33. Screenshots are made by a script again (2026-11-14; "Project" 9 back): `qa/screenshots.sh` makes a throwaway
+    cluster as the suite does (its own name and port), gives it invented stacks, a node name and a user through the
+    API, and takes each page with headless Chromium in the light and the dark theme into `docs/screenshots/`, refusing
+    a page that says null, undefined or NaN, shows an error or has a broken image. They are not committed yet: the
+    node's figures (CPUs, memory, disk) are those of the machine that made them, and putting a picture of somebody's
+    own machine in the public repository is the owner's choice ("Project" 6).

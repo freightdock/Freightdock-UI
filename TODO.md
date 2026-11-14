@@ -9,7 +9,9 @@ The single-host milestones M0 to M6 are history (git log of the old Freightdock 
 
 - [x] G8.5: the managers run the UI as a system workload, reachable on its pool address; one UI writing at a time.
 - [x] An end-to-end suite against a real cluster (managers and workers): `qa/e2e.sh` ("Cluster" 32).
-- [ ] Screenshots of the cluster UI, made by a script and never by hand ("Project" 9).
+- [x] Screenshots of the cluster UI, made by a script and never by hand: `qa/screenshots.sh` ("Cluster" 33).
+- [ ] Commit the screenshots and show them in the README, once the owner says pictures of the machine that made them
+      may go in ("Cluster" 33).
 
 ## Set aside, to come back through the managers
 
