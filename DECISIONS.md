@@ -1523,3 +1523,16 @@ registries, templates, teams) and describe nothing here.
     a page that says null, undefined or NaN, shows an error or has a broken image. They are not committed yet: the
     node's figures (CPUs, memory, disk) are those of the machine that made them, and putting a picture of somebody's
     own machine in the public repository is the owner's choice ("Project" 6).
+
+34. Ceph is set up, and a CephFS's keys given, from the Integrations page (2026-11-14; the managers' G12.6): a Ceph
+    card under the shares shows the setup the managers are making or made last (`/api/cluster/ceph/setup`), each step
+    with its node and what it said, asked again every three seconds while it runs; an administrator runs a failed step
+    again or forgets the setup (what it made stays). "Set up Ceph" asks every node that is heard, not fenced and runs
+    Docker for its disks (the node Docker read `disks`) and offers only those the node says are free; a node with none
+    says why in one line (a container sees its host's disks). The nodes go in the order their first disk was ticked,
+    the first bootstrapping, and starting asks once more, naming every disk, since each is erased. The managers check
+    again that each disk is free. The storage dialog takes a `cephfs` storage with its mount key and the optional
+    evicting client and key, and a CephFS row has a Keys dialog (`PUT /api/cluster/storage/{name}/keys`): password
+    fields, a key left empty keeping the one set, passed to the managers and never kept here, sent back or put in the
+    activity log, where the setup is on record with its filesystem, nodes and disks. The setup is said to be started by
+    the user who started it.

@@ -1,5 +1,5 @@
 // Integrations ("Cluster" 23): everything the cluster works with and how it behaves, in one place, for an
-// administrator. The shared storage (moved here from the Cluster page), the fencing providers (Proxmox: its address,
+// administrator. The shared storage (moved here from the Cluster page) and Ceph set up by the cluster ("Cluster" 34), the fencing providers (Proxmox: its address,
 // token and pinned certificate, read and tried from a manager; Redfish: one account for the nodes' BMCs ("Cluster"
 // 29); which guest or BMC each worker is), the cluster's timings
 // (heartbeat, when a node is suspect or unreachable, the self-fencing timers, recovery), each saying where its value
@@ -30,6 +30,7 @@ import { toast } from '../../finui/components/toast/toast.js';
 import { confirm } from '../confirm.js';
 import { t } from '../i18n.js';
 import { nodeName, storageTable, storageDialog } from './cluster.js';
+import { cephCard } from './ceph.js';
 
 /** The timings, in the order shown: the setting, and the unit it is typed in (the API keeps ms or s as named). */
 const TIMINGS = [
@@ -42,6 +43,8 @@ export function integrationsPage({ el, signal }) {
   const head = h('div'), body = h('div');
   el.append(head, body);
   mount(head, pageHeader(t('pages.integrations.title'), t('pages.integrations.sub')));
+  // Its own loader and timer, kept across the page's redraws (the same element placed again).
+  const ceph = cephCard({ signal, storageChanged: () => reload() });
   const reload = loadInto(body, {
     signal,
     load: async (s) => {
@@ -56,6 +59,7 @@ export function integrationsPage({ el, signal }) {
         card({ title: t('pages.integrations.shares'), sub: t('pages.integrations.shares_sub'),
           actions: button({ size: 'sm', onClick: () => storageDialog(reload) }, t('pages.cluster.storage_add')),
           body: st ? storageTable(st, n || [], reload) : emptyState(t('pages.cluster.no_answer'), '') }),
+        ceph,
         card({ title: t('pages.integrations.registries'), sub: t('pages.integrations.registries_sub'),
           actions: button({ size: 'sm', onClick: () => registryDialog(null, reload) }, t('pages.integrations.registry_add')),
           body: rg ? registryTable(rg, reload) : emptyState(t('pages.cluster.no_answer'), '') }),

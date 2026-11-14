@@ -71,7 +71,7 @@ web/
   assets/js/pages/         cluster (the cluster: managers, nodes, events, commands, recoveries, join tokens; the
                            landing page), cluster-stacks (the cluster's Compose stacks and their workloads), cluster-docker (a node's Docker
                            through its worker: "Cluster" 25), integrations (shares,
-                           fencing provider, private registries, notifications, timings, backups, each manager's own
+                           Ceph (ceph: its setup and the dialog, "Cluster" 34), fencing provider, private registries, notifications, timings, backups, each manager's own
                            settings: "Cluster" 23, 24, 26, 27), users
                            (users and teams), activity, signins (the auth log), settings (appearance, then
                            signin-settings: providers and two-factor), account, changelog, setup, login, auth (the
@@ -154,7 +154,10 @@ read-only token only reads.
 | `GET /api/cluster/traffic` | session | each node's latest flows, their ends named by the managers ("Cluster" 16) |
 | `POST /api/cluster/floating`, `DELETE /api/cluster/floating/{address}` | admin | `{address}`, one or a range: added (`{added}`, how many were new); removed (an IPv4 address in the path only) |
 | `GET /api/cluster/storage` | session | the cluster's shared storage, the volumes on each and who holds them ("Cluster" 21), and each node's health of it (`health`, "Cluster" 28) |
-| `POST /api/cluster/storage`, `DELETE /api/cluster/storage/{name}` | admin | `{name, driver: nfs\|path, source, options}`: added; removed (a storage name in the path only; refused while a stack uses it) |
+| `POST /api/cluster/storage`, `DELETE /api/cluster/storage/{name}` | admin | `{name, driver: nfs\|path\|cephfs, source, options}` (cephfs also `secret`, `fence_client`, `fence_secret`, `image`, never on record): added; removed (a storage name in the path only; refused while a stack uses it) |
+| `PUT /api/cluster/storage/{name}/keys` | admin | a CephFS's keys anew ("Cluster" 34): an empty key keeps the one set, an empty `fence_client` takes eviction away |
+| `GET /api/cluster/ceph/setup` | session | the Ceph setup the managers are making or made last, each step with its node, or null ("Cluster" 34) |
+| `POST /api/cluster/ceph/setup`, `POST /api/cluster/ceph/setup/retry`, `DELETE /api/cluster/ceph/setup` | admin | `{storage, fs, image, hosts: [{node_id, disks}]}`: Ceph started on them (the first bootstraps); the failed step again; the setup forgotten |
 | `GET /api/status` | anyone | name, version, configured, `sso: {providers: [{id, label, kind, preset}], ldap}` (the buttons; whether a directory takes the password form) |
 | `GET /api/auth/sso/{id}/login?next=` | anyone | off to that provider |
 | `GET /api/auth/sso/{id}/callback` | anyone | back from it (only that provider's sign-ins): signed in, or `/login?sso_error=` |

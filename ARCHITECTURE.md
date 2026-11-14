@@ -270,8 +270,11 @@ latest events, asked again every three seconds; an administrator pings a node, r
 it, sets its labels (`PUT /api/cluster/nodes/{id}/labels`, "Cluster" 5; the labels column shows the worker's own and
 the cluster's merged), authorizes one that came back fenced (`POST /api/cluster/nodes/{id}/authorize`, "Cluster" 6;
 the Fencing column shows the managers' fencing state with its message as a tooltip), removes it, or makes a join token for a worker or a manager.
-Under the pool the cluster's shared storage (`/api/cluster/storage`, "Cluster" 21), added or removed by an
-administrator. A node is shown by its name in Freightdock (`node_names`,
+The cluster's shared storage (`/api/cluster/storage`, "Cluster" 21) is on the Integrations page
+(`pages/integrations.js`, "Cluster" 23), added or removed by an administrator (a CephFS with its keys, passed through
+and never kept). Under it `pages/ceph.js` ("Cluster" 34) follows the Ceph setup the managers run
+(`/api/cluster/ceph/setup`, with its own loader and timer, kept across the page's redraws) and starts one: each
+node's disks are read through the node Docker route (`?action=disks`), and the managers do every step. A node is shown by its name in Freightdock (`node_names`,
 merged into the managers' answers by `cluster.rs`), else its hostname; a manager by its (`manager_names`, merged into
 `GET /api/cluster`'s `raft`), else its host. A command is followed until it ends and its outcome
 is a toast.

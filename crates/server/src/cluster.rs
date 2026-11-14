@@ -188,6 +188,9 @@ pub fn router() -> Router<App> {
         .route("/api/cluster/floating/{address}", axum::routing::delete(remove_floating))
         .route("/api/cluster/storage", get(storage).post(add_storage))
         .route("/api/cluster/storage/{name}", axum::routing::delete(remove_storage))
+        .route("/api/cluster/storage/{name}/keys", axum::routing::put(set_storage_keys))
+        .route("/api/cluster/ceph/setup", get(ceph_setup).post(start_ceph_setup).delete(clear_ceph_setup))
+        .route("/api/cluster/ceph/setup/retry", post(retry_ceph_setup))
         .route("/api/cluster/settings", get(settings).put(set_settings))
         .route("/api/cluster/settings/proxmox/fingerprint", post(proxmox_fingerprint))
         .route("/api/cluster/settings/proxmox/test", post(proxmox_test))
@@ -430,24 +433,112 @@ struct StorageBody {
     source: String,
     #[serde(default)]
     options: String,
+    /// cephfs: its keys, passed on and never kept here nor put on record ("Cluster" 34).
+    #[serde(flatten)]
+    keys: CephKeysBody,
+}
+
+#[derive(Deserialize, Default)]
+struct CephKeysBody {
+    secret: Option<String>,
+    fence_client: Option<String>,
+    fence_secret: Option<String>,
+    image: Option<String>,
+}
+
+impl CephKeysBody {
+    /// What the managers get: a key left empty is left out (the one set stays), a fence client or image as given
+    /// (empty takes eviction, or the image chosen, away).
+    fn into_json(self, mut body: Value) -> Value {
+        let t = |s: Option<String>| s.map(|s| s.trim().to_string());
+        for (k, v) in [("secret", t(self.secret)), ("fence_secret", t(self.fence_secret))] {
+            if let Some(v) = v.filter(|v| !v.is_empty()) {
+                body[k] = json!(v);
+            }
+        }
+        for (k, v) in [("fence_client", t(self.fence_client)), ("image", t(self.image))] {
+            if let Some(v) = v {
+                body[k] = json!(v);
+            }
+        }
+        body
+    }
 }
 
 /// Storage given to the cluster; the managers check it.
 async fn add_storage(State(app): State<App>, a: Authed, Json(b): Json<StorageBody>) -> ApiResult<(StatusCode, Json<Value>)> {
     let name = b.name.trim().to_string();
-    let body = json!({ "name": name, "driver": b.driver.trim(), "source": b.source.trim(), "options": b.options.trim() });
+    let mut body = json!({ "name": name, "driver": b.driver.trim(), "source": b.source.trim(), "options": b.options.trim() });
+    if b.driver.trim() == "cephfs" {
+        body = b.keys.into_json(body);
+    }
     let (s, v) = cluster(&app)?.call(reqwest::Method::POST, "/v1/storage", Some(body)).await?;
     audit::record(&app.db, Some(&a.session.user), a.ip, audit::entry("cluster.storage.add", name)).await;
     Ok((s, Json(v)))
 }
 
 async fn remove_storage(State(app): State<App>, a: Authed, Path(name): Path<String>) -> ApiResult<StatusCode> {
-    // Only a storage name (a-z, 0-9 and -) goes into the manager's path.
-    if name.is_empty() || name.len() > 40 || !name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-') {
-        return Err(ApiError::not_found("storage"));
-    }
+    storage_or_404(&name)?;
     cluster(&app)?.call(reqwest::Method::DELETE, &format!("/v1/storage/{name}"), None).await?;
     audit::record(&app.db, Some(&a.session.user), a.ip, audit::entry("cluster.storage.remove", name)).await;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// A storage name (a-z, 0-9 and -): nothing else goes into a manager's path.
+fn storage_or_404(name: &str) -> ApiResult<()> {
+    let ok = !name.is_empty() && name.len() <= 40 && name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+    if ok { Ok(()) } else { Err(ApiError::not_found("storage")) }
+}
+
+/// A CephFS storage's keys set anew (G12.6); a key left empty stays as it was. On record without any key.
+async fn set_storage_keys(State(app): State<App>, a: Authed, Path(name): Path<String>, Json(b): Json<CephKeysBody>) -> ApiResult<(StatusCode, Json<Value>)> {
+    storage_or_404(&name)?;
+    let (s, v) = cluster(&app)?.call(reqwest::Method::PUT, &format!("/v1/storage/{name}/keys"), Some(b.into_json(json!({})))).await?;
+    audit::record(&app.db, Some(&a.session.user), a.ip, audit::entry("cluster.storage.keys", name)).await;
+    Ok((s, Json(v)))
+}
+
+/// Ceph made by the cluster (G12.6): the setup being made or the last one, each step with how it went; null for none.
+async fn ceph_setup(State(app): State<App>, _a: Authed) -> ApiResult<Json<Value>> {
+    Ok(Json(cluster(&app)?.call(reqwest::Method::GET, "/v1/ceph/setup", None).await?.1))
+}
+
+#[derive(Deserialize)]
+struct CephSetupBody {
+    storage: String,
+    fs: String,
+    #[serde(default)]
+    image: String,
+    hosts: Vec<CephHostBody>,
+}
+
+#[derive(Deserialize, serde::Serialize)]
+struct CephHostBody {
+    node_id: String,
+    disks: Vec<String>,
+}
+
+/// Starts Ceph on the nodes and disks chosen (the first bootstraps); the managers check that each disk is free.
+async fn start_ceph_setup(State(app): State<App>, a: Authed, Json(b): Json<CephSetupBody>) -> ApiResult<(StatusCode, Json<Value>)> {
+    let (storage, fs) = (b.storage.trim().to_string(), b.fs.trim().to_string());
+    let detail = format!("filesystem {fs} on {}", b.hosts.iter().map(|h| format!("{}={}", h.node_id, h.disks.join(","))).collect::<Vec<_>>().join(" "));
+    let body = json!({ "storage": storage, "fs": fs, "image": b.image.trim(), "hosts": b.hosts, "by": a.session.user.name });
+    let (s, v) = cluster(&app)?.call(reqwest::Method::POST, "/v1/ceph/setup", Some(body)).await?;
+    audit::record(&app.db, Some(&a.session.user), a.ip, audit::Entry { detail: Some(detail), ..audit::entry("cluster.ceph.setup", storage) }).await;
+    Ok((s, Json(v)))
+}
+
+/// The failed step run again, and on from there.
+async fn retry_ceph_setup(State(app): State<App>, a: Authed) -> ApiResult<StatusCode> {
+    cluster(&app)?.call(reqwest::Method::POST, "/v1/ceph/setup/retry", None).await?;
+    audit::record(&app.db, Some(&a.session.user), a.ip, audit::entry("cluster.ceph.retry", None)).await;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// The setup forgotten; what it made (Ceph on the nodes, the storage) stays.
+async fn clear_ceph_setup(State(app): State<App>, a: Authed) -> ApiResult<StatusCode> {
+    cluster(&app)?.call(reqwest::Method::DELETE, "/v1/ceph/setup", None).await?;
+    audit::record(&app.db, Some(&a.session.user), a.ip, audit::entry("cluster.ceph.clear", None)).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -823,6 +914,10 @@ pub(crate) mod tests {
                     "GET /v1/storage" => (StatusCode::OK, json!([{ "name": "nas", "driver": "nfs", "source": "192.0.2.50:/export", "volumes": [] }]).to_string()),
                     "POST /v1/storage" => (StatusCode::CREATED, json!({ "got": got }).to_string()),
                     "DELETE /v1/storage/nas" => (StatusCode::NO_CONTENT, String::new()),
+                    "PUT /v1/storage/ceph/keys" => (StatusCode::OK, json!({ "got": got }).to_string()),
+                    "GET /v1/ceph/setup" => (StatusCode::OK, json!({ "state": "running", "storage": "ceph", "fs": "fdfs", "steps": [{ "kind": "prepare", "state": "done" }] }).to_string()),
+                    "POST /v1/ceph/setup" => (StatusCode::ACCEPTED, json!({ "steps": 9, "got": got }).to_string()),
+                    "POST /v1/ceph/setup/retry" | "DELETE /v1/ceph/setup" => (StatusCode::NO_CONTENT, String::new()),
                     "GET /v1/settings" => (StatusCode::OK, json!({ "settings": { "fence_stop_s": { "value": 30, "source": "default" }, "proxmox": null }, "manager": {} }).to_string()),
                     "PUT /v1/settings" => (StatusCode::OK, json!({ "got": got }).to_string()),
                     "POST /v1/settings/proxmox/fingerprint" => (StatusCode::OK, json!({ "fingerprint": "AB:CD", "got": got }).to_string()),
@@ -1009,6 +1104,52 @@ pub(crate) mod tests {
         let log: Vec<(String, String)> = app.db.call(|c| Ok(c.prepare("SELECT action, target FROM audit WHERE action LIKE 'cluster.storage.%' ORDER BY id")?.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<Result<_, _>>()?)).await.unwrap();
         assert_eq!(log, vec![("cluster.storage.add".to_string(), "nas".to_string()), ("cluster.storage.remove".to_string(), "nas".to_string())]);
         assert!(!asked.lock().unwrap().iter().any(|l| l.contains("nodes")), "{:?}", asked.lock().unwrap());
+    }
+
+    #[tokio::test]
+    async fn a_cephfs_storage_and_its_keys_go_to_the_managers_and_no_key_into_the_log() {
+        let (app, asked, _d) = connected("t0k3n").await;
+        let (cookie, csrf) = signed_in(&app).await;
+        let add = post("/api/cluster/storage").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).body(json_body(json!({ "name": "ceph", "driver": "cephfs", "source": "192.0.2.1,192.0.2.2:/", "options": "name=freightdock,fs=fdfs", "secret": " AQBzZWNyZXQ= ", "fence_client": "freightdock-fence", "fence_secret": "AQBmZW5jZQ==" }))).unwrap();
+        let (s, _, b) = call(&app, add).await;
+        assert_eq!(s, StatusCode::CREATED);
+        assert_eq!((b["got"]["secret"].clone(), b["got"]["fence_client"].clone(), b["got"]["fence_secret"].clone()), (json!("AQBzZWNyZXQ="), json!("freightdock-fence"), json!("AQBmZW5jZQ==")));
+        let nfs = post("/api/cluster/storage").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).body(json_body(json!({ "name": "nas", "driver": "nfs", "source": "192.0.2.50:/export" }))).unwrap();
+        let (_, _, b) = call(&app, nfs).await;
+        assert!(b["got"].get("secret").is_none(), "no keys sent for storage that has none: {b}");
+        let keys = |n: &str, body: Value| Request::put(format!("/api/cluster/storage/{n}/keys")).header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).header(header::CONTENT_TYPE, "application/json").body(Body::from(body.to_string())).unwrap();
+        let (s, _, b) = call(&app, keys("ceph", json!({ "secret": "", "fence_client": "", "image": "quay.io/ceph/ceph:v20" }))).await;
+        assert_eq!(s, StatusCode::OK);
+        assert!(b["got"].get("secret").is_none(), "an empty key keeps the one set: {b}");
+        assert_eq!((b["got"]["fence_client"].clone(), b["got"]["image"].clone()), (json!(""), json!("quay.io/ceph/ceph:v20")), "an empty fence client takes eviction away");
+        assert_eq!(call(&app, keys("..%2Fnodes", json!({}))).await.0, StatusCode::NOT_FOUND);
+        let log: Vec<(String, String)> = app.db.call(|c| Ok(c.prepare("SELECT action, target || ' ' || coalesce(detail, '') FROM audit WHERE action LIKE 'cluster.storage.%' ORDER BY id")?.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<Result<_, _>>()?)).await.unwrap();
+        assert_eq!(log[0].0, "cluster.storage.add");
+        assert_eq!(log.last().unwrap().0, "cluster.storage.keys");
+        assert!(!log.iter().any(|(_, t)| t.contains("AQB")), "no key on record: {log:?}");
+        assert!(!asked.lock().unwrap().iter().any(|l| l.contains("AQB")));
+    }
+
+    #[tokio::test]
+    async fn ceph_is_set_up_by_an_administrator_into_the_log_and_followed_by_anybody() {
+        let (app, asked, _d) = connected("t0k3n").await;
+        let (cookie, csrf) = signed_in(&app).await;
+        let (s, _, b) = call(&app, get("/api/cluster/ceph/setup", &cookie)).await;
+        assert_eq!((s, b["state"].clone()), (StatusCode::OK, json!("running")));
+        let body = json!({ "storage": " ceph ", "fs": "fdfs", "hosts": [{ "node_id": "6f1c7c2e-0000-4000-8000-000000000001", "disks": ["/dev/vdb"] }] });
+        let start = post("/api/cluster/ceph/setup").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).body(json_body(body)).unwrap();
+        let (s, _, b) = call(&app, start).await;
+        assert_eq!((s, b["steps"].clone(), b["got"]["storage"].clone()), (StatusCode::ACCEPTED, json!(9), json!("ceph")));
+        assert_eq!(b["got"]["hosts"][0]["disks"], json!(["/dev/vdb"]));
+        assert_eq!(b["got"]["by"], json!("admin"), "the manager is told who started it");
+        let retry = post("/api/cluster/ceph/setup/retry").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).body(Body::empty()).unwrap();
+        assert_eq!(call(&app, retry).await.0, StatusCode::NO_CONTENT);
+        let clear = Request::delete("/api/cluster/ceph/setup").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).body(Body::empty()).unwrap();
+        assert_eq!(call(&app, clear).await.0, StatusCode::NO_CONTENT);
+        let log: Vec<(String, String)> = app.db.call(|c| Ok(c.prepare("SELECT action, coalesce(detail, '') FROM audit WHERE action LIKE 'cluster.ceph.%' ORDER BY id")?.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<Result<_, _>>()?)).await.unwrap();
+        assert_eq!(log.iter().map(|(a, _)| a.as_str()).collect::<Vec<_>>(), ["cluster.ceph.setup", "cluster.ceph.retry", "cluster.ceph.clear"]);
+        assert!(log[0].1.contains("fdfs") && log[0].1.contains("/dev/vdb"), "{log:?}");
+        assert!(asked.lock().unwrap().iter().any(|l| l == "DELETE /v1/ceph/setup"));
     }
 
     #[tokio::test]

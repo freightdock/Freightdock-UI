@@ -909,11 +909,13 @@
       "storage_volumes": "Volumes on it",
       "storage_kind_word": {
         "nfs": "NFS",
-        "path": "Shared directory"
+        "path": "Shared directory",
+        "cephfs": "CephFS"
       },
       "storage_kind_title": {
         "nfs": "The workers mount the export themselves, and unmount it when they fence.",
-        "path": "A directory that is the same storage on every worker, shared outside Freightdock (a mount the host has, or a bind mount into a container)."
+        "path": "A directory that is the same storage on every worker, shared outside Freightdock (a mount the host has, or a bind mount into a container).",
+        "cephfs": "The workers mount the filesystem with the kernel client and its key; a fenced node's mounts are evicted by Ceph before its volumes move."
       },
       "storage_many": "many writers",
       "storage_held": "one writer, on {node}",
@@ -923,7 +925,8 @@
       "storage_name_help": "1 to 40 of a-z, 0-9 and -. A Compose file names it.",
       "storage_source_help": {
         "nfs": "host:/export, as the workers reach it.",
-        "path": "An absolute directory, the same shared storage on every worker."
+        "path": "An absolute directory, the same shared storage on every worker.",
+        "cephfs": "The monitors, comma separated, then : and the path in the filesystem (/ for all of it)."
       },
       "storage_options_help": "Optional, as mount -o takes them.",
       "storage_compose_help": "A stack keeps a named volume here from its Compose file: under volumes, give it x-freightdock with storage set to this name, and access: many if several workloads may write to it at once.",
@@ -933,7 +936,22 @@
       "storage_remove_body": "Nothing on it is deleted; the cluster stops using it.",
       "storage_health": "Health",
       "storage_free_of": "{free} free of {total}",
-      "storage_unprobed": "No node uses it yet"
+      "storage_unprobed": "No node uses it yet",
+      "storage_options_help_cephfs": "name= the client the workers mount as (without client.), fs= the filesystem.",
+      "storage_secret": "Mount key",
+      "storage_secret_help": "The key of the client named in the options, as ceph auth get-key prints it. Kept by the managers, never shown again.",
+      "storage_secret_set": "Set. Leave empty to keep it.",
+      "storage_fence_client": "Evicting client",
+      "storage_fence_client_help": "Optional: a client allowed to evict others' mounts (mon 'allow r', mds 'allow *'), without client. Without it a fenced node's volumes wait for it to unmount by itself.",
+      "storage_fence_secret": "Evicting client's key",
+      "storage_fence_secret_help": "Its key, kept and never shown like the mount key.",
+      "storage_keys": "Keys",
+      "storage_keys_title": "The keys of {name}",
+      "storage_keys_saved": "The keys of {name} are saved",
+      "storage_key_set": "key set",
+      "storage_key_missing": "no key",
+      "storage_evicts": "evicts as {client}",
+      "storage_no_eviction": "no eviction"
     },
     "cluster_stacks": {
       "title": "Cluster stacks",
@@ -1540,6 +1558,76 @@
       "no_images": "No images on this node.",
       "no_volumes": "No volumes on this node.",
       "no_networks": "No networks."
+    },
+    "ceph": {
+      "title": "Ceph",
+      "sub": "Shared storage the cluster makes of its own nodes' disks: Ceph on the nodes chosen, its filesystem added as storage.",
+      "set_up": "Set up Ceph",
+      "none": "No Ceph made here",
+      "none_text": "Pick the nodes and their empty disks, and the cluster sets up Ceph on them step by step. Three nodes or more keep it working when one fails.",
+      "of": "storage {storage}, filesystem {fs}",
+      "by": "started by {by}",
+      "state": {
+        "running": "Setting up",
+        "failed": "Failed",
+        "done": "Done"
+      },
+      "step_state": {
+        "pending": "To come",
+        "running": "Running",
+        "done": "Done",
+        "failed": "Failed"
+      },
+      "kind": {
+        "prepare": "Prepare the node",
+        "bootstrap": "Start Ceph",
+        "trust": "Trust the first node",
+        "add_host": "Join the cluster",
+        "monitors": "Place the monitors",
+        "managers": "Place the managers",
+        "pool_size": "Two copies of everything",
+        "pool_min_size": "Keep writing with one",
+        "memory": "Share the memory",
+        "osd": "Add the disk",
+        "filesystem": "Make the filesystem",
+        "keys": "Make the keys and the storage"
+      },
+      "failed": "A step failed",
+      "done": "Ceph is set up",
+      "done_text": "Its filesystem is the storage {storage}, under Shared storage above.",
+      "progress": "Steps",
+      "steps_done": "{done} of {all} done",
+      "steps": "The setup's steps",
+      "step": "Step",
+      "on": "On",
+      "how": "State",
+      "said": "What it said",
+      "retry": "Run it again",
+      "retried": "The failed step runs again",
+      "clear": "Forget it",
+      "clear_title": "Forget this setup?",
+      "clear_body": "Only the record of it goes: Ceph stays on the nodes and its storage stays the cluster's.",
+      "looking": "Asking each node for its disks…",
+      "no_nodes": "No node can take part",
+      "no_nodes_text": "Ceph is set up on nodes that are heard, not fenced, and run Docker.",
+      "no_disks": "No disks of its own (a container sees none).",
+      "in_use": "In use",
+      "pick": "Tick at least one empty disk.",
+      "picked": "{n} nodes; {first} starts Ceph.",
+      "picked_few": "{n} node(s); {first} starts Ceph. With fewer than three, Ceph stops when one fails.",
+      "storage": "Storage name",
+      "storage_help": "The name stacks give in their Compose files, as for any storage.",
+      "fs": "Filesystem",
+      "fs_help": "The CephFS made on the disks.",
+      "image": "Ceph image",
+      "image_help": "Optional: the image Ceph runs from. Empty is the release Freightdock is tried with.",
+      "erase": "The disks ticked are erased",
+      "erase_text": "Ceph takes each disk whole. Only disks the node says are empty (no partitions, no filesystem, not mounted) can be ticked.",
+      "start": "Erase and set up",
+      "confirm_title": "Set up Ceph on these disks?",
+      "confirm_body": "Everything on {disks} is erased. This cannot be undone.",
+      "started": "Ceph is being set up ({n} steps)",
+      "none_free": "None of its {n} disks is free: {why}."
     }
   },
   "components": {

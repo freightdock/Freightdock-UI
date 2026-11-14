@@ -320,44 +320,91 @@ export function storageTable(list, nodes, reload) {
     columns: [
       { label: t('pages.cluster.storage_name'), cell: (x) => h('span', { class: 'mono' }, x.name), sort: (x) => x.name },
       { label: t('pages.cluster.storage_kind'), cell: (x) => h('span', { title: tOr(`pages.cluster.storage_kind_title.${x.driver}`, '') }, tOr(`pages.cluster.storage_kind_word.${x.driver}`, x.driver)), sort: (x) => x.driver },
-      { label: t('pages.cluster.storage_source'), cell: (x) => h('div', null, h('span', { class: 'mono' }, x.source), x.options ? h('div', { class: 'sub mono' }, x.options) : null), sort: (x) => x.source },
+      { label: t('pages.cluster.storage_source'), cell: (x) => h('div', null, h('span', { class: 'mono' }, x.source), x.options ? h('div', { class: 'sub mono' }, x.options) : null, x.ceph ? cephKeyState(x.ceph) : null), sort: (x) => x.source },
       { label: t('pages.cluster.storage_volumes'), cell: (x) => ((x.volumes || []).length
         ? h('div', { class: 'stack stack--tight' }, x.volumes.map(volume))
         : h('span', { class: 'sub' }, t('pages.cluster.storage_no_volumes'))), sort: (x) => (x.volumes || []).length },
       { label: t('pages.cluster.storage_health'), cell: health, sort: (x) => (x.health || []).filter((n) => !n.ok).length },
-      ...(isAdmin() ? [{ label: '', nosort: true, cell: (x) => h('div', { class: 'row row--end' }, button({ size: 'sm', variant: 'danger', disabled: (x.volumes || []).length > 0, title: (x.volumes || []).length ? t('pages.cluster.storage_in_use') : null, onClick: () => removeStorage(x.name, reload) }, t('common.remove'))) }] : []),
+      ...(isAdmin() ? [{ label: '', nosort: true, cell: (x) => h('div', { class: 'row row--end nowrap' },
+        x.driver === 'cephfs' ? button({ size: 'sm', onClick: () => storageKeysDialog(x, reload) }, t('pages.cluster.storage_keys')) : null,
+        button({ size: 'sm', variant: 'danger', disabled: (x.volumes || []).length > 0, title: (x.volumes || []).length ? t('pages.cluster.storage_in_use') : null, onClick: () => removeStorage(x.name, reload) }, t('common.remove'))) }] : []),
     ],
   });
+}
+
+const SOURCE_PLACEHOLDER = { nfs: '192.0.2.50:/export/freightdock', path: '/mnt/shared', cephfs: '192.0.2.1,192.0.2.2,192.0.2.3:/' };
+const OPTIONS_PLACEHOLDER = { nfs: 'vers=4.2,hard', cephfs: 'name=freightdock,fs=cephfs' };
+
+/** A CephFS's keys as fields (each a password field; left empty keeps the one set): the mount client's, and the
+ *  client that evicts a fenced node's mounts with its key ("Cluster" 34). */
+function cephKeyFields(prefix, k) {
+  const secret = formField({ id: `${prefix}-secret`, label: t('pages.cluster.storage_secret'), type: 'password', autocomplete: 'off', help: k && k.secret_set ? t('pages.cluster.storage_secret_set') : t('pages.cluster.storage_secret_help') });
+  const fenceClient = formField({ id: `${prefix}-fence-client`, label: t('pages.cluster.storage_fence_client'), autocomplete: 'off', placeholder: 'freightdock-fence', help: t('pages.cluster.storage_fence_client_help') });
+  const fenceSecret = formField({ id: `${prefix}-fence-secret`, label: t('pages.cluster.storage_fence_secret'), type: 'password', autocomplete: 'off', help: k && k.fence_secret_set ? t('pages.cluster.storage_secret_set') : t('pages.cluster.storage_fence_secret_help') });
+  if (k) fenceClient.input.value = k.fence_client || '';
+  return { secret, fenceClient, fenceSecret, el: h('div', { class: 'stack' }, secret.el, fenceClient.el, fenceSecret.el),
+    value: () => ({ secret: secret.input.value.trim(), fence_client: fenceClient.input.value.trim(), fence_secret: fenceSecret.input.value.trim() }) };
+}
+
+/** Whether a CephFS's keys are set, never the keys: the mount key, and eviction of a fenced node's mounts. */
+function cephKeyState(k) {
+  return h('div', { class: 'row wrap' },
+    status({ tone: k.secret_set ? 'good' : 'critical' }, t(k.secret_set ? 'pages.cluster.storage_key_set' : 'pages.cluster.storage_key_missing')),
+    status({ tone: k.fence_client && k.fence_secret_set ? 'good' : 'warning' }, k.fence_client && k.fence_secret_set ? t('pages.cluster.storage_evicts', { client: k.fence_client }) : t('pages.cluster.storage_no_eviction')));
 }
 
 export function storageDialog(reload) {
   let driver = 'nfs';
   const name = formField({ id: 'cl-storage-name', label: t('pages.cluster.storage_name'), placeholder: 'nas', help: t('pages.cluster.storage_name_help') });
-  const source = formField({ id: 'cl-storage-source', label: t('pages.cluster.storage_source'), placeholder: '192.0.2.50:/export/freightdock', help: t('pages.cluster.storage_source_help.nfs') });
-  const options = formField({ id: 'cl-storage-options', label: t('pages.cluster.storage_options'), placeholder: 'vers=4.2,hard', help: t('pages.cluster.storage_options_help') });
+  const source = formField({ id: 'cl-storage-source', label: t('pages.cluster.storage_source'), placeholder: SOURCE_PLACEHOLDER.nfs, help: t('pages.cluster.storage_source_help.nfs') });
+  const options = formField({ id: 'cl-storage-options', label: t('pages.cluster.storage_options'), placeholder: OPTIONS_PLACEHOLDER.nfs, help: t('pages.cluster.storage_options_help') });
+  const keys = cephKeyFields('cl-storage', null);
+  keys.el.hidden = true;
   const kind = segmented({ label: t('pages.cluster.storage_kind'), value: driver, size: 'sm',
-    options: [{ value: 'nfs', label: t('pages.cluster.storage_kind_word.nfs') }, { value: 'path', label: t('pages.cluster.storage_kind_word.path') }],
+    options: ['nfs', 'path', 'cephfs'].map((v) => ({ value: v, label: t(`pages.cluster.storage_kind_word.${v}`) })),
     onChange: (v) => {
       driver = v;
-      source.input.placeholder = v === 'nfs' ? '192.0.2.50:/export/freightdock' : '/mnt/shared';
+      source.input.placeholder = SOURCE_PLACEHOLDER[v];
       source.el.querySelector('.fui-field__help').textContent = t(`pages.cluster.storage_source_help.${v}`);
-      options.el.hidden = v !== 'nfs';
+      options.el.hidden = v === 'path';
+      options.input.placeholder = OPTIONS_PLACEHOLDER[v] || '';
+      options.el.querySelector('.fui-field__help').textContent = t(v === 'cephfs' ? 'pages.cluster.storage_options_help_cephfs' : 'pages.cluster.storage_options_help');
+      keys.el.hidden = v !== 'cephfs';
     } });
   const go = button({ variant: 'primary', type: 'submit' }, t('pages.cluster.storage_add'));
   const form = h('form', { class: 'stack', novalidate: true },
-    name.el, h('div', { class: 'fui-field' }, h('span', { class: 'fui-field__label' }, t('pages.cluster.storage_kind')), kind), source.el, options.el,
+    name.el, h('div', { class: 'fui-field' }, h('span', { class: 'fui-field__label' }, t('pages.cluster.storage_kind')), kind), source.el, options.el, keys.el,
     h('p', { class: 'sub' }, t('pages.cluster.storage_compose_help')),
     h('div', { class: 'row row--end' }, go));
   const m = openModal({ title: t('pages.cluster.storage_add'), body: form, initialFocus: name.input });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (driver === 'cephfs' && !keys.secret.input.value.trim()) { keys.secret.setError(t('pages.cluster.needed')); return; }
     go.disabled = true;
     try {
-      await post('/api/cluster/storage', { name: name.input.value.trim(), driver, source: source.input.value.trim(), options: driver === 'nfs' ? options.input.value.trim() : '' });
+      await post('/api/cluster/storage', { name: name.input.value.trim(), driver, source: source.input.value.trim(), options: driver === 'path' ? '' : options.input.value.trim(), ...(driver === 'cephfs' ? keys.value() : {}) });
       m.close();
       toast({ text: t('pages.cluster.storage_added', { name: name.input.value.trim() }), tone: 'good' });
       reload();
     } catch (x) { go.disabled = false; source.setError(x.message); }
+  });
+}
+
+/** A CephFS's keys set anew: a key left empty stays as it is, an empty evicting client takes eviction away. */
+function storageKeysDialog(x, reload) {
+  const keys = cephKeyFields('cl-keys', x.ceph || {});
+  const go = button({ variant: 'primary', type: 'submit' }, t('common.save'));
+  const form = h('form', { class: 'stack', novalidate: true }, keys.el, h('div', { class: 'row row--end' }, go));
+  const m = openModal({ title: t('pages.cluster.storage_keys_title', { name: x.name }), body: form, initialFocus: keys.secret.input });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    go.disabled = true;
+    try {
+      await put(`/api/cluster/storage/${encodeURIComponent(x.name)}/keys`, keys.value());
+      m.close();
+      toast({ text: t('pages.cluster.storage_keys_saved', { name: x.name }), tone: 'good' });
+      reload();
+    } catch (err) { go.disabled = false; keys.secret.setError(err.message); }
   });
 }
 

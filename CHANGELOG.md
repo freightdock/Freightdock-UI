@@ -13,6 +13,7 @@ whole series.
 ## [1.0.0] - 2026-11-09 to 2026-11-10
 
 First light
+- **Set up Ceph from the Integrations page**: tick the nodes' empty disks (each node says which are free, and why the others are not), name the storage and the filesystem, and the cluster sets up Ceph on them step by step, showing each step as it goes; a failed step can be run again. The filesystem becomes shared storage like any other. A CephFS made elsewhere can be added with its keys too, which are never shown again or put in the activity log.
 - **One-line install**: the README and the install guide start from `curl ... install.sh | sudo sh -s -- first --ui <address>`, and name the published image, `ghcr.io/freightdock/freightdock-ui`.
 - **Deploy without starting**: a new stack can be made and placed without running, to look it over first or while its old copy still runs elsewhere.
 - **An end-to-end suite** against a real one-node cluster made for it in Docker, run with `qa/e2e.sh`.

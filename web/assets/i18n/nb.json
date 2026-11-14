@@ -909,11 +909,13 @@
       "storage_volumes": "Volumer på den",
       "storage_kind_word": {
         "nfs": "NFS",
-        "path": "Delt mappe"
+        "path": "Delt mappe",
+        "cephfs": "CephFS"
       },
       "storage_kind_title": {
         "nfs": "Arbeiderne monterer eksporten selv, og avmonterer den når de gjerder seg av.",
-        "path": "En mappe som er samme lagring på hver arbeider, delt utenfor Freightdock (en montering verten har, eller en bind-montering inn i en container)."
+        "path": "En mappe som er samme lagring på hver arbeider, delt utenfor Freightdock (en montering verten har, eller en bind-montering inn i en container).",
+        "cephfs": "Arbeiderne monterer filsystemet med kjerneklienten og nøkkelen; en fencet nodes monteringer kastes ut av Ceph før volumene flyttes."
       },
       "storage_many": "mange skrivere",
       "storage_held": "én skriver, på {node}",
@@ -923,7 +925,8 @@
       "storage_name_help": "1 til 40 av a-z, 0-9 og -. En Compose-fil bruker navnet.",
       "storage_source_help": {
         "nfs": "vert:/eksport, slik arbeiderne når den.",
-        "path": "En absolutt mappe, samme delte lagring på hver arbeider."
+        "path": "En absolutt mappe, samme delte lagring på hver arbeider.",
+        "cephfs": "Monitorene, kommaseparert, så : og stien i filsystemet (/ for hele)."
       },
       "storage_options_help": "Valgfritt, slik mount -o tar dem.",
       "storage_compose_help": "En stakk legger et navngitt volum her fra Compose-filen: under volumes, gi det x-freightdock med storage satt til dette navnet, og access: many hvis flere arbeidslaster kan skrive til det samtidig.",
@@ -933,7 +936,22 @@
       "storage_remove_body": "Ingenting på den slettes; klyngen slutter å bruke den.",
       "storage_health": "Helse",
       "storage_free_of": "{free} ledig av {total}",
-      "storage_unprobed": "Ingen node bruker den ennå"
+      "storage_unprobed": "Ingen node bruker den ennå",
+      "storage_options_help_cephfs": "name= klienten arbeiderne monterer som (uten client.), fs= filsystemet.",
+      "storage_secret": "Monteringsnøkkel",
+      "storage_secret_help": "Nøkkelen til klienten i valgene, slik ceph auth get-key skriver den. Lagres av managerne, vises aldri igjen.",
+      "storage_secret_set": "Satt. La stå tom for å beholde den.",
+      "storage_fence_client": "Utkastende klient",
+      "storage_fence_client_help": "Valgfritt: en klient som kan kaste ut andres monteringer (mon 'allow r', mds 'allow *'), uten client. Uten den venter volumene til en fencet node til den avmonterer selv.",
+      "storage_fence_secret": "Den utkastende klientens nøkkel",
+      "storage_fence_secret_help": "Nøkkelen, lagret og aldri vist, som monteringsnøkkelen.",
+      "storage_keys": "Nøkler",
+      "storage_keys_title": "Nøklene til {name}",
+      "storage_keys_saved": "Nøklene til {name} er lagret",
+      "storage_key_set": "nøkkel satt",
+      "storage_key_missing": "ingen nøkkel",
+      "storage_evicts": "kaster ut som {client}",
+      "storage_no_eviction": "ingen utkasting"
     },
     "cluster_stacks": {
       "title": "Klyngestabler",
@@ -1540,6 +1558,76 @@
       "no_images": "Ingen bilder på denne noden.",
       "no_volumes": "Ingen volumer på denne noden.",
       "no_networks": "Ingen nettverk."
+    },
+    "ceph": {
+      "title": "Ceph",
+      "sub": "Delt lagring klyngen lager av nodenes egne disker: Ceph på de valgte nodene, filsystemet lagt til som lagring.",
+      "set_up": "Sett opp Ceph",
+      "none": "Ingen Ceph laget her",
+      "none_text": "Velg nodene og de tomme diskene deres, så setter klyngen opp Ceph på dem steg for steg. Tre noder eller flere holder det i gang når én svikter.",
+      "of": "lagring {storage}, filsystem {fs}",
+      "by": "startet av {by}",
+      "state": {
+        "running": "Settes opp",
+        "failed": "Feilet",
+        "done": "Ferdig"
+      },
+      "step_state": {
+        "pending": "Kommer",
+        "running": "Kjører",
+        "done": "Ferdig",
+        "failed": "Feilet"
+      },
+      "kind": {
+        "prepare": "Gjør noden klar",
+        "bootstrap": "Start Ceph",
+        "trust": "Stol på den første noden",
+        "add_host": "Bli med i klyngen",
+        "monitors": "Plasser monitorene",
+        "managers": "Plasser managerne",
+        "pool_size": "To kopier av alt",
+        "pool_min_size": "Fortsett å skrive med én",
+        "memory": "Del minnet",
+        "osd": "Legg til disken",
+        "filesystem": "Lag filsystemet",
+        "keys": "Lag nøklene og lagringen"
+      },
+      "failed": "Et steg feilet",
+      "done": "Ceph er satt opp",
+      "done_text": "Filsystemet er lagringen {storage}, under Delt lagring over.",
+      "progress": "Steg",
+      "steps_done": "{done} av {all} ferdig",
+      "steps": "Stegene i oppsettet",
+      "step": "Steg",
+      "on": "På",
+      "how": "Tilstand",
+      "said": "Hva det sa",
+      "retry": "Kjør det igjen",
+      "retried": "Steget som feilet kjøres igjen",
+      "clear": "Glem det",
+      "clear_title": "Glemme dette oppsettet?",
+      "clear_body": "Bare oppføringen forsvinner: Ceph blir på nodene og lagringen blir klyngens.",
+      "looking": "Spør hver node om diskene…",
+      "no_nodes": "Ingen node kan være med",
+      "no_nodes_text": "Ceph settes opp på noder som høres, ikke er fencet, og kjører Docker.",
+      "no_disks": "Ingen egne disker (en container ser ingen).",
+      "in_use": "I bruk",
+      "pick": "Kryss av minst én tom disk.",
+      "picked": "{n} noder; {first} starter Ceph.",
+      "picked_few": "{n} node(r); {first} starter Ceph. Med færre enn tre stopper Ceph når én svikter.",
+      "storage": "Navn på lagringen",
+      "storage_help": "Navnet stakkene bruker i Compose-filene, som for annen lagring.",
+      "fs": "Filsystem",
+      "fs_help": "CephFS-en som lages på diskene.",
+      "image": "Ceph-image",
+      "image_help": "Valgfritt: imaget Ceph kjører fra. Tomt er utgaven Freightdock er prøvd med.",
+      "erase": "Diskene som krysses av slettes",
+      "erase_text": "Ceph tar hver disk hel. Bare disker noden sier er tomme (ingen partisjoner, intet filsystem, ikke montert) kan krysses av.",
+      "start": "Slett og sett opp",
+      "confirm_title": "Sette opp Ceph på disse diskene?",
+      "confirm_body": "Alt på {disks} slettes. Det kan ikke angres.",
+      "started": "Ceph settes opp ({n} steg)",
+      "none_free": "Ingen av de {n} diskene er ledige: {why}."
     }
   },
   "components": {
