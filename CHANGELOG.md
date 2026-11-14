@@ -13,6 +13,7 @@ whole series.
 ## [1.0.0] - 2026-11-09 to 2026-11-10
 
 First light
+- **One-line install**: the README and the install guide start from `curl ... install.sh | sudo sh -s -- first --ui <address>`, and name the published image, `ghcr.io/freightdock/freightdock-ui`.
 - **Deploy without starting**: a new stack can be made and placed without running, to look it over first or while its old copy still runs elsewhere.
 - **An end-to-end suite** against a real one-node cluster made for it in Docker, run with `qa/e2e.sh`.
 - **A node's name is the cluster's too**: renaming a node in Freightdock also gives it that name on the managers, so notifications, the command line and metrics call it what you see here.

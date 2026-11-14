@@ -1,8 +1,16 @@
 # Install
 
 Freightdock is the UI of a Freightdock cluster, so a cluster comes first: a manager and a worker on one node is a
-whole cluster (the Manager repository's README, `install-node.sh first <host>`). The UI is a container that talks to
-the managers' admin API.
+whole cluster. On that node, as root, with Docker and systemd there, this makes one and runs the UI at a free address
+of the LAN (the Manager repository's README, Install, says more):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/freightdock/Freightdock-Manager/main/install.sh | sudo sh -s -- first --ui 192.0.2.10
+```
+
+It prints the line that adds each further worker or manager. The UI is a container that talks to the managers' admin
+API; the image is `ghcr.io/freightdock/freightdock-ui` (`:latest`, a version such as `:1.0.0`, or `:edge`, the newest
+build of main).
 
 ## Run by the managers
 
@@ -10,7 +18,7 @@ The simplest: let the managers run it. On a manager, as root:
 
 ```sh
 freightdock-manager floating add 192.0.2.10   # a free address of the LAN, if the pool has none yet
-freightdock-manager ui ghcr.io/freightdock/freightdock:latest 192.0.2.10
+freightdock-manager ui ghcr.io/freightdock/freightdock-ui:latest 192.0.2.10
 freightdock-manager ui status        # where it runs
 ```
 
@@ -42,7 +50,7 @@ docker run -d --name freightdock --restart unless-stopped --network host \
   -e FREIGHTDOCK_CLUSTER_CA_FILE=/run/freightdock/ca.pem \
   -v /var/lib/freightdock-ui:/run/freightdock:ro \
   -v freightdock:/data \
-  ghcr.io/freightdock/freightdock:latest
+  ghcr.io/freightdock/freightdock-ui:latest
 ```
 
 - `--network host`, so `127.0.0.1:7452` is the manager on this node, and the UI listens on 7443.
@@ -134,7 +142,7 @@ With `--network host` those are the node's; in a container on a network of its o
 use with `FREIGHTDOCK_TLS_NAMES`, comma-separated host names and addresses:
 
 ```sh
-docker run ... -e FREIGHTDOCK_TLS_NAMES=freightdock.example.com,192.0.2.10 ghcr.io/freightdock/freightdock:latest
+docker run ... -e FREIGHTDOCK_TLS_NAMES=freightdock.example.com,192.0.2.10 ghcr.io/freightdock/freightdock-ui:latest
 ```
 
 The certificate is good for 825 days. It is made again at a start when its names no longer cover these (a new address,
@@ -151,7 +159,7 @@ docker run ... \
   -v /etc/ssl/freightdock:/certs:ro \
   -e FREIGHTDOCK_TLS_CERT=/certs/fullchain.pem \
   -e FREIGHTDOCK_TLS_KEY=/certs/privkey.pem \
-  ghcr.io/freightdock/freightdock:latest
+  ghcr.io/freightdock/freightdock-ui:latest
 ```
 
 Freightdock only reads it, at start (restart it after a renewal), and never makes, renews or replaces it. When either file
@@ -164,7 +172,7 @@ CA did not sign is left alone too, with a warning. With your own certificate the
 A proxy that does TLS in front (Traefik, Caddy, nginx) can talk plain HTTP to Freightdock:
 
 ```sh
-docker run ... -e FREIGHTDOCK_TLS=off -e FREIGHTDOCK_BIND=127.0.0.1:7080 ghcr.io/freightdock/freightdock:latest
+docker run ... -e FREIGHTDOCK_TLS=off -e FREIGHTDOCK_BIND=127.0.0.1:7080 ghcr.io/freightdock/freightdock-ui:latest
 ```
 
 What the proxy must do:
@@ -212,7 +220,7 @@ The full list is in [reference/environment.md](reference/environment.md). The on
 The data is in the volume and at the managers, so an upgrade is a new container on the same volume:
 
 ```sh
-docker pull ghcr.io/freightdock/freightdock:latest
+docker pull ghcr.io/freightdock/freightdock-ui:latest
 docker rm -f freightdock
 docker run -d --name freightdock ...   # the same line as before
 ```

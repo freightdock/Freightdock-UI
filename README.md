@@ -46,12 +46,18 @@ The repositories, side by side: **Freightdock-Contracts** (the gRPC contract bet
 
 ## Get started
 
-You need a Freightdock cluster: a manager and a worker on one node is enough (the Manager repository's README has
-`install-node.sh first <host>`). Then let the managers run the UI:
+On a Linux node with Docker and systemd, as root, one line makes a whole cluster (a manager and a worker) and runs the
+UI at a free address of the LAN:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/freightdock/Freightdock-Manager/main/install.sh | sudo sh -s -- first --ui 192.0.2.10
+```
+
+It prints the line that adds each further node. On a cluster that has none yet, the managers run the UI with:
 
 ```sh
 freightdock-manager floating add 192.0.2.10
-freightdock-manager ui ghcr.io/freightdock/freightdock:latest 192.0.2.10
+freightdock-manager ui ghcr.io/freightdock/freightdock-ui:latest 192.0.2.10
 ```
 
 It runs on a node of the cluster, moves when that node fails, and opens at **https://192.0.2.10**, an address of the
@@ -71,7 +77,7 @@ docker run -d --name freightdock --restart unless-stopped --network host \
   -e FREIGHTDOCK_CLUSTER_CA_FILE=/run/freightdock/ca.pem \
   -v /var/lib/freightdock-ui:/run/freightdock:ro \
   -v freightdock:/data \
-  ghcr.io/freightdock/freightdock:latest
+  ghcr.io/freightdock/freightdock-ui:latest
 
 docker exec freightdock freightdock setup-token
 ```
