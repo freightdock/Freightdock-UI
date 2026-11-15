@@ -112,6 +112,7 @@ pub const RULES: &[(&str, &str, Rule)] = &[
     ("POST", "/api/cluster/storage", Admin),
     ("DELETE", "/api/cluster/storage/{name}", Admin),
     ("PUT", "/api/cluster/storage/{name}/keys", Admin),
+    ("PUT", "/api/cluster/storage/{name}/password", Admin),
     ("GET", "/api/cluster/ceph/setup", Session),
     ("POST", "/api/cluster/ceph/setup", Admin),
     ("DELETE", "/api/cluster/ceph/setup", Admin),

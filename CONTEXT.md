@@ -160,8 +160,9 @@ read-only token only reads.
 | `GET /api/cluster/traffic` | session | each node's latest flows, their ends named by the managers ("Cluster" 16) |
 | `POST /api/cluster/floating`, `DELETE /api/cluster/floating/{address}` | admin | `{address}`, one or a range: added (`{added}`, how many were new); removed (an IPv4 address in the path only) |
 | `GET /api/cluster/storage` | session | the cluster's shared storage, the volumes on each and who holds them ("Cluster" 21), and each node's health of it (`health`, "Cluster" 28) |
-| `POST /api/cluster/storage`, `DELETE /api/cluster/storage/{name}` | admin | `{name, driver: nfs\|path\|cephfs, source, options}` (cephfs also `secret`, `fence_client`, `fence_secret`, `image`, never on record): added; removed (a storage name in the path only; refused while a stack uses it) |
+| `POST /api/cluster/storage`, `DELETE /api/cluster/storage/{name}` | admin | `{name, driver: nfs\|smb\|path\|cephfs, source, options}` (cephfs also `secret`, `fence_client`, `fence_secret`, `image`; smb `password`; never on record): added; removed (a storage name in the path only; refused while a stack uses it) |
 | `PUT /api/cluster/storage/{name}/keys` | admin | a CephFS's keys anew ("Cluster" 34): an empty key keeps the one set, an empty `fence_client` takes eviction away |
+| `PUT /api/cluster/storage/{name}/password` | admin | an SMB share's password anew ("Cluster" 37), empty for a guest share; never kept here or on record |
 | `GET /api/cluster/ceph/setup` | session | the Ceph setup the managers are making or made last, each step with its node, or null ("Cluster" 34) |
 | `POST /api/cluster/ceph/setup`, `POST /api/cluster/ceph/setup/retry`, `DELETE /api/cluster/ceph/setup` | admin | `{storage, fs, image, hosts: [{node_id, disks}]}`: Ceph started on them (the first bootstraps); the failed step again; the setup forgotten |
 | `GET /api/status` | anyone | name, version, configured, `sso: {providers: [{id, label, kind, preset}], ldap}` (the buttons; whether a directory takes the password form) |

@@ -1571,3 +1571,10 @@ registries, templates, teams) and describe nothing here.
     (`cluster.release.upload`, `cluster.release.fetch`, `cluster.upgrade.start`, `cluster.upgrade.stop`). Reason: an
     upgrade by hand is a login on every node, and a node forgotten is a node behind; one from here is the same binary
     everywhere, checked, in an order that keeps a majority of managers and every container running.
+37. SMB storage (2026-11-15, G11.9): an `smb` storage is `//host/share` with `username=` (or `guest`) in its options
+    and the password in a field of its own, typed in the add dialog or set anew with **Password**
+    (`PUT /api/cluster/storage/{name}/password`). As with a CephFS's keys ("Cluster" 34) the password goes straight
+    to the managers, is never kept here, never shown (the list says only "password set" or "guest") and never on
+    record (`cluster.storage.password` names the storage only). Reason: a NAS account usually reaches more than the
+    share; it belongs where the CephFS keys are, in the managers' replicated state, handed to a worker only in the
+    mount call.

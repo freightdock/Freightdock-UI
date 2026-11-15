@@ -922,12 +922,14 @@
       "storage_kind_word": {
         "nfs": "NFS",
         "path": "Delt mappe",
-        "cephfs": "CephFS"
+        "cephfs": "CephFS",
+        "smb": "SMB"
       },
       "storage_kind_title": {
         "nfs": "Arbeiderne monterer eksporten selv, og avmonterer den når de gjerder seg av.",
         "path": "En mappe som er samme lagring på hver arbeider, delt utenfor Freightdock (en montering verten har, eller en bind-montering inn i en container).",
-        "cephfs": "Arbeiderne monterer filsystemet med kjerneklienten og nøkkelen; en fencet nodes monteringer kastes ut av Ceph før volumene flyttes."
+        "cephfs": "Arbeiderne monterer filsystemet med kjerneklienten og nøkkelen; en fencet nodes monteringer kastes ut av Ceph før volumene flyttes.",
+        "smb": "Arbeiderne monterer delingen med kjernens klient og passordet, gjør den skrivebeskyttet og avmonterer den når de fences."
       },
       "storage_many": "mange skrivere",
       "storage_held": "én skriver, på {node}",
@@ -938,7 +940,8 @@
       "storage_source_help": {
         "nfs": "vert:/eksport, slik arbeiderne når den.",
         "path": "En absolutt mappe, samme delte lagring på hver arbeider.",
-        "cephfs": "Monitorene, kommaseparert, så : og stien i filsystemet (/ for hele)."
+        "cephfs": "Monitorene, kommaseparert, så : og stien i filsystemet (/ for hele).",
+        "smb": "//vert/deling, og kanskje en sti i den, slik arbeiderne når den."
       },
       "storage_options_help": "Valgfritt, slik mount -o tar dem.",
       "storage_compose_help": "En stakk legger et navngitt volum her fra Compose-filen: under volumes, gi det x-freightdock med storage satt til dette navnet, og access: many hvis flere arbeidslaster kan skrive til det samtidig.",
@@ -966,7 +969,15 @@
       "storage_no_eviction": "ingen utkasting",
       "worker": "Arbeider",
       "outdated": "Utdatert",
-      "outdated_help": "Eldre enn managerne: oppgrader den (install.sh upgrade på noden)"
+      "outdated_help": "Eldre enn managerne: oppgrader den (install.sh upgrade på noden)",
+      "storage_options_help_smb": "username= kontoen (eller guest), og vers=, domain= og lignende slik kjerneklienten tar dem. Aldri passordet: det har sitt eget felt.",
+      "storage_password": "Passord",
+      "storage_password_help": "Kontoens passord. Lagres av managerne, vises aldri, gis til en arbeider bare sammen med en montering. Tomt for en gjestedeling.",
+      "storage_password_set_badge": "passord satt",
+      "storage_guest": "gjest",
+      "storage_password_button": "Passord",
+      "storage_password_title": "Passordet til {name}",
+      "storage_password_saved": "Passordet til {name} er lagret"
     },
     "cluster_stacks": {
       "title": "Klyngestabler",

@@ -922,12 +922,14 @@
       "storage_kind_word": {
         "nfs": "NFS",
         "path": "Shared directory",
-        "cephfs": "CephFS"
+        "cephfs": "CephFS",
+        "smb": "SMB"
       },
       "storage_kind_title": {
         "nfs": "The workers mount the export themselves, and unmount it when they fence.",
         "path": "A directory that is the same storage on every worker, shared outside Freightdock (a mount the host has, or a bind mount into a container).",
-        "cephfs": "The workers mount the filesystem with the kernel client and its key; a fenced node's mounts are evicted by Ceph before its volumes move."
+        "cephfs": "The workers mount the filesystem with the kernel client and its key; a fenced node's mounts are evicted by Ceph before its volumes move.",
+        "smb": "The workers mount the share with the kernel client and its password, make it read-only and unmount it when they fence."
       },
       "storage_many": "many writers",
       "storage_held": "one writer, on {node}",
@@ -938,7 +940,8 @@
       "storage_source_help": {
         "nfs": "host:/export, as the workers reach it.",
         "path": "An absolute directory, the same shared storage on every worker.",
-        "cephfs": "The monitors, comma separated, then : and the path in the filesystem (/ for all of it)."
+        "cephfs": "The monitors, comma separated, then : and the path in the filesystem (/ for all of it).",
+        "smb": "//host/share, and maybe a path in it, as the workers reach it."
       },
       "storage_options_help": "Optional, as mount -o takes them.",
       "storage_compose_help": "A stack keeps a named volume here from its Compose file: under volumes, give it x-freightdock with storage set to this name, and access: many if several workloads may write to it at once.",
@@ -966,7 +969,15 @@
       "storage_no_eviction": "no eviction",
       "worker": "Worker",
       "outdated": "Outdated",
-      "outdated_help": "Older than the managers: upgrade it (install.sh upgrade on the node)"
+      "outdated_help": "Older than the managers: upgrade it (install.sh upgrade on the node)",
+      "storage_options_help_smb": "username= the account (or guest), and vers=, domain= and the like as the kernel client takes them. Never the password: it has its own field.",
+      "storage_password": "Password",
+      "storage_password_help": "The account's password. Kept by the managers, never shown, handed to a worker only with a mount. Empty for a guest share.",
+      "storage_password_set_badge": "password set",
+      "storage_guest": "guest",
+      "storage_password_button": "Password",
+      "storage_password_title": "The password of {name}",
+      "storage_password_saved": "The password of {name} is saved"
     },
     "cluster_stacks": {
       "title": "Cluster stacks",

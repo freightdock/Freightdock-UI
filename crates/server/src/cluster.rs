@@ -236,6 +236,7 @@ pub fn router() -> Router<App> {
         .route("/api/cluster/storage", get(storage).post(add_storage))
         .route("/api/cluster/storage/{name}", axum::routing::delete(remove_storage))
         .route("/api/cluster/storage/{name}/keys", axum::routing::put(set_storage_keys))
+        .route("/api/cluster/storage/{name}/password", axum::routing::put(set_storage_password))
         .route("/api/cluster/ceph/setup", get(ceph_setup).post(start_ceph_setup).delete(clear_ceph_setup))
         .route("/api/cluster/ceph/setup/retry", post(retry_ceph_setup))
         .route("/api/cluster/release", get(release))
@@ -544,6 +545,15 @@ struct StorageBody {
     /// cephfs: its keys, passed on and never kept here nor put on record ("Cluster" 34).
     #[serde(flatten)]
     keys: CephKeysBody,
+    /// smb: the password, passed on as typed and never kept here nor put on record ("Cluster" 37).
+    #[serde(default)]
+    password: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct PasswordBody {
+    #[serde(default)]
+    password: Option<String>,
 }
 
 #[derive(Deserialize, Default)]
@@ -580,6 +590,9 @@ async fn add_storage(State(app): State<App>, a: Authed, Json(b): Json<StorageBod
     if b.driver.trim() == "cephfs" {
         body = b.keys.into_json(body);
     }
+    if b.driver.trim() == "smb" && let Some(p) = b.password.filter(|p| !p.is_empty()) {
+        body["password"] = json!(p);
+    }
     let (s, v) = cluster(&app)?.call(reqwest::Method::POST, "/v1/storage", Some(body)).await?;
     audit::record(&app.db, Some(&a.session.user), a.ip, audit::entry("cluster.storage.add", name)).await;
     Ok((s, Json(v)))
@@ -603,6 +616,14 @@ async fn set_storage_keys(State(app): State<App>, a: Authed, Path(name): Path<St
     storage_or_404(&name)?;
     let (s, v) = cluster(&app)?.call(reqwest::Method::PUT, &format!("/v1/storage/{name}/keys"), Some(b.into_json(json!({})))).await?;
     audit::record(&app.db, Some(&a.session.user), a.ip, audit::entry("cluster.storage.keys", name)).await;
+    Ok((s, Json(v)))
+}
+
+/// An SMB share's password set anew (G11.9); empty for a guest share. On record without it.
+async fn set_storage_password(State(app): State<App>, a: Authed, Path(name): Path<String>, Json(b): Json<PasswordBody>) -> ApiResult<(StatusCode, Json<Value>)> {
+    storage_or_404(&name)?;
+    let (s, v) = cluster(&app)?.call(reqwest::Method::PUT, &format!("/v1/storage/{name}/password"), Some(json!({ "password": b.password.unwrap_or_default() }))).await?;
+    audit::record(&app.db, Some(&a.session.user), a.ip, audit::entry("cluster.storage.password", name)).await;
     Ok((s, Json(v)))
 }
 
@@ -1084,6 +1105,7 @@ pub(crate) mod tests {
                     "POST /v1/storage" => (StatusCode::CREATED, json!({ "got": got }).to_string()),
                     "DELETE /v1/storage/nas" => (StatusCode::NO_CONTENT, String::new()),
                     "PUT /v1/storage/ceph/keys" => (StatusCode::OK, json!({ "got": got }).to_string()),
+                    "PUT /v1/storage/files/password" => (StatusCode::OK, json!({ "got": got }).to_string()),
                     "GET /v1/release" => (StatusCode::OK, json!({ "release": null, "upgrade": null, "nodes": [], "managers": [], "version": "1.0.0" }).to_string()),
                     "PUT /v1/release/worker?version=1.1.0" => (StatusCode::OK, json!({ "release": { "version": "1.1.0" } }).to_string()),
                     "POST /v1/release/fetch" => (StatusCode::OK, json!({ "release": { "version": "1.1.0" }, "got": got }).to_string()),
@@ -1330,6 +1352,26 @@ pub(crate) mod tests {
         assert_eq!(log.last().unwrap().0, "cluster.storage.keys");
         assert!(!log.iter().any(|(_, t)| t.contains("AQB")), "no key on record: {log:?}");
         assert!(!asked.lock().unwrap().iter().any(|l| l.contains("AQB")));
+    }
+
+    #[tokio::test]
+    async fn an_smb_share_and_its_password_go_to_the_managers_and_no_password_into_the_log() {
+        let (app, asked, _d) = connected("t0k3n").await;
+        let (cookie, csrf) = signed_in(&app).await;
+        let add = post("/api/cluster/storage").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).body(json_body(json!({ "name": "files", "driver": "smb", "source": "//192.0.2.60/fd", "options": "username=fd", "password": "p4ss word" }))).unwrap();
+        let (s, _, b) = call(&app, add).await;
+        assert_eq!((s, b["got"]["password"].clone()), (StatusCode::CREATED, json!("p4ss word")), "a password as it was typed, spaces and all");
+        let nfs = post("/api/cluster/storage").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).body(json_body(json!({ "name": "nas", "driver": "nfs", "source": "192.0.2.50:/export", "password": "x" }))).unwrap();
+        let (_, _, b) = call(&app, nfs).await;
+        assert!(b["got"].get("password").is_none(), "no password for storage that takes none: {b}");
+        let pw = |n: &str, body: Value| Request::put(format!("/api/cluster/storage/{n}/password")).header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).header(header::CONTENT_TYPE, "application/json").body(Body::from(body.to_string())).unwrap();
+        let (s, _, b) = call(&app, pw("files", json!({ "password": "n3w" }))).await;
+        assert_eq!((s, b["got"]["password"].clone()), (StatusCode::OK, json!("n3w")));
+        assert_eq!(call(&app, pw("..%2Fnodes", json!({}))).await.0, StatusCode::NOT_FOUND);
+        let log: Vec<(String, String)> = app.db.call(|c| Ok(c.prepare("SELECT action, target || ' ' || coalesce(detail, '') FROM audit WHERE action LIKE 'cluster.storage.%' ORDER BY id")?.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<Result<_, _>>()?)).await.unwrap();
+        assert_eq!(log.last().unwrap().0, "cluster.storage.password");
+        assert!(!log.iter().any(|(_, t)| t.contains("p4ss") || t.contains("n3w")), "no password on record: {log:?}");
+        assert!(!asked.lock().unwrap().iter().any(|l| l.contains("p4ss")));
     }
 
     #[tokio::test]
