@@ -126,6 +126,13 @@ function labels(n) {
   return Object.entries(l).map(([k, v]) => `${k}=${v}`).join(', ');
 }
 
+/** A node's worker version, flagged when older than the managers' (they say so: `worker_outdated`). */
+export function workerVersion(n) {
+  const v = (n.report && n.report.agent_version) || '';
+  if (!n.worker_outdated) return v;
+  return h('span', { class: 'row nowrap', title: t('pages.cluster.outdated_help') }, v, status({ tone: 'warning' }, t('pages.cluster.outdated')));
+}
+
 function nodeTable(list, raft, reload) {
   const hosts = managerHosts(raft);
   return table({
@@ -138,6 +145,7 @@ function nodeTable(list, raft, reload) {
       { label: t('pages.cluster.via'), cell: (n) => managerLink(heardBy(n, raft)) },
       { label: t('pages.cluster.fencing'), cell: (n) => { const f = n.fencing || {}; const st = f.state || 'none'; return st === 'none' ? h('span', { class: 'sub' }, t('pages.cluster.fence.none')) : h('span', { title: f.message || '' }, status({ tone: FENCE_TONES[st] || 'info' }, tOr(`pages.cluster.fence.${st}`, st))); }, sort: (n) => (n.fencing || {}).state || '' },
       { label: t('pages.cluster.docker'), cell: (n) => (n.report && n.report.docker_version) || '' },
+      { label: t('pages.cluster.worker'), cell: workerVersion, sort: (n) => (n.worker_outdated ? 0 : 1) },
       { label: t('pages.cluster.labels'), cell: (n) => h('span', { class: 'truncate sub' }, labels(n)) },
       ...(isAdmin() ? [{ label: '', nosort: true, cell: (n) => h('div', { class: 'row row--end nowrap' },
         (n.fencing || {}).state === 'awaiting_authorization' ? button({ size: 'sm', variant: 'primary', onClick: () => authorize(n, reload) }, t('pages.cluster.authorize')) : null,

@@ -16,7 +16,7 @@ import { openModal } from '../../finui/components/modal/modal.js';
 import { formField } from '../../finui/components/field/field.js';
 import { toast } from '../../finui/components/toast/toast.js';
 import { t, tOr } from '../i18n.js';
-import { nodeName, nodeHost, managerHosts, heardBy, managerLink } from './cluster.js';
+import { nodeName, nodeHost, managerHosts, heardBy, managerLink, workerVersion } from './cluster.js';
 import { addrKey } from './cluster-stacks.js';
 
 const EVERY_MS = 3000;
@@ -72,6 +72,7 @@ function details(n, manager, raft) {
     [t('pages.cluster.via'), managerLink(heardBy(n, raft))],
     [t('pages.cluster.fencing'), tOr(`pages.cluster.fence.${f.state || 'none'}`, f.state || 'none')],
     [t('pages.cluster.docker'), r.docker_version || ''],
+    [t('pages.cluster.worker'), workerVersion(n)],
     [t('pages.cluster_node.system'), [r.os, r.kernel, r.arch].filter(Boolean).join(' · ')],
     [t('pages.cluster_node.cpus'), r.cpu_count ? String(r.cpu_count) : ''],
     [t('pages.cluster_node.memory'), r.memory_total_bytes ? bytes(r.memory_total_bytes) : ''],

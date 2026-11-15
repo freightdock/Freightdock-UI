@@ -951,7 +951,10 @@
       "storage_key_set": "key set",
       "storage_key_missing": "no key",
       "storage_evicts": "evicts as {client}",
-      "storage_no_eviction": "no eviction"
+      "storage_no_eviction": "no eviction",
+      "worker": "Worker",
+      "outdated": "Outdated",
+      "outdated_help": "Older than the managers: upgrade it (install.sh upgrade on the node)"
     },
     "cluster_stacks": {
       "title": "Cluster stacks",

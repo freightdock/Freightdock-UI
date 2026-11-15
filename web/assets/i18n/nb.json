@@ -951,7 +951,10 @@
       "storage_key_set": "nøkkel satt",
       "storage_key_missing": "ingen nøkkel",
       "storage_evicts": "kaster ut som {client}",
-      "storage_no_eviction": "ingen utkasting"
+      "storage_no_eviction": "ingen utkasting",
+      "worker": "Arbeider",
+      "outdated": "Utdatert",
+      "outdated_help": "Eldre enn managerne: oppgrader den (install.sh upgrade på noden)"
     },
     "cluster_stacks": {
       "title": "Klyngestabler",

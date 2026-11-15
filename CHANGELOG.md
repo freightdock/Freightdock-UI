@@ -109,6 +109,7 @@ First light
 - **Two-factor sign-in**: set up an authenticator app from Account with a QR code, keep ten recovery codes, and a password alone no longer signs you in. Administrators can require it for everybody who signs in with a password, and reset a lost one under Users.
 - **Freightdock speaks Norwegian**: every word of the UI comes from a catalogue, in English or Norsk bokmål, chosen per browser under Account, Language (or the browser's own language when it is one of them). Numbers, sizes, dates and times are written the language's way.
 - **The agent is a repository of its own**, `freightdock-agent`, with its own image and releases; Freightdock builds against the commit of it it names, and the `docker run` line it gives for a new host names the agent image of the same tag.
+- **Each node's worker version**, on the cluster page and the node's own, marked Outdated when it is older than the managers', so a node left behind on an upgrade is seen.
 
 ### Fixed
 - **The Cluster stacks page shows each node by the name you gave it** (it showed the hostname), linked to the node's page; the moves of a recovery too.
