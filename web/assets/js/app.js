@@ -27,6 +27,7 @@ import { clusterDockerPage } from './pages/cluster-docker.js';
 import { terminalPage } from './pages/terminal.js';
 import { clusterManagerPage } from './pages/cluster-manager.js';
 import { integrationsPage } from './pages/integrations.js';
+import { upgradesPage } from './pages/upgrades.js';
 import { dashboardPage } from './pages/dashboard.js';
 import { t } from './i18n.js';
 
@@ -46,6 +47,7 @@ route('/cluster/nodes/:id/docker', clusterDockerPage, { title: t('pages.cluster_
 route('/cluster/nodes/:id/shell', terminalPage, { title: t('pages.terminal.page_title') });
 route('/cluster/managers/:id', clusterManagerPage, { title: t('pages.cluster_manager.title') });
 route('/integrations', integrationsPage, { title: t('nav.integrations') });
+route('/cluster/upgrades', upgradesPage, { title: t('nav.upgrades') });
 route('/account', accountPage, { title: t('nav.account') });
 route('/activity', activityPage, { title: t('nav.activity') });
 route('/users', usersPage, { title: t('nav.users') });

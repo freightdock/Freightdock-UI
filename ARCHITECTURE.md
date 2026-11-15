@@ -172,6 +172,11 @@ between the two upgraded connections. The manager pumps the WebSocket into a `sh
 stream (WorkerSession.Shell, dialled back on a ShellOpen), or another manager's (ManagerPeer.Shell) when the node is
 connected there. The browser end is `components/terminal` (xterm.js from `vendor/xterm`) on `pages/terminal.js`.
 
+Upgrades ("Cluster" 36) are calls like the rest, but for one: a binary is uploaded as the request's body and passed on
+as it is (`Cluster::call_raw`), the route's body limit raised to the managers' own. The managers keep the release in
+their state and its binaries in their data folders, and the leader rolls it out (`release.rs` in the manager);
+`pages/upgrades.js` asks for it every few seconds while an upgrade runs.
+
 ## 6. The web UI
 
 `web/` is embedded with rust-embed (`web.rs`); a debug build reads it from disk. `/assets/finui.css` is FinUI's

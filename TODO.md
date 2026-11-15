@@ -23,6 +23,7 @@ In the owner's order, external integrations last:
 - [x] Registries with saved sign-ins, for the managers to pull with.
 - [x] Notifications from the managers' events.
 - [x] Backups of the managers' state.
+- [x] Upgrades of the whole cluster from the UI, a node at a time ("Cluster" 36).
 - [x] The MCP server, over the cluster ("MCP" 7).
 - [x] Import from Portainer, Compose stacks into cluster stacks ("Portainer" 11 to 13).
 - [ ] Finer roles (per stack, per node) with the features that need them.

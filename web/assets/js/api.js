@@ -31,14 +31,16 @@ export function qs(params) {
 
 export const isAbort = (e) => e && e.name === 'AbortError';
 
-/** api('/api/x', { method, body, signal }): the answer's JSON, or null for an empty one. Throws ApiError. */
+/** api('/api/x', { method, body, signal }): the answer's JSON, or null for an empty one. Throws ApiError. A body that
+ *  is a file (a Blob) or bytes goes as it is; anything else as JSON. */
 export async function api(path, { method = 'GET', body, signal, quiet401 = false } = {}) {
   const headers = { Accept: 'application/json' };
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  const raw = body instanceof Blob || body instanceof ArrayBuffer;
+  if (body !== undefined) headers['Content-Type'] = raw ? 'application/octet-stream' : 'application/json';
   if (method !== 'GET' && method !== 'HEAD') headers['X-CSRF-Token'] = csrf;
   let r;
   try {
-    r = await fetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal, credentials: 'same-origin' });
+    r = await fetch(path, { method, headers, body: body === undefined ? undefined : raw ? body : JSON.stringify(body), signal, credentials: 'same-origin' });
   } catch (e) {
     if (isAbort(e)) throw e;
     throw new ApiError(0, t('api.unreachable'));

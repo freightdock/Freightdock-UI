@@ -150,6 +150,16 @@ impl Cluster {
 
     /// As `call`, the answer as bytes: a backup is not JSON.
     pub(crate) async fn call_bytes(&self, method: reqwest::Method, path: &str, body: Option<Value>) -> ApiResult<(StatusCode, Vec<u8>)> {
+        self.send(method, path, body.map(Payload::Json)).await
+    }
+
+    /// As `call`, with a body of raw bytes (a release's binary).
+    pub(crate) async fn call_raw(&self, method: reqwest::Method, path: &str, bytes: axum::body::Bytes) -> ApiResult<(StatusCode, Value)> {
+        let (status, bytes) = self.send(method, path, Some(Payload::Raw(bytes))).await?;
+        Ok((status, if bytes.trim_ascii().is_empty() { Value::Null } else { serde_json::from_slice(&bytes).unwrap_or(Value::Null) }))
+    }
+
+    async fn send(&self, method: reqwest::Method, path: &str, body: Option<Payload>) -> ApiResult<(StatusCode, Vec<u8>)> {
         let token = self.token_now().await?;
         let n = self.endpoints.len();
         let first = self.current.load(Ordering::Relaxed) % n;
@@ -158,8 +168,10 @@ impl Cluster {
             let at = (first + i) % n;
             let e = &self.endpoints[at];
             let mut req = e.http.request(method.clone(), format!("{}{path}", e.base)).bearer_auth(token.trim());
-            if let Some(b) = &body {
-                req = req.json(b);
+            match &body {
+                Some(Payload::Json(b)) => req = req.json(b),
+                Some(Payload::Raw(b)) => req = req.header(reqwest::header::CONTENT_TYPE, "application/octet-stream").body(b.clone()),
+                None => {}
             }
             match req.send().await {
                 Ok(r) => {
@@ -188,6 +200,12 @@ impl Cluster {
         }
         Ok((status, bytes))
     }
+}
+
+/// What a call to the managers carries.
+enum Payload {
+    Json(Value),
+    Raw(axum::body::Bytes),
 }
 
 pub fn router() -> Router<App> {
@@ -220,6 +238,12 @@ pub fn router() -> Router<App> {
         .route("/api/cluster/storage/{name}/keys", axum::routing::put(set_storage_keys))
         .route("/api/cluster/ceph/setup", get(ceph_setup).post(start_ceph_setup).delete(clear_ceph_setup))
         .route("/api/cluster/ceph/setup/retry", post(retry_ceph_setup))
+        .route("/api/cluster/release", get(release))
+        .route("/api/cluster/release/fetch", post(fetch_release))
+        // A binary is larger than any other body Freightdock takes (the managers' own limit).
+        .route("/api/cluster/release/{part}", axum::routing::put(upload_release).layer(axum::extract::DefaultBodyLimit::max(RELEASE_MAX)))
+        .route("/api/cluster/upgrade", post(start_upgrade))
+        .route("/api/cluster/upgrade/stop", post(stop_upgrade))
         .route("/api/cluster/settings", get(settings).put(set_settings))
         .route("/api/cluster/settings/proxmox/fingerprint", post(proxmox_fingerprint))
         .route("/api/cluster/settings/proxmox/test", post(proxmox_test))
@@ -582,6 +606,58 @@ async fn set_storage_keys(State(app): State<App>, a: Authed, Path(name): Path<St
 }
 
 /// Ceph made by the cluster (G12.6): the setup being made or the last one, each step with how it went; null for none.
+/// The largest binary passed on, as the managers take it.
+const RELEASE_MAX: usize = 256 << 20;
+
+async fn release(State(app): State<App>, _a: Authed) -> ApiResult<Json<Value>> {
+    Ok(Json(cluster(&app)?.call(reqwest::Method::GET, "/v1/release", None).await?.1))
+}
+
+#[derive(Deserialize)]
+struct UploadAsk {
+    version: String,
+}
+
+/// A binary of the cluster's release, passed on to the managers as it came ("Cluster" 36).
+async fn upload_release(State(app): State<App>, a: Authed, Path(part): Path<String>, Query(q): Query<UploadAsk>, body: axum::body::Bytes) -> ApiResult<Json<Value>> {
+    if !matches!(part.as_str(), "worker" | "manager") {
+        return Err(ApiError::new(StatusCode::NOT_FOUND, "a release has a worker and a manager binary"));
+    }
+    let version = q.version.trim().to_string();
+    if version.is_empty() || version.len() > 32 || !version.chars().all(|c| c.is_ascii_digit() || c == '.') {
+        return Err(ApiError::new(StatusCode::BAD_REQUEST, "the version is x.y.z"));
+    }
+    let path = format!("/v1/release/{part}?version={version}");
+    let size = body.len();
+    let (_, v) = cluster(&app)?.call_raw(reqwest::Method::PUT, &path, body).await?;
+    audit::record(&app.db, Some(&a.session.user), a.ip, audit::Entry { detail: Some(format!("{part} {version}, {size} bytes")), ..audit::entry("cluster.release.upload", Some(part.clone())) }).await;
+    Ok(Json(v))
+}
+
+#[derive(Deserialize)]
+struct FetchAsk {
+    tag: String,
+}
+
+async fn fetch_release(State(app): State<App>, a: Authed, Json(b): Json<FetchAsk>) -> ApiResult<Json<Value>> {
+    let tag = b.tag.trim().to_string();
+    let (_, v) = cluster(&app)?.call(reqwest::Method::POST, "/v1/release/fetch", Some(json!({ "tag": tag }))).await?;
+    audit::record(&app.db, Some(&a.session.user), a.ip, audit::entry("cluster.release.fetch", Some(tag.clone()))).await;
+    Ok(Json(v))
+}
+
+async fn start_upgrade(State(app): State<App>, a: Authed) -> ApiResult<(StatusCode, Json<Value>)> {
+    let (s, v) = cluster(&app)?.call(reqwest::Method::POST, "/v1/upgrade", Some(json!({ "by": a.session.user.name }))).await?;
+    audit::record(&app.db, Some(&a.session.user), a.ip, audit::Entry { detail: Some(format!("{} steps", v["steps"])), ..audit::entry("cluster.upgrade.start", None) }).await;
+    Ok((s, Json(v)))
+}
+
+async fn stop_upgrade(State(app): State<App>, a: Authed) -> ApiResult<StatusCode> {
+    cluster(&app)?.call(reqwest::Method::POST, "/v1/upgrade/stop", Some(json!({ "by": a.session.user.name }))).await?;
+    audit::record(&app.db, Some(&a.session.user), a.ip, audit::entry("cluster.upgrade.stop", None)).await;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 async fn ceph_setup(State(app): State<App>, _a: Authed) -> ApiResult<Json<Value>> {
     Ok(Json(cluster(&app)?.call(reqwest::Method::GET, "/v1/ceph/setup", None).await?.1))
 }
@@ -964,7 +1040,13 @@ pub(crate) mod tests {
                     return (StatusCode::UNAUTHORIZED, "no".to_string());
                 }
                 // What was sent, given back by the two that echo it.
-                let got: Value = serde_json::from_slice(&axum::body::to_bytes(req.into_body(), 1 << 20).await.unwrap_or_default()).unwrap_or(Value::Null);
+                let ct = req.headers().get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
+                let raw = axum::body::to_bytes(req.into_body(), 8 << 20).await.unwrap_or_default();
+                let got: Value = serde_json::from_slice(&raw).unwrap_or(Value::Null);
+                // A binary is kept as its size and type, for a test to read.
+                if line.starts_with("PUT /v1/release/") {
+                    *seen.lock().unwrap().last_mut().unwrap() = format!("{line} {} bytes {ct}", raw.len());
+                }
                 // Labels are kept with what was sent, for a test to read.
                 if line.ends_with("/labels") {
                     *seen.lock().unwrap().last_mut().unwrap() = format!("{line} {got}");
@@ -998,6 +1080,11 @@ pub(crate) mod tests {
                     "POST /v1/storage" => (StatusCode::CREATED, json!({ "got": got }).to_string()),
                     "DELETE /v1/storage/nas" => (StatusCode::NO_CONTENT, String::new()),
                     "PUT /v1/storage/ceph/keys" => (StatusCode::OK, json!({ "got": got }).to_string()),
+                    "GET /v1/release" => (StatusCode::OK, json!({ "release": null, "upgrade": null, "nodes": [], "managers": [], "version": "1.0.0" }).to_string()),
+                    "PUT /v1/release/worker?version=1.1.0" => (StatusCode::OK, json!({ "release": { "version": "1.1.0" } }).to_string()),
+                    "POST /v1/release/fetch" => (StatusCode::OK, json!({ "release": { "version": "1.1.0" }, "got": got }).to_string()),
+                    "POST /v1/upgrade" => (StatusCode::ACCEPTED, json!({ "steps": 4, "got": got }).to_string()),
+                    "POST /v1/upgrade/stop" => (StatusCode::NO_CONTENT, String::new()),
                     "GET /v1/ceph/setup" => (StatusCode::OK, json!({ "state": "running", "storage": "ceph", "fs": "fdfs", "steps": [{ "kind": "prepare", "state": "done" }] }).to_string()),
                     "POST /v1/ceph/setup" => (StatusCode::ACCEPTED, json!({ "steps": 9, "got": got }).to_string()),
                     "POST /v1/ceph/setup/retry" | "DELETE /v1/ceph/setup" => (StatusCode::NO_CONTENT, String::new()),
@@ -1239,6 +1326,34 @@ pub(crate) mod tests {
         assert_eq!(log.last().unwrap().0, "cluster.storage.keys");
         assert!(!log.iter().any(|(_, t)| t.contains("AQB")), "no key on record: {log:?}");
         assert!(!asked.lock().unwrap().iter().any(|l| l.contains("AQB")));
+    }
+
+    #[tokio::test]
+    async fn an_administrator_gives_the_cluster_its_release_and_upgrades_it_into_the_log() {
+        let (app, asked, _d) = connected("t0k3n").await;
+        let (cookie, csrf) = signed_in(&app).await;
+        let (s, _, b) = call(&app, get("/api/cluster/release", &cookie)).await;
+        assert_eq!((s, b["version"].clone()), (StatusCode::OK, json!("1.0.0")));
+        // A binary larger than any JSON body, passed on as it came.
+        let bin: Vec<u8> = [b"\x7fELF".as_slice(), &vec![7u8; 3 << 20]].concat();
+        let up = Request::put("/api/cluster/release/worker?version=1.1.0").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).header(header::HOST, "freightdock.test").header(header::CONTENT_TYPE, "application/octet-stream").body(Body::from(bin.clone())).unwrap();
+        let (s, _, b) = call(&app, up).await;
+        assert_eq!((s, b["release"]["version"].clone()), (StatusCode::OK, json!("1.1.0")), "{b}");
+        assert!(asked.lock().unwrap().iter().any(|l| l == &format!("PUT /v1/release/worker?version=1.1.0 {} bytes application/octet-stream", bin.len())), "{:?}", asked.lock().unwrap());
+        let bad = Request::put("/api/cluster/release/other?version=1.1.0").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).header(header::HOST, "freightdock.test").body(Body::from(bin.clone())).unwrap();
+        assert_eq!(call(&app, bad).await.0, StatusCode::NOT_FOUND, "a worker or a manager binary, nothing else");
+        let fetch = post("/api/cluster/release/fetch").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).body(json_body(json!({ "tag": "v1.1.0" }))).unwrap();
+        let (s, _, b) = call(&app, fetch).await;
+        assert_eq!((s, b["got"]["tag"].clone()), (StatusCode::OK, json!("v1.1.0")));
+        let start = post("/api/cluster/upgrade").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).body(Body::empty()).unwrap();
+        let (s, _, b) = call(&app, start).await;
+        assert_eq!((s, b["steps"].clone(), b["got"]["by"].clone()), (StatusCode::ACCEPTED, json!(4), json!("admin")));
+        let stop = post("/api/cluster/upgrade/stop").header(header::COOKIE, &cookie).header("x-csrf-token", &csrf).body(Body::empty()).unwrap();
+        assert_eq!(call(&app, stop).await.0, StatusCode::NO_CONTENT);
+        let log: Vec<(String, String)> = app.db.call(|c| Ok(c.prepare("SELECT action, coalesce(target, '') || ' ' || coalesce(detail, '') FROM audit WHERE action LIKE 'cluster.release.%' OR action LIKE 'cluster.upgrade.%' ORDER BY id")?.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<Result<_, _>>()?)).await.unwrap();
+        let actions: Vec<&str> = log.iter().map(|(a, _)| a.as_str()).collect();
+        assert_eq!(actions, ["cluster.release.upload", "cluster.release.fetch", "cluster.upgrade.start", "cluster.upgrade.stop"]);
+        assert!(log[0].1.contains("worker") && log[0].1.contains("1.1.0"), "{log:?}");
     }
 
     #[tokio::test]

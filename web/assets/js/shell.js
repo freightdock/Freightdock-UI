@@ -23,6 +23,7 @@ function pages() {
     clusterConnected() ? { href: '/cluster/stacks', label: t('nav.cluster_stacks'), icon: 'grid', group: cluster, primary: true } : null,
     clusterConnected() ? { href: '/cluster/network', label: t('nav.cluster_network'), icon: 'lan', group: cluster, primary: true } : null,
     clusterConnected() && isAdmin() ? { href: '/integrations', label: t('nav.integrations'), icon: 'plug', group: cluster, primary: true } : null,
+    clusterConnected() && isAdmin() ? { href: '/cluster/upgrades', label: t('nav.upgrades'), icon: 'upload', group: cluster } : null,
     isAdmin() ? { href: '/users', label: t('nav.users'), icon: 'users', group: t('nav.freightdock') } : null,
     isAdmin() ? { href: '/activity', label: t('nav.activity'), icon: 'log', group: t('nav.freightdock') } : null,
     isAdmin() ? { href: '/auth-log', label: t('nav.auth_log'), icon: 'login', group: t('nav.freightdock') } : null,

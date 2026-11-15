@@ -1549,3 +1549,14 @@ registries, templates, teams) and describe nothing here.
     which no setting overrides. Reason: a shell is what an administrator needs to look at a node or a container
     without leaving the UI, and an administrator can already run any container, so it adds no power, only a way in
     that is on record.
+
+36. Upgrades from the UI (2026-11-15): an administrator gives the cluster its release on the Upgrades page
+    (`/cluster/upgrades`), a worker and a manager binary uploaded as they are (passed to a manager, never kept here) or
+    a published release fetched by its tag, which the manager checks against the release's SHA256SUMS; then starts the
+    upgrade and follows it. The managers roll it out a node at a time, workers first and the leader last, each back on
+    the new version and healthy before the next, and stop at the first that is not; it can be stopped. Every manager's
+    and worker's version is listed, those behind marked, and a worker too old to take an upgrade is said to be
+    upgraded by hand. Giving a release, fetching one, starting and stopping are in the activity log
+    (`cluster.release.upload`, `cluster.release.fetch`, `cluster.upgrade.start`, `cluster.upgrade.stop`). Reason: an
+    upgrade by hand is a login on every node, and a node forgotten is a node behind; one from here is the same binary
+    everywhere, checked, in an order that keeps a majority of managers and every container running.
