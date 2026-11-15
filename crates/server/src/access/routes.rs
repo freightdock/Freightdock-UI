@@ -37,6 +37,7 @@ pub const RULES: &[(&str, &str, Rule)] = &[
     ("POST", "/api/login", Public),
     ("POST", "/api/logout", Session),
     ("GET", "/api/me", Session),
+    ("POST", "/api/me/confirm", Session),
     ("GET", "/api/users/{id}/avatar", Session),
     ("PUT", "/api/me/password", Session),
     ("POST", "/api/me/sso-link", Session),

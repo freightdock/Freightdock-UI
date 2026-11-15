@@ -452,6 +452,11 @@ pub(crate) const MIGRATIONS: &[&str] = &[
         name       TEXT NOT NULL
     );
     "#,
+    // 24: when each session last showed it is its person's, for what needs that within minutes ("Sign-in" 18).
+    r#"
+    ALTER TABLE sessions ADD COLUMN confirmed_at INTEGER NOT NULL DEFAULT 0;
+    UPDATE sessions SET confirmed_at = created_at;
+    "#,
 ];
 
 impl Db {

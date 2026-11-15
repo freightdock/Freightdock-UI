@@ -28,6 +28,7 @@ pub fn router(app: App) -> Router {
         .route("/api/login", post(login))
         .route("/api/logout", post(logout))
         .route("/api/me", get(me))
+        .route("/api/me/confirm", post(crate::signin::confirm::confirm))
         .route("/api/users/{id}/avatar", get(crate::avatars::get))
         .route("/api/audit", get(crate::audit::list))
         .route("/api/auth-log", get(crate::authlog::list))
@@ -113,7 +114,7 @@ where
             if !safe(&parts.method) && user.token.as_ref().is_some_and(|t| t.read_only) {
                 return Err(ApiError::new(StatusCode::FORBIDDEN, "This API token may only read."));
             }
-            return Ok(Authed { session: Session { user, csrf: String::new(), token_hash: String::new() }, ip: peer(parts) });
+            return Ok(Authed { session: Session { user, csrf: String::new(), token_hash: String::new(), confirmed_at: 0 }, ip: peer(parts) });
         }
         let token = cookie_of(&parts.headers, COOKIE).ok_or_else(ApiError::unauthorized)?;
         let session = auth::lookup(&app.db, &token).await?.ok_or_else(ApiError::unauthorized)?;
@@ -313,7 +314,9 @@ async fn me(State(app): State<App>, a: Authed) -> Json<serde_json::Value> {
     // Signed in through a provider that gives its own sign-in and two-factor: no password or two-factor card ("Users" 2).
     user["sso"] = json!(matches!(signin["kind"].as_str(), Some("oidc" | "github")));
     user["signin"] = signin;
-    Json(json!({ "user": user, "csrf": a.session.csrf }))
+    // Until when what wants a recent sign-in goes through without the password again ("Sign-in" 18).
+    let until = (!a.session.token_hash.is_empty()).then_some(a.session.confirmed_at + auth::CONFIRM_S);
+    Json(json!({ "user": user, "csrf": a.session.csrf, "confirmed_until": until }))
 }
 
 #[cfg(test)]

@@ -438,6 +438,7 @@ struct ShellQuery {
 async fn shell(State(app): State<App>, a: Authed, peer: crate::api::Peer, Path(id): Path<String>, Query(q): Query<ShellQuery>, req: axum::extract::Request) -> ApiResult<axum::response::Response> {
     use axum::response::IntoResponse;
     id_or_404(&id, "node")?;
+    crate::signin::confirm::recent(&a)?;
     let c = q.container.trim();
     if !(c.is_empty() || (c.len() <= 128 && c.chars().all(|ch| ch.is_ascii_alphanumeric() || "_.-".contains(ch)) && !c.starts_with(['.', '-']))) {
         return Err(ApiError::not_found("container"));
@@ -620,6 +621,7 @@ struct UploadAsk {
 
 /// A binary of the cluster's release, passed on to the managers as it came ("Cluster" 36).
 async fn upload_release(State(app): State<App>, a: Authed, Path(part): Path<String>, Query(q): Query<UploadAsk>, body: axum::body::Bytes) -> ApiResult<Json<Value>> {
+    crate::signin::confirm::recent(&a)?;
     if !matches!(part.as_str(), "worker" | "manager") {
         return Err(ApiError::new(StatusCode::NOT_FOUND, "a release has a worker and a manager binary"));
     }
@@ -640,6 +642,7 @@ struct FetchAsk {
 }
 
 async fn fetch_release(State(app): State<App>, a: Authed, Json(b): Json<FetchAsk>) -> ApiResult<Json<Value>> {
+    crate::signin::confirm::recent(&a)?;
     let tag = b.tag.trim().to_string();
     let (_, v) = cluster(&app)?.call(reqwest::Method::POST, "/v1/release/fetch", Some(json!({ "tag": tag }))).await?;
     audit::record(&app.db, Some(&a.session.user), a.ip, audit::entry("cluster.release.fetch", Some(tag.clone()))).await;
@@ -647,6 +650,7 @@ async fn fetch_release(State(app): State<App>, a: Authed, Json(b): Json<FetchAsk
 }
 
 async fn start_upgrade(State(app): State<App>, a: Authed) -> ApiResult<(StatusCode, Json<Value>)> {
+    crate::signin::confirm::recent(&a)?;
     let (s, v) = cluster(&app)?.call(reqwest::Method::POST, "/v1/upgrade", Some(json!({ "by": a.session.user.name }))).await?;
     audit::record(&app.db, Some(&a.session.user), a.ip, audit::Entry { detail: Some(format!("{} steps", v["steps"])), ..audit::entry("cluster.upgrade.start", None) }).await;
     Ok((s, Json(v)))

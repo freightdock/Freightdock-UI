@@ -15,7 +15,7 @@ import { t } from '../i18n.js';
 const KINDS = [['', t('pages.events.everything')], ['login', t('pages.signins.sign_ins')], ['logout', t('pages.signins.sign_outs')], ['sso', t('pages.signins.linked')], ['token', t('pages.signins.tokens')]];
 const OUTCOMES = [['', t('pages.signins.any')], ['true', t('pages.signins.let_in')], ['false', t('pages.signins.refused')]];
 const SPANS = [['', t('pages.signins.any_time')], ['86400', t('pages.signins.a_day')], ['604800', t('pages.signins.a_week')], ['2592000', t('pages.signins.thirty_days')]];
-const WORDS = { login: t('pages.signins.words.login'), 'login.failed': t('pages.signins.words.login_failed'), logout: t('pages.signins.words.logout'), 'login.sso': t('pages.signins.words.login_sso'), 'login.sso.failed': t('pages.signins.words.login_sso_failed'), 'sso.link': t('pages.signins.words.sso_link'), 'token.use': t('pages.signins.words.token_use') };
+const WORDS = { login: t('pages.signins.words.login'), 'login.failed': t('pages.signins.words.login_failed'), logout: t('pages.signins.words.logout'), 'login.sso': t('pages.signins.words.login_sso'), 'login.sso.failed': t('pages.signins.words.login_sso_failed'), 'sso.link': t('pages.signins.words.sso_link'), 'token.use': t('pages.signins.words.token_use'), confirm: t('pages.signins.words.confirm'), 'confirm.failed': t('pages.signins.words.confirm_failed') };
 
 export function signinsPage({ el, signal }) {
   const f = { event: '', ok: '', span: '', user: '' };

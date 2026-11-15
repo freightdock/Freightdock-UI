@@ -145,6 +145,8 @@ pub struct Session {
     pub user: User,
     pub csrf: String,
     pub token_hash: String,
+    /// When the session was started or its person last gave their password again; for an API token, 0.
+    pub confirmed_at: i64,
 }
 
 /// Starts a session for `user_id`; answers the token for the cookie.
@@ -155,7 +157,7 @@ pub async fn start(db: &Db, user_id: i64, ip: Option<String>, ua: Option<String>
     db.call(move |c| {
         let t = now();
         c.execute(
-            "INSERT INTO sessions (token_hash, user_id, csrf, created_at, expires_at, last_seen_at, ip, user_agent) VALUES (?1, ?2, ?3, ?4, ?5, ?4, ?6, ?7)",
+            "INSERT INTO sessions (token_hash, user_id, csrf, created_at, expires_at, last_seen_at, ip, user_agent, confirmed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?4, ?6, ?7, ?4)",
             params![hash, user_id, csrf, t, t + LIFETIME_S, ip, ua.map(|u| u.chars().take(256).collect::<String>())],
         )?;
         c.execute("UPDATE users SET last_login_at = ?1 WHERE id = ?2", params![t, user_id])?;
@@ -172,19 +174,27 @@ pub async fn lookup(db: &Db, token: &str) -> Result<Option<Session>> {
         let t = now();
         let row = c
             .query_row(
-                "SELECT u.id, u.name, u.role, s.csrf, s.last_seen_at FROM sessions s JOIN users u ON u.id = s.user_id
+                "SELECT u.id, u.name, u.role, s.csrf, s.last_seen_at, s.confirmed_at FROM sessions s JOIN users u ON u.id = s.user_id
                  WHERE s.token_hash = ?1 AND s.expires_at > ?2 AND s.last_seen_at > ?3 AND u.disabled = 0",
                 params![hash, t, t - IDLE_S],
-                |r| Ok((User { id: r.get(0)?, name: r.get(1)?, role: r.get(2)?, token: None }, r.get::<_, String>(3)?, r.get::<_, i64>(4)?)),
+                |r| Ok((User { id: r.get(0)?, name: r.get(1)?, role: r.get(2)?, token: None }, r.get::<_, String>(3)?, r.get::<_, i64>(4)?, r.get::<_, i64>(5)?)),
             )
             .optional()?;
-        let Some((user, csrf, seen)) = row else { return Ok(None) };
+        let Some((user, csrf, seen, confirmed_at)) = row else { return Ok(None) };
         if t - seen > 60 {
             c.execute("UPDATE sessions SET last_seen_at = ?1 WHERE token_hash = ?2", params![t, hash])?;
         }
-        Ok(Some(Session { user, csrf, token_hash: hash }))
+        Ok(Some(Session { user, csrf, token_hash: hash, confirmed_at }))
     })
     .await
+}
+
+/// How long a session's sign-in, or its password given again, counts for what needs it to be recent ("Sign-in" 18).
+pub const CONFIRM_S: i64 = 10 * 60;
+
+/// Notes that the session's person just gave their password (and code) again.
+pub async fn confirmed(db: &Db, token_hash: String) -> Result<()> {
+    db.call(move |c| Ok(c.execute("UPDATE sessions SET confirmed_at = ?1 WHERE token_hash = ?2", params![now(), token_hash]).map(|_| ())?)).await
 }
 
 pub async fn end(db: &Db, token_hash: String) -> Result<()> {

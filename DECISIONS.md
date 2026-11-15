@@ -124,6 +124,17 @@ pointer to what replaced it.
    `docker exec freightdock freightdock setup-token` on an image older than 16 started a second Freightdock in the container,
    which printed a setup token of its own (that nobody would accept) and died on the taken port. Now it answers the
    usage and exits 1; serving is the empty command line alone.
+18. What can take a node over wants a recent sign-in (2026-11-15): a shell on a node or in a container ("Cluster"
+   35), starting an upgrade of the cluster, and a binary given for it or fetched ("Cluster" 36). Recent is a session
+   started, or its password (and code, with two-factor on) given again with `POST /api/me/confirm`, within ten
+   minutes (`sessions.confirmed_at`, `auth::CONFIRM_S`). Otherwise the answer is 403 with `code: "confirm"`, and the
+   page asks for the password and sends the request once more (`reauth.js`); before a binary it asks first, so many
+   megabytes are not sent twice. A cookie that leaked (a shared machine, a browser extension, a proxy's log) then
+   reads and changes what its person can, but never runs a command as root. Somebody who came through a provider has
+   no password here and signs in there again: a new session is recent. An API token is not asked, being a program's,
+   made on purpose and never in a browser. The password given again is held to the sign-in limit (5) and both
+   outcomes are in the auth log (`confirm`, `confirm.failed`); a wrong one is 400, not 401, which would end the
+   session in the page.
 
 ## SSO
 

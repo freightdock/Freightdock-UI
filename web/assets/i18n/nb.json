@@ -406,6 +406,15 @@
     "recovery_title": "Gjenopprettingskodene dine",
     "recovery_keep": "Ta vare på dem et trygt sted, ikke sammen med telefonen. Hver av dem logger deg inn én gang i stedet for en kode. Freightdock tar bare vare på hashene deres og kan ikke vise dem igjen."
   },
+  "reauth": {
+    "title": "Passordet ditt igjen",
+    "why": "Et skall, en oppgradering av klyngen og en binærfil til den krever en innlogging fra de siste ti minuttene. Skriv passordet ditt for å fortsette.",
+    "confirm": "Fortsett",
+    "code": "Kode",
+    "code_help": "De seks sifrene fra autentiseringsappen din, eller en gjenopprettingskode.",
+    "sso": "Et skall, en oppgradering av klyngen og en binærfil til den krever en innlogging fra de siste ti minuttene. Du logget inn via en leverandør: logg inn der igjen for å fortsette.",
+    "sign_in_again": "Logg inn igjen"
+  },
   "pages": {
     "networks": {
       "kind": "Type"
@@ -516,7 +525,9 @@
         "login_sso": "Logget inn gjennom SSO",
         "login_sso_failed": "Avvist av SSO",
         "sso_link": "Koblet til SSO",
-        "token_use": "API-token brukt"
+        "token_use": "API-token brukt",
+        "confirm": "Ga passordet igjen",
+        "confirm_failed": "Feil passord gitt igjen"
       },
       "nothing": "Ingenting",
       "nothing_text": "Ingen har logget inn eller ut på den måten ennå.",

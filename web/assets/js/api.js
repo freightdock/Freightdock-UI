@@ -4,11 +4,12 @@
 import { t } from './i18n.js';
 
 export class ApiError extends Error {
-  /** `field`: the form field the server says the error is about, where it says one. */
-  constructor(status, message, field = null) {
+  /** `field`: the form field the server says the error is about, where it says one; `code`: what the page can do about it. */
+  constructor(status, message, field = null, code = null) {
     super(message);
     this.status = status;
     this.field = field;
+    this.code = code;
   }
 }
 
@@ -18,6 +19,11 @@ export const csrfToken = () => csrf;
 
 let onUnauthorized = () => {};
 export function setUnauthorizedHandler(fn) { onUnauthorized = fn; }
+
+// Asked when the server wants the password again before something that needs a recent sign-in ("Sign-in" 18): answers
+// true once it is given, and the request is sent once more.
+let onConfirm = async () => false;
+export function setConfirmHandler(fn) { onConfirm = fn; }
 
 export function qs(params) {
   const p = new URLSearchParams();
@@ -33,7 +39,7 @@ export const isAbort = (e) => e && e.name === 'AbortError';
 
 /** api('/api/x', { method, body, signal }): the answer's JSON, or null for an empty one. Throws ApiError. A body that
  *  is a file (a Blob) or bytes goes as it is; anything else as JSON. */
-export async function api(path, { method = 'GET', body, signal, quiet401 = false } = {}) {
+export async function api(path, { method = 'GET', body, signal, quiet401 = false, asked = false } = {}) {
   const headers = { Accept: 'application/json' };
   const raw = body instanceof Blob || body instanceof ArrayBuffer;
   if (body !== undefined) headers['Content-Type'] = raw ? 'application/octet-stream' : 'application/json';
@@ -50,7 +56,9 @@ export async function api(path, { method = 'GET', body, signal, quiet401 = false
   if (text) { try { data = JSON.parse(text); } catch { data = null; } }
   if (!r.ok) {
     if (r.status === 401 && !quiet401) onUnauthorized();
-    throw new ApiError(r.status, (data && data.error) || t('api.answered', { status: String(r.status) }), data && data.field);
+    const code = data && data.code;
+    if (r.status === 403 && code === 'confirm' && !asked && await onConfirm()) return api(path, { method, body, signal, quiet401, asked: true });
+    throw new ApiError(r.status, (data && data.error) || t('api.answered', { status: String(r.status) }), data && data.field, code);
   }
   return data;
 }

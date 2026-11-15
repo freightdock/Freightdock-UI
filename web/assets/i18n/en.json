@@ -406,6 +406,15 @@
     "recovery_title": "Your recovery codes",
     "recovery_keep": "Keep them somewhere safe, apart from your phone. Each one signs you in once in place of a code. Freightdock keeps only their hashes and cannot show them again."
   },
+  "reauth": {
+    "title": "Your password again",
+    "why": "A shell, an upgrade of the cluster and a binary for it want a sign-in from the last ten minutes. Give your password to go on.",
+    "confirm": "Go on",
+    "code": "Code",
+    "code_help": "The six digits from your authenticator app, or a recovery code.",
+    "sso": "A shell, an upgrade of the cluster and a binary for it want a sign-in from the last ten minutes. You signed in through a provider: sign in there again to go on.",
+    "sign_in_again": "Sign in again"
+  },
   "pages": {
     "networks": {
       "kind": "Kind"
@@ -516,7 +525,9 @@
         "login_sso": "Signed in through SSO",
         "login_sso_failed": "Turned away by SSO",
         "sso_link": "Linked to SSO",
-        "token_use": "API token used"
+        "token_use": "API token used",
+        "confirm": "Gave the password again",
+        "confirm_failed": "Wrong password given again"
       },
       "nothing": "Nothing",
       "nothing_text": "Nobody signed in or out that way yet.",

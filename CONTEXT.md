@@ -29,6 +29,7 @@ crates/server/             the `freightdock` binary
   src/authlog.rs           the auth log, /api/auth-log; CSV (csv_file, field) for it and the activity log
   src/appearance.rs        the FinUI preset this instance wears: its code, the overlay, its settings
   src/auth.rs              Argon2id, sessions (hashed tokens), the sign-in limiter, the setup token
+  src/signin/confirm.rs    the password again: recent() for what can take a node over, /api/me/confirm ("Sign-in" 18)
   src/audit.rs             the activity log
   src/avatars.rs           the copy kept of a provider's picture of a person
   src/ca.rs                Freightdock's own CA for its HTTPS certificate, made and kept in <data>/tls
@@ -109,7 +110,7 @@ and the managers replicate them as they replicate the rest (empty). The ones in 
 | `users` | name (unique, case-blind), Argon2id hash (`!` for SSO and directory users), role `admin`/`user`, disabled; `oidc_issuer` + `oidc_sub` (unique; the issuer is `ldap:<provider id>` for a directory), `email`; `totp_secret` (sealed), `totp_pending` (sealed, while it is set up), `totp_last_step`; `picture` (the provider's, "Users" 1) |
 | `avatars` | the copy kept of each user's picture: `content_type`, `data`, `fetched_at` |
 | `recovery_codes` | user, the SHA-256 of a recovery code; deleted when used, gone with the user |
-| `sessions` | SHA-256 of the token, user, CSRF token, created/expires/last seen, ip, user agent |
+| `sessions` | SHA-256 of the token, user, CSRF token, created/expires/last seen, ip, user agent, when last confirmed ("Sign-in" 18) |
 | `audit` | at, who, action, target, detail, ip, `via` (`token <name>` for a change made with an API token) |
 | `auth_log` | every sign-in, failure and sign-out: at, event, method, ok, user, name tried, ip, user agent |
 | `api_tokens` | user, name (unique per user, case-blind), SHA-256 of the token, `hint` (its last four), read_only, created/expires/last used, last used ip |
@@ -143,10 +144,10 @@ read-only token only reads.
 | `POST /api/cluster/stacks/{name}/{start,stop,restart}`, `DELETE /api/cluster/stacks/{name}` | admin | the stack's workloads run, stop, restart or go |
 | `GET /api/cluster/settings`, `PUT /api/cluster/settings` | admin | the cluster's settings, each with its source and default, and what the answering manager's environment sets; some changed (a value, or null for the managers' own; `proxmox: {url, fingerprint, token?}` or null), passed on whole, the keys on record ("Cluster" 23) |
 | `GET /api/cluster/release` | session | the cluster's release (each binary's checksum and size, whether the answering manager has it), the running or last upgrade with its steps, every manager's and worker's version ("Cluster" 36) |
-| `PUT /api/cluster/release/{worker,manager}?version=` | admin | a binary of the release, the body as it is (up to 256 MB), passed to the managers, on record (`cluster.release.upload`) |
-| `POST /api/cluster/release/fetch` | admin | `{tag}`: a published release fetched and checked by a manager, on record |
-| `POST /api/cluster/upgrade`, `POST /api/cluster/upgrade/stop` | admin | the upgrade to the release started (`{steps}`) or stopped, on record |
-| `GET /api/cluster/nodes/{id}/shell?container=&cols=&rows=` | admin | a shell ("Cluster" 35): without an upgrade, whether it may be opened (204 or the manager's why not); as a WebSocket from this origin, spliced to the manager's, on record (`cluster.shell`) |
+| `PUT /api/cluster/release/{worker,manager}?version=` | admin, recent | a binary of the release, the body as it is (up to 256 MB), passed to the managers, on record (`cluster.release.upload`) |
+| `POST /api/cluster/release/fetch` | admin, recent | `{tag}`: a published release fetched and checked by a manager, on record |
+| `POST /api/cluster/upgrade`, `POST /api/cluster/upgrade/stop` | admin (start: recent, "Sign-in" 18) | the upgrade to the release started (`{steps}`) or stopped, on record |
+| `GET /api/cluster/nodes/{id}/shell?container=&cols=&rows=` | admin, recent ("Sign-in" 18) | a shell ("Cluster" 35): without an upgrade, whether it may be opened (204 or the manager's why not); as a WebSocket from this origin, spliced to the manager's, on record (`cluster.shell`) |
 | `GET /api/cluster/nodes/{id}/docker?action=&target=&tail=&timestamps=`, `POST /api/cluster/nodes/{id}/docker` | admin | a node's Docker through its worker: a look (containers, images, volumes, networks, info, a container's inspect or logs), or a change `{action, target, params}`, on record ("Cluster" 25) |
 | `GET /api/cluster/registries`, `PUT`/`DELETE /api/cluster/registries/{host}`, `POST /api/cluster/registries/{host}/test` | admin | private registries' logins: listed without passwords, set `{username, password?}` (kept when left out), removed, tried from a manager ("Cluster" 26) |
 | `GET /api/cluster/notifications`, `PUT`/`DELETE /api/cluster/notifications/{name}`, `POST /api/cluster/notifications/{name}/test` | admin | notification channels: listed with the events there are and without secrets, set `{kind, enabled, events, config, secret?}` whole (kept when left out, none when empty), removed, tested from a manager ("Cluster" 27) |
@@ -178,7 +179,8 @@ read-only token only reads.
 | `POST /api/login/totp` | anyone, with a ticket | `{ticket, code}` (a TOTP or recovery code): signs in; enrolling, also `recovery_codes`, once |
 | `POST /api/login/totp/enrol` | anyone, with a ticket | `{ticket}` answers `{secret, uri}` when two-factor is required and the account has none |
 | `POST /api/logout` | session | ends this session; `{redirect}` to the provider's end-session for SSO users |
-| `GET /api/me` | session | the user (with `avatar`, the picture's address or null; `signin` `{kind: local/oidc/github/ldap, provider}`; and `sso`, signed in through a provider) and the CSRF token |
+| `GET /api/me` | session | the user (with `avatar`, the picture's address or null; `signin` `{kind: local/oidc/github/ldap, provider}`; and `sso`, signed in through a provider), the CSRF token, and `confirmed_until` (when the session stops being recent, "Sign-in" 18; null for an API token) |
+| `POST /api/me/confirm` | session | `{password, code}`: the password (and code, with two-factor on) again makes the session recent (204); a wrong one 400 with `field`, the code wanted 400 `code: "totp"`, through a provider 409 `code: "sso"`; held to the sign-in limit, in the auth log |
 | `GET /api/users/{id}/avatar` | session | one's own picture (an administrator: anybody's), fetched from the provider's address and kept a day; PNG/JPEG/GIF/WebP only |
 | `GET /api/tokens` | session | your API tokens (never the tokens): name, hint, read_only, created/expires/last used |
 | `POST /api/tokens` | session, not a token | `{name, expires_days?, read_only?}` answers `{id, name, token}`, the token once |

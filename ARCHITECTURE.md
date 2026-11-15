@@ -74,6 +74,10 @@ Every session has a CSRF token, handed out by `GET /api/me`. The `Authed` extrac
 a good session, a changing request (not GET/HEAD/OPTIONS) without `X-CSRF-Token`, and a changing request or a WebSocket
 upgrade whose `Origin` is not this server. `Admin` is `Authed` and an administrator.
 
+What can take a node over (a shell, an upgrade, a binary for one) also calls `signin::confirm::recent`: the session
+signed in, or gave its password again (`POST /api/me/confirm`), within ten minutes, else 403 `code: "confirm"`.
+`api.js` answers that code with the password dialog in `reauth.js` and sends the request once more ("Sign-in" 18).
+
 Sign-in misses are counted in memory by address and by name (`auth::Limiter`): five within 15 minutes and that address,
 or that name from anywhere, waits out the window (429 with `Retry-After`). A try is taken (`Limiter::attempt`) under
 the same lock as the check that it may be made, before the password or code is checked, and counts as a miss unless it

@@ -10,13 +10,15 @@ pub struct ApiError {
     pub message: String,
     pub field: Option<&'static str>,
     pub retry_after: Option<i64>,
+    /// What the page can do about it, when there is something: `confirm` asks for the password again ("Sign-in" 18).
+    pub code: Option<&'static str>,
 }
 
 pub type ApiResult<T> = Result<T, ApiError>;
 
 impl ApiError {
     pub fn new(status: StatusCode, message: impl Into<String>) -> Self {
-        ApiError { status, message: message.into(), field: None, retry_after: None }
+        ApiError { status, message: message.into(), field: None, retry_after: None, code: None }
     }
     pub fn bad(message: impl Into<String>) -> Self {
         Self::new(StatusCode::BAD_REQUEST, message)
@@ -48,7 +50,11 @@ impl From<anyhow::Error> for ApiError {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let body = axum::Json(serde_json::json!({ "error": self.message, "field": self.field }));
+        let mut body = serde_json::json!({ "error": self.message, "field": self.field });
+        if let Some(code) = self.code {
+            body["code"] = code.into();
+        }
+        let body = axum::Json(body);
         let mut r = (self.status, body).into_response();
         if let Some(v) = self.retry_after.and_then(|s| s.to_string().parse().ok()) {
             r.headers_mut().insert(axum::http::header::RETRY_AFTER, v);

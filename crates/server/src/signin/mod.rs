@@ -3,6 +3,7 @@
 //! sign-in with a password ("SSO", "Two-factor" and "LDAP" in DECISIONS.md). The OpenID Connect flow itself is
 //! `oidc.rs`, which GitHub's shares.
 
+pub mod confirm;
 pub mod github;
 pub mod ldap;
 pub mod providers;

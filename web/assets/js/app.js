@@ -3,7 +3,8 @@
 
 import { motion } from '../finmotion/core/finmotion.js';
 import { animateWithin } from '../finui/components/animated-icon/animated-icon.js';
-import { get, setCsrf, setUnauthorizedHandler } from './api.js';
+import { get, setCsrf, setUnauthorizedHandler, setConfirmHandler } from './api.js';
+import { askPassword } from './reauth.js';
 import { state } from './state.js';
 import { route, setLayouts, start, navigate } from './router.js';
 import { shellContent, bareContent, resetShell } from './shell.js';
@@ -71,6 +72,8 @@ export async function refreshMe() {
   }
   resetShell();
 }
+
+setConfirmHandler(askPassword);
 
 setUnauthorizedHandler(() => {
   if (!state.user) return;

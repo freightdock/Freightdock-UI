@@ -19,6 +19,7 @@ import { progressBar } from '../../finui/components/progress/progress.js';
 import { toast } from '../../finui/components/toast/toast.js';
 import { confirm } from '../confirm.js';
 import { t, tOr } from '../i18n.js';
+import { ensureRecent } from '../reauth.js';
 
 const EVERY_MS = 3000;
 const RUN_TONES = { running: 'info', done: 'good', failed: 'critical', stopped: 'warning' };
@@ -180,6 +181,8 @@ function uploadDialog(v, reload) {
     const ver = version.input.value.trim(), f = file.input.files && file.input.files[0];
     if (!/^\d+\.\d+\.\d+$/.test(ver)) { version.setError(t('pages.upgrades.version_help')); return; }
     if (!f) { file.setError(t('pages.cluster.needed')); return; }
+    // Asked before, not after: a refused binary of many megabytes would be sent twice.
+    if (!await ensureRecent()) return;
     go.disabled = true;
     said.textContent = t('pages.upgrades.uploading', { size: bytes(f.size) });
     try {
