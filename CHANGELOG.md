@@ -40,6 +40,7 @@ First light
 - **Rolling a Swarm service back, scaling it or updating it, or draining, promoting or labelling a node, on a busy host** no longer fails with "update out of sequence": Swarm moves their versions by itself, so the change is read and sent again. An update over somebody else's change meanwhile is refused instead of overwriting it.
 
 ### Added
+- **Images ready before a node fails**: the cluster has each node pull ahead the images of the workloads it would take over, so a recovery starts them without waiting on a download. A switch in Integrations, beside fencing, turns it off.
 - **A dashboard**, where Freightdock now opens: gauges for the managers online, the quorum and its leader, and the workers healthy; the CPU and memory used over the whole cluster; and a row per node with its CPU, memory, disk and workloads.
 - **The cluster network on the pages**: every workload shows its internal address (on the Cluster stacks page and on its node's page), each stack its network, and each node whether its overlay is up, waiting or failing (and why), with its WireGuard key.
 - **The network, live**: a new Network page draws who talks to whom in the cluster, outside on the left and a column per node with its workloads, each line as thick as its traffic and moving the way it goes. Point at a workload to see only its lines; the flows are listed under it with their ports and bytes.

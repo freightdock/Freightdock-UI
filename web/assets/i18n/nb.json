@@ -1317,7 +1317,8 @@
         "backup_passphrase": "Passfrase",
         "backup_every_h": "Hver",
         "backup_keep": "Behold",
-        "shells": "Skall"
+        "shells": "Skall",
+        "prepull": "Hent images på forhånd"
       },
       "help": {
         "heartbeat_ms": "Hvor ofte hver arbeider rapporterer.",
@@ -1332,7 +1333,8 @@
         "backup_passphrase": "Det de planlagte sikkerhetskopiene forsegles med. Ingen skrives uten den.",
         "backup_every_h": "Timer mellom hver managers sikkerhetskopier; 0 skriver ingen.",
         "backup_keep": "Hvor mange sikkerhetskopier hver manager beholder; de eldste går.",
-        "shells": "En administrator kan åpne et skall på en node, eller i en container, fra siden dens. Av kan ingen, verken fra UI-et eller API-et. Eieren av en node kan fortsatt slå av vertsskallet på selve noden."
+        "shells": "En administrator kan åpne et skall på en node, eller i en container, fra siden dens. Av kan ingen, verken fra UI-et eller API-et. Eieren av en node kan fortsatt slå av vertsskallet på selve noden.",
+        "prepull": "Hvert femte minutt henter hver node imagene til arbeidslastene den ville overta om en annen node feilet, så en gjenoppretting ikke venter på en nedlasting. Av henter en node et image først når den trenger det."
       },
       "backups": "Sikkerhetskopier",
       "backups_sub": "Klyngens tilstand (stakker, noder, lagring, innstillinger, brukere) og sertifikatutstederen, forseglet med en passfrase.",

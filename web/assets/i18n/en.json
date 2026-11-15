@@ -1317,7 +1317,8 @@
         "backup_passphrase": "Passphrase",
         "backup_every_h": "Every",
         "backup_keep": "Keep",
-        "shells": "Shells"
+        "shells": "Shells",
+        "prepull": "Pull images ahead"
       },
       "help": {
         "heartbeat_ms": "How often each worker reports.",
@@ -1332,7 +1333,8 @@
         "backup_passphrase": "What the scheduled backups are sealed with. None is written without it.",
         "backup_every_h": "Hours between each manager's backups; 0 writes none.",
         "backup_keep": "How many backups each manager keeps; the oldest go.",
-        "shells": "An administrator may open a shell on a node, or in a container, from its page. Off, nobody can, from the UI or the API. A node's owner can still turn off its own host shell on the node."
+        "shells": "An administrator may open a shell on a node, or in a container, from its page. Off, nobody can, from the UI or the API. A node's owner can still turn off its own host shell on the node.",
+        "prepull": "Every five minutes each node pulls the images of the workloads it would take over if another node failed, so a recovery does not wait on a download. Off, a node pulls an image when it first needs it."
       },
       "backups": "Backups",
       "backups_sub": "The cluster's state (stacks, nodes, storage, settings, users) and its certificate authority, sealed with a passphrase.",
