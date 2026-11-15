@@ -10,6 +10,9 @@ export const state = {
 };
 
 export const isAdmin = () => !!state.user && state.user.role === 'admin';
+/** Whether the person may operate the stack or node `target` (`kind` 'stack' or 'node'): an administrator, or by a
+ *  grant ("Access" 24). */
+export const may = (kind, target) => isAdmin() || ((state.user && state.user.grants) || []).some((g) => g.kind === kind && g.target === target);
 
 /** 'device', 'light' or 'dark'. */
 export function themeChoice() {

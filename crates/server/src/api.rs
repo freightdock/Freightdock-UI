@@ -316,6 +316,10 @@ async fn me(State(app): State<App>, a: Authed) -> Json<serde_json::Value> {
     user["signin"] = signin;
     // Until when what wants a recent sign-in goes through without the password again ("Sign-in" 18).
     let until = (!a.session.token_hash.is_empty()).then_some(a.session.confirmed_at + auth::CONFIRM_S);
+    // What else they may operate in the cluster, for the pages to offer it ("Access" 24).
+    if !a.session.user.is_admin() {
+        user["grants"] = crate::grants::mine(&app, a.session.user.id).await.unwrap_or(json!([]));
+    }
     Json(json!({ "user": user, "csrf": a.session.csrf, "confirmed_until": until }))
 }
 

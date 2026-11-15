@@ -7,7 +7,8 @@
 
 import { h, mount, ago, when, shortId } from '../dom.js';
 import { get, post, put, del } from '../api.js';
-import { isAdmin } from '../state.js';
+import { isAdmin, may } from '../state.js';
+import { grantsDialog } from '../grants.js';
 import { loadInto, table } from '../view.js';
 import { confirm } from '../confirm.js';
 import { pageHeader } from '../../finui/components/page-header/page-header.js';
@@ -106,14 +107,18 @@ function stackCard(s, reload) {
   const w = s.workloads || [];
   const up = w.filter((x) => x.status === 'running').length;
   const state = s.stopped ? status({ tone: 'info' }, t('pages.cluster_stacks.stopped')) : status({ tone: up === w.length ? 'good' : 'warning' }, t('pages.cluster_stacks.running_n', { n: up, of: w.length }));
-  const actions = isAdmin() ? h('div', { class: 'row nowrap' },
+  // Starting, stopping and restarting: an administrator's, or somebody's the stack is granted to ("Access" 24).
+  const operate = may('stack', s.name) ? [
     s.stopped
       ? button({ size: 'sm', onClick: () => act(s.name, 'start', reload) }, t('pages.cluster_stacks.start'))
       : button({ size: 'sm', onClick: () => act(s.name, 'stop', reload) }, t('pages.cluster_stacks.stop')),
     s.stopped ? null : button({ size: 'sm', onClick: () => act(s.name, 'restart', reload) }, t('pages.cluster_stacks.restart')),
+  ] : [];
+  const actions = operate.length ? h('div', { class: 'row nowrap' }, operate, isAdmin() ? [
     s.name === SYSTEM ? null : button({ size: 'sm', href: `/cluster/stacks/${encodeURIComponent(s.name)}/edit` }, t('pages.cluster_stacks.edit')),
     button({ size: 'sm', onClick: () => exposeDialog(s, reload) }, t('pages.cluster_stacks.exposures')),
-    s.name === SYSTEM ? null : button({ size: 'sm', variant: 'danger', onClick: () => removeStack(s.name, reload) }, t('common.remove'))) : null;
+    s.name === SYSTEM ? null : button({ size: 'sm', onClick: () => grantsDialog('stack', s.name, s.name) }, t('operators.button')),
+    s.name === SYSTEM ? null : button({ size: 'sm', variant: 'danger', onClick: () => removeStack(s.name, reload) }, t('common.remove'))] : null) : null;
   const services = Object.entries(s.services || {}).map(([k, v]) => `${k} (${v.image}, ${v.replicas}x)`).join(', ');
   return card({
     title: h('span', { class: 'row' }, h('span', { class: 'mono' }, s.name), state),

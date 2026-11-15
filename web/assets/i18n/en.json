@@ -415,6 +415,19 @@
     "sso": "A shell, an upgrade of the cluster and a binary for it want a sign-in from the last ten minutes. You signed in through a provider: sign in there again to go on.",
     "sign_in_again": "Sign in again"
   },
+  "operators": {
+    "button": "Operators",
+    "title": "Who may operate {name}",
+    "who": "Person or team",
+    "add": "Let them operate it",
+    "choose": "Choose a person or a team",
+    "none": "Only administrators.",
+    "team": "Team {name}",
+    "what": {
+      "stack": "Besides administrators, these may start, stop and restart this stack. Editing, deploying and removing it stay an administrator's.",
+      "node": "Besides administrators, these may read this node's Docker pages (containers, their logs, images, volumes, networks) and start, stop and restart its containers. Shells, pulling, pruning and removing stay an administrator's."
+    }
+  },
   "pages": {
     "networks": {
       "kind": "Kind"

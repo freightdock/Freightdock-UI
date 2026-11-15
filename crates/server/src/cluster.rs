@@ -220,6 +220,8 @@ pub fn router() -> Router<App> {
         .route("/api/cluster/nodes/{id}/labels", axum::routing::put(set_labels))
         .route("/api/cluster/nodes/{id}/authorize", post(authorize))
         .route("/api/cluster/nodes/{id}/docker", get(docker_read).post(docker_change))
+        .route("/api/cluster/grants", get(crate::grants::list).post(crate::grants::add))
+        .route("/api/cluster/grants/{id}", axum::routing::delete(crate::grants::remove))
         .route("/api/cluster/nodes/{id}/shell", get(shell))
         .route("/api/cluster/commands/{id}", get(command_status))
         .route("/api/cluster/events", get(events))
@@ -481,6 +483,10 @@ async fn shell(State(app): State<App>, a: Authed, peer: crate::api::Peer, Path(i
 async fn docker_change(State(app): State<App>, a: Authed, Path(id): Path<String>, Json(b): Json<Value>) -> ApiResult<Json<Value>> {
     id_or_404(&id, "node")?;
     let action = b["action"].as_str().unwrap_or_default().to_string();
+    // Granted the node, not an administrator: its containers started, stopped and restarted, nothing more ("Access" 24).
+    if !a.session.user.is_admin() && !crate::grants::NODE_CHANGES.contains(&action.as_str()) {
+        return Err(ApiError::new(StatusCode::FORBIDDEN, "Only an administrator may do that on a node."));
+    }
     let on = b["target"].as_str().filter(|t| !t.is_empty()).or_else(|| b["params"]["image"].as_str()).unwrap_or_default().to_string();
     let body = json!({ "action": action, "target": b["target"].as_str().unwrap_or_default(), "params": b.get("params").cloned().unwrap_or(json!({})) });
     let detail = if on.is_empty() { action } else { format!("{action} {on}") };
@@ -905,6 +911,7 @@ async fn command_status(State(app): State<App>, _a: Authed, Path(id): Path<Strin
 async fn remove_node(State(app): State<App>, a: Authed, Path(id): Path<String>) -> ApiResult<StatusCode> {
     id_or_404(&id, "node")?;
     cluster(&app)?.call(reqwest::Method::DELETE, &format!("/v1/nodes/{id}"), None).await?;
+    crate::grants::forget(&app, "node", &id).await;
     audit::record(&app.db, Some(&a.session.user), a.ip, audit::entry("cluster.node.remove", id)).await;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -1014,6 +1021,7 @@ async fn deploy_stack(State(app): State<App>, a: Authed, Json(b): Json<DeployBod
 async fn remove_stack(State(app): State<App>, a: Authed, Path(name): Path<String>) -> ApiResult<StatusCode> {
     stack_or_404(&name)?;
     cluster(&app)?.call(reqwest::Method::DELETE, &format!("/v1/stacks/{name}"), None).await?;
+    crate::grants::forget(&app, "stack", &name).await;
     audit::record(&app.db, Some(&a.session.user), a.ip, audit::entry("cluster.stack.remove", name)).await;
     Ok(StatusCode::NO_CONTENT)
 }

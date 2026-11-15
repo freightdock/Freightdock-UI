@@ -24,9 +24,13 @@ pub enum Rule {
     Session,
     /// An Administrator: Freightdock's own settings, users and teams, the logs, changes to the cluster.
     Admin,
+    /// An Administrator, or somebody granted the stack named `{name}` in the path ("Access" 24).
+    Stack,
+    /// An Administrator, or somebody granted the node `{id}` in the path ("Access" 24).
+    Node,
 }
 
-use Rule::{Admin, Public, Session};
+use Rule::{Admin, Node, Public, Session, Stack};
 
 /// Every route there is, and its rule.
 pub const RULES: &[(&str, &str, Rule)] = &[
@@ -90,9 +94,9 @@ pub const RULES: &[(&str, &str, Rule)] = &[
     ("PUT", "/api/cluster/nodes/{id}/labels", Admin),
     ("POST", "/api/cluster/nodes/{id}/authorize", Admin),
     // A node's Docker: its containers' environment and logs may hold secrets, so even a look is an Administrator's.
-    ("GET", "/api/cluster/nodes/{id}/docker", Admin),
+    ("GET", "/api/cluster/nodes/{id}/docker", Node),
     ("GET", "/api/cluster/nodes/{id}/shell", Admin),
-    ("POST", "/api/cluster/nodes/{id}/docker", Admin),
+    ("POST", "/api/cluster/nodes/{id}/docker", Node),
     ("GET", "/api/cluster/commands/{id}", Session),
     ("GET", "/api/cluster/events", Session),
     ("GET", "/api/cluster/recoveries", Session),
@@ -102,7 +106,10 @@ pub const RULES: &[(&str, &str, Rule)] = &[
     ("POST", "/api/cluster/stack-check", Admin),
     ("GET", "/api/cluster/stacks/{name}", Session),
     ("DELETE", "/api/cluster/stacks/{name}", Admin),
-    ("POST", "/api/cluster/stacks/{name}/{action}", Admin),
+    ("POST", "/api/cluster/stacks/{name}/{action}", Stack),
+    ("GET", "/api/cluster/grants", Admin),
+    ("POST", "/api/cluster/grants", Admin),
+    ("DELETE", "/api/cluster/grants/{id}", Admin),
     ("PUT", "/api/cluster/stacks/{name}/exposures", Admin),
     ("GET", "/api/cluster/floating", Session),
     ("GET", "/api/cluster/traffic", Session),
@@ -189,6 +196,12 @@ async fn check(app: &App, parts: &mut axum::http::request::Parts) -> ApiResult<(
         Public | Session => Ok(()),
         Admin if a.session.user.is_admin() => Ok(()),
         Admin => Err(ApiError::forbidden()),
+        Stack | Node => {
+            let (kind, param) = if rule == Stack { ("stack", "name") } else { ("node", "id") };
+            let params = axum::extract::RawPathParams::from_request_parts(parts, app).await.map_err(|_| ApiError::forbidden())?;
+            let target = params.iter().find(|(k, _)| *k == param).map(|(_, v)| v.to_string()).unwrap_or_default();
+            if crate::grants::may(app, &a.session.user, kind, &target).await? { Ok(()) } else { Err(ApiError::forbidden()) }
+        }
     }
 }
 

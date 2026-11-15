@@ -457,6 +457,20 @@ pub(crate) const MIGRATIONS: &[&str] = &[
     ALTER TABLE sessions ADD COLUMN confirmed_at INTEGER NOT NULL DEFAULT 0;
     UPDATE sessions SET confirmed_at = created_at;
     "#,
+    // 25: who besides an administrator may operate a cluster stack or a node, a person or a team ("Access" 24).
+    r#"
+    CREATE TABLE cluster_grants (
+        id         INTEGER PRIMARY KEY,
+        kind       TEXT NOT NULL CHECK (kind IN ('stack', 'node')),
+        target     TEXT NOT NULL,
+        user_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        team_id    INTEGER REFERENCES teams(id) ON DELETE CASCADE,
+        created_at INTEGER NOT NULL,
+        CHECK ((user_id IS NULL) <> (team_id IS NULL))
+    );
+    CREATE UNIQUE INDEX idx_cluster_grants ON cluster_grants(kind, target, coalesce(user_id, 0), coalesce(team_id, 0));
+    CREATE INDEX idx_cluster_grants_user ON cluster_grants(user_id);
+    "#,
 ];
 
 impl Db {

@@ -5,7 +5,8 @@
 
 import { h, mount, bytes, shortId } from '../dom.js';
 import { get, put } from '../api.js';
-import { isAdmin } from '../state.js';
+import { isAdmin, may } from '../state.js';
+import { grantsDialog } from '../grants.js';
 import { loadInto, table } from '../view.js';
 import { pageHeader } from '../../finui/components/page-header/page-header.js';
 import { card } from '../../finui/components/card/card.js';
@@ -44,8 +45,9 @@ export function clusterNodePage({ el, params, signal }) {
       mount(head, pageHeader(nodeName(n), n.name ? t('pages.cluster_node.sub_named', { hostname: n.hostname || '' }) : t('pages.cluster_node.sub'),
         h('div', { class: 'row' },
           button({ size: 'sm', href: '/cluster' }, t('pages.cluster_node.back')),
-          isAdmin() && (n.report || {}).docker ? button({ size: 'sm', href: `/cluster/nodes/${encodeURIComponent(n.id)}/docker` }, t('pages.cluster_node.docker')) : null,
+          may('node', n.id) && (n.report || {}).docker ? button({ size: 'sm', href: `/cluster/nodes/${encodeURIComponent(n.id)}/docker` }, t('pages.cluster_node.docker')) : null,
           isAdmin() && (n.report || {}).shells && n.report.host_shell ? button({ size: 'sm', href: `/cluster/nodes/${encodeURIComponent(n.id)}/shell` }, t('pages.cluster_node.shell')) : null,
+          isAdmin() ? button({ size: 'sm', onClick: () => grantsDialog('node', n.id, nodeName(n)) }, t('operators.button')) : null,
           isAdmin() ? button({ size: 'sm', onClick: () => rename(n, reload) }, t('pages.cluster_node.rename')) : null)));
       const placed = [];
       for (const s of st || []) for (const w of s.workloads || []) if (w.node_id === n.id) placed.push({ ...w, stack: s.name, image: ((s.services || {})[w.service] || {}).image });

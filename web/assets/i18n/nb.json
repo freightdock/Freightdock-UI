@@ -415,6 +415,19 @@
     "sso": "Et skall, en oppgradering av klyngen og en binærfil til den krever en innlogging fra de siste ti minuttene. Du logget inn via en leverandør: logg inn der igjen for å fortsette.",
     "sign_in_again": "Logg inn igjen"
   },
+  "operators": {
+    "button": "Operatører",
+    "title": "Hvem som kan betjene {name}",
+    "who": "Person eller team",
+    "add": "La dem betjene den",
+    "choose": "Velg en person eller et team",
+    "none": "Bare administratorer.",
+    "team": "Team {name}",
+    "what": {
+      "stack": "I tillegg til administratorer kan disse starte, stoppe og starte denne stacken på nytt. Å endre, rulle ut og fjerne den er fortsatt en administrators.",
+      "node": "I tillegg til administratorer kan disse lese Docker-sidene til denne noden (containere, loggene deres, images, volumer, nettverk) og starte, stoppe og starte containerne på nytt. Skall, henting, opprydding og fjerning er fortsatt en administrators."
+    }
+  },
   "pages": {
     "networks": {
       "kind": "Type"

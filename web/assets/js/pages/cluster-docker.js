@@ -20,6 +20,7 @@ import { toast } from '../../finui/components/toast/toast.js';
 import { confirm } from '../confirm.js';
 import { t, tOr } from '../i18n.js';
 import { nodeName } from './cluster.js';
+import { isAdmin } from '../state.js';
 
 const STATE_TONES = { running: 'good', restarting: 'warning', paused: 'warning', exited: 'critical', dead: 'critical', created: 'info' };
 const DOCKER_OWN = ['bridge', 'host', 'none'];
@@ -92,14 +93,14 @@ function containerTable(rows, c) {
       { label: t('pages.cluster_docker.state'), cell: (x) => h('div', { class: 'stack' }, status({ tone: STATE_TONES[x.state] || 'info' }, tOr(`pages.cluster_node.state.${x.state}`, x.state || '')), h('span', { class: 'sub' }, x.status || '')), sort: (x) => x.state },
       { label: t('pages.cluster_docker.ports'), cell: (x) => h('span', { class: 'mono sub' }, ports(x.ports)) },
       { label: '', nosort: true, cell: (x) => h('div', { class: 'row row--end nowrap fd-docker-actions' },
-        x.state === 'running' ? button({ size: 'sm', href: `/cluster/nodes/${encodeURIComponent(c.id)}/shell?container=${encodeURIComponent(name(x))}` }, t('pages.cluster_node.shell')) : null,
+        isAdmin() && x.state === 'running' ? button({ size: 'sm', href: `/cluster/nodes/${encodeURIComponent(c.id)}/shell?container=${encodeURIComponent(name(x))}` }, t('pages.cluster_node.shell')) : null,
         button({ size: 'sm', onClick: () => logs(c, x.id, name(x)) }, t('pages.cluster_docker.logs')),
         button({ size: 'sm', onClick: () => inspect(c, x.id, name(x)) }, t('pages.cluster_docker.inspect')),
         x.cluster ? null : x.state === 'running'
           ? button({ size: 'sm', onClick: () => act(c, { action: 'container.stop', target: name(x), done: t('pages.cluster_docker.stopped', { name: name(x) }) }) }, t('pages.cluster_docker.stop'))
           : button({ size: 'sm', onClick: () => act(c, { action: 'container.start', target: name(x), done: t('pages.cluster_docker.started', { name: name(x) }) }) }, t('pages.cluster_docker.start')),
         x.cluster ? null : button({ size: 'sm', onClick: () => act(c, { action: 'container.restart', target: name(x), done: t('pages.cluster_docker.restarted', { name: name(x) }) }) }, t('pages.cluster_docker.restart')),
-        x.cluster ? null : button({ size: 'sm', variant: 'danger', onClick: () => act(c, { action: 'container.remove', target: name(x), params: { force: 'true' },
+        x.cluster || !isAdmin() ? null : button({ size: 'sm', variant: 'danger', onClick: () => act(c, { action: 'container.remove', target: name(x), params: { force: 'true' },
           ask: { title: t('pages.cluster_docker.remove_container', { name: name(x) }), body: t('pages.cluster_docker.remove_container_body') }, done: t('pages.cluster_docker.removed', { name: name(x) }) }) }, t('common.remove'))) },
     ],
   });
@@ -137,7 +138,8 @@ function inspect(c, target, name) {
 
 function imageTable(rows, c) {
   const tag = (x) => ((x.tags || []).filter((n) => n !== '<none>:<none>')[0]) || shortId(x.id);
-  const tools = h('div', { class: 'row row--end' },
+  // Granted the node, not an administrator: its images are read, never pulled, pruned or removed ("Access" 24).
+  const tools = !isAdmin() ? null : h('div', { class: 'row row--end' },
     button({ size: 'sm', onClick: () => pull(c) }, t('pages.cluster_docker.pull')),
     button({ size: 'sm', onClick: () => act(c, { action: 'images.prune', ask: { title: t('pages.cluster_docker.prune_title'), body: t('pages.cluster_docker.prune_body'), action: t('pages.cluster_docker.prune') }, done: t('pages.cluster_docker.pruned') }) }, t('pages.cluster_docker.prune')));
   return h('div', { class: 'stack' }, tools, table({
@@ -147,7 +149,7 @@ function imageTable(rows, c) {
       { label: t('pages.cluster_docker.id'), cell: (x) => h('span', { class: 'mono sub', title: x.id }, shortId(x.id)) },
       { label: t('pages.cluster_docker.size'), cell: (x) => bytes(x.size), sort: (x) => x.size },
       { label: t('pages.cluster_docker.created'), cell: (x) => ago(x.created), sort: (x) => x.created },
-      { label: '', nosort: true, cell: (x) => h('div', { class: 'row row--end' }, button({ size: 'sm', variant: 'danger', onClick: () => act(c, { action: 'image.remove', target: x.id,
+      { label: '', nosort: true, cell: (x) => !isAdmin() ? '' : h('div', { class: 'row row--end' }, button({ size: 'sm', variant: 'danger', onClick: () => act(c, { action: 'image.remove', target: x.id,
         ask: { title: t('pages.cluster_docker.remove_image', { name: tag(x) }), body: t('pages.cluster_docker.remove_image_body') }, done: t('pages.cluster_docker.removed', { name: tag(x) }) }) }, t('common.remove'))) },
     ],
   }));
@@ -182,7 +184,7 @@ function volumeTable(rows, c) {
       { label: t('pages.cluster_docker.name'), cell: (x) => h('div', { class: 'row' }, h('span', { class: 'mono', title: x.name }, short(x.name)), ours(x)), sort: (x) => x.name },
       { label: t('pages.cluster_docker.driver'), cell: (x) => x.driver || '', sort: (x) => x.driver },
       { label: t('pages.cluster_docker.created'), cell: (x) => (x.created ? ago(Date.parse(x.created) / 1000) : ''), sort: (x) => x.created },
-      { label: '', nosort: true, cell: (x) => (x.cluster ? '' : h('div', { class: 'row row--end' }, button({ size: 'sm', variant: 'danger', onClick: () => act(c, { action: 'volume.remove', target: x.name,
+      { label: '', nosort: true, cell: (x) => (x.cluster || !isAdmin() ? '' : h('div', { class: 'row row--end' }, button({ size: 'sm', variant: 'danger', onClick: () => act(c, { action: 'volume.remove', target: x.name,
         ask: { title: t('pages.cluster_docker.remove_volume', { name: short(x.name) }), body: t('pages.cluster_docker.remove_volume_body') }, done: t('pages.cluster_docker.removed', { name: short(x.name) }) }) }, t('common.remove')))) },
     ],
   }));
@@ -195,7 +197,7 @@ function networkTable(rows, c) {
       { label: t('pages.cluster_docker.name'), cell: (x) => h('div', { class: 'row' }, h('span', { class: 'mono' }, x.name || ''), ours(x)), sort: (x) => x.name },
       { label: t('pages.cluster_docker.driver'), cell: (x) => x.driver || '', sort: (x) => x.driver },
       { label: t('pages.cluster_docker.scope'), cell: (x) => [x.scope || '', x.internal ? t('pages.cluster_docker.internal') : ''].filter(Boolean).join(', ') },
-      { label: '', nosort: true, cell: (x) => (x.cluster || DOCKER_OWN.includes(x.name) ? '' : h('div', { class: 'row row--end' }, button({ size: 'sm', variant: 'danger', onClick: () => act(c, { action: 'network.remove', target: x.name,
+      { label: '', nosort: true, cell: (x) => (x.cluster || DOCKER_OWN.includes(x.name) || !isAdmin() ? '' : h('div', { class: 'row row--end' }, button({ size: 'sm', variant: 'danger', onClick: () => act(c, { action: 'network.remove', target: x.name,
         ask: { title: t('pages.cluster_docker.remove_network', { name: x.name }), body: t('pages.cluster_docker.remove_network_body') }, done: t('pages.cluster_docker.removed', { name: x.name }) }) }, t('common.remove')))) },
     ],
   });

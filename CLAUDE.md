@@ -67,7 +67,7 @@ ARCHITECTURE.md has it in full; the parts that take several files to see:
   `cluster`; `main.rs` adds `/api/health` and falls back to `web::serve` (the embedded SPA, FinUI's CSS joined into
   `/assets/finui.css`, with the FinUI preset an administrator picked right after `tokens.css`, `appearance.rs`).
   Shared state is `App` (`Arc<AppState>`: db, limiter, sealer, oidc, the cluster).
-- **One guard.** `access::routes::guard` holds every route to its line in `RULES` (Public, Session or Admin) and
+- **One guard.** `access::routes::guard` holds every route to its line in `RULES` (Public, Session, Admin, or Stack / Node for operators) and
   refuses a route without one; `Authed` needs a session (and for a change the CSRF token and same `Origin`), `Admin`
   an administrator, `Peer` gives IP, user agent and origin. Every change calls `audit::record`. Errors are `ApiError`
   (an `anyhow` error becomes a generic 500).

@@ -496,8 +496,19 @@ pointer to what replaced it.
    purpose, and the person's tokens come back with it.
 23. The cluster UI has two roles (G8.3, owner's decision, 2026-11-12): an Administrator changes the cluster and
     Freightdock's own settings, users and teams; anybody else signed in reads the cluster. Every route's rule is one of
-    Public, Session and Admin (`access::routes::RULES`). Finer roles (per stack, per node) come back with what needs
+    Public, Session and Admin (`access::routes::RULES`; and since 24 Stack and Node). Finer roles (per stack, per node) come back with what needs
     them, and are not guessed at before: a role table for features that are not there would be rules that hold nothing.
+24. Operators (2026-11-15, refines 23): an administrator lets a person, or a team, operate one stack or one node
+    (**Operators** on the stack's card and the node's page; `cluster_grants`, `/api/cluster/grants`). Operating a stack
+    is starting, stopping and restarting it; operating a node is reading its Docker pages (containers, their logs,
+    images, volumes, networks) and starting, stopping and restarting its containers (the worker still refuses the
+    cluster's own). Nothing that reaches a host is granted: deploying or editing a stack (its file can bind any path
+    and run privileged), removing, pulling, pruning and shells stay an administrator's, and Freightdock's own stack
+    cannot be granted. The guard holds it: rules `Stack` and `Node` let an administrator through, or somebody with a
+    grant on the `{name}` or `{id}` in the path; a node's Docker change is held to the three actions in the handler.
+    A grant goes with its stack or node when Freightdock removes it, so a stack made later under the same name starts
+    with none; an administrator needs none and cannot be given one. `/api/me` lists a person's grants, for the pages to
+    show the buttons. Giving and taking away are in the activity log (`cluster.grant.add`, `cluster.grant.remove`).
 
 
 ## HTTPS
