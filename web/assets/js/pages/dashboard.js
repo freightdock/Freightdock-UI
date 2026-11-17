@@ -6,6 +6,7 @@
 import { h, s, mount, bytes, num } from '../dom.js';
 import { get } from '../api.js';
 import { loadInto, table } from '../view.js';
+import { mergeBoth } from '../exposures.js';
 import { pageHeader } from '../../finui/components/page-header/page-header.js';
 import { card } from '../../finui/components/card/card.js';
 import { status } from '../../finui/components/badge/badge.js';
@@ -114,8 +115,12 @@ const WELL_KNOWN = {
   udp: { 53: 'dns', 51820: 'wireguard', 1194: 'openvpn', 3478: 'stun', 123: 'ntp', 161: 'snmp', 514: 'syslog', 69: 'tftp' },
 };
 export function appProtocol(e) {
-  const known = WELL_KNOWN[e.protocol] || {};
-  return known[e.container_port] || known[e.port] || null;
+  for (const p of e.protocol === 'both' ? ['tcp', 'udp'] : [e.protocol]) {
+    const known = WELL_KNOWN[p] || {};
+    const found = known[e.container_port] || known[e.port];
+    if (found) return found;
+  }
+  return null;
 }
 
 /** The address to open an exposure at, for the web ones: http or https, the default port left out. */
@@ -128,7 +133,7 @@ function webLink(e, proto) {
 
 /** Every stack's exposures on the pool: stack and service, the protocol, and where it is reached. */
 function servicesCard(stacks) {
-  const rows = stacks.flatMap((st) => (st.exposures || []).map((e) => ({ ...e, stack: st.name, stopped: !!st.stopped })))
+  const rows = stacks.flatMap((st) => mergeBoth(st.exposures || []).map((e) => ({ ...e, stack: st.name, stopped: !!st.stopped })))
     .sort((a, b) => a.stack.localeCompare(b.stack) || a.service.localeCompare(b.service) || a.port - b.port);
   if (!rows.length) return card({ title: t('pages.dashboard.services'), body: h('p', { class: 'sub' }, t('pages.dashboard.no_services')) });
   return card({ title: t('pages.dashboard.services'), body: table({
@@ -138,14 +143,15 @@ function servicesCard(stacks) {
       { label: t('pages.dashboard.service'), cell: (r) => h('span', { class: 'mono' }, r.service), sort: (r) => r.service },
       { label: t('pages.dashboard.protocol'), cell: (r) => {
         const p = appProtocol(r);
-        return h('span', { class: 'row' }, status({ tone: r.stopped ? 'warning' : 'info', icon: 'globe' }, p ? p.toUpperCase() : r.protocol.toUpperCase()),
-          p ? h('span', { class: 'sub' }, r.protocol) : null);
+        const transport = r.protocol === 'both' ? t('pages.cluster_deploy.both') : r.protocol;
+        return h('span', { class: 'row' }, status({ tone: r.stopped ? 'warning' : 'info', icon: 'globe' }, p ? p.toUpperCase() : transport.toUpperCase()),
+          p ? h('span', { class: 'sub' }, transport) : null);
       }, sort: (r) => appProtocol(r) || r.protocol },
       { label: t('pages.dashboard.reached_at'), cell: (r) => {
         const text = `${r.address}:${r.port}`, link = r.stopped ? null : webLink(r, appProtocol(r));
         return link ? h('a', { href: link, target: '_blank', rel: 'noopener noreferrer', class: 'mono' }, text) : h('span', { class: 'mono' }, text);
       }, sort: (r) => `${r.address}:${String(r.port).padStart(5, '0')}` },
-      { label: t('pages.dashboard.container_port'), cell: (r) => h('span', { class: 'mono sub' }, `${r.container_port}/${r.protocol}`) },
+      { label: t('pages.dashboard.container_port'), cell: (r) => h('span', { class: 'mono sub' }, `${r.container_port}/${r.protocol === 'both' ? 'tcp+udp' : r.protocol}`) },
     ],
   }) });
 }

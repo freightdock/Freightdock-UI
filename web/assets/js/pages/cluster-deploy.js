@@ -17,6 +17,7 @@ import { isAdmin } from '../state.js';
 import { navigate } from '../router.js';
 import { codeEditor } from '../editor.js';
 import { unfit } from '../storage-fit.js';
+import { mergeBoth, splitBoth, covers } from '../exposures.js';
 import { volumeName, folderFor, declaredFolders, serviceNames, declaredVolumes, addVolume, relativeBinds, convertBinds } from '../compose-volumes.js';
 import { pageHeader } from '../../finui/components/page-header/page-header.js';
 import { card } from '../../finui/components/card/card.js';
@@ -348,10 +349,12 @@ function placement(c, nodes, noneChosen) {
     p.map(([w, n]) => h('span', { class: 'fd-deploy__svc' }, h('span', { class: 'mono' }, w), h('span', { class: 'sub' }, ` → ${byId.get(n) ? nodeName(byId.get(n)) : n}`))));
 }
 
-/** The first pool address with `port`/`protocol` free: no other stack's, and not taken by a row here already. */
+/** The first pool address with `port`/`protocol` free (both: tcp and udp): no other stack's, and not taken by a row
+ *  here already. */
 function freeAddress(pool, stack, port, protocol, rows) {
-  const taken = (a) => (a.exposures || []).some((e) => e.stack !== stack && e.port === port && e.protocol === protocol)
-    || rows.some((r) => r.address === a.address && r.port === port && r.protocol === protocol);
+  const meet = (p, q) => covers(p, q) || covers(q, p);
+  const taken = (a) => (a.exposures || []).some((e) => e.stack !== stack && e.port === port && meet(protocol, e.protocol))
+    || rows.some((r) => r.address === a.address && r.port === port && meet(r.protocol, protocol));
   const a = pool.find((x) => !taken(x));
   return a ? a.address : '';
 }
@@ -360,9 +363,11 @@ function freeAddress(pool, stack, port, protocol, rows) {
  *  port outside, or Internal only. `offer(services, suggest)` adds a row for each port a Compose file asks for that
  *  has none yet, on a free pool address when `suggest` (a new stack), else internal only. `read()` is the exposures,
  *  or null when one is incomplete. Used here and by the stacks page's Exposures dialog. */
-export function exposureEditor({ pool, stack, initial = [] }) {
+export function exposureEditor({ pool, stack, initial: had = [] }) {
+  // A port on tcp and udp alike is one row, both; read() writes it back as the two rules ("Cluster" 42).
+  const initial = mergeBoth(had);
   let services = [...new Set(initial.map((e) => e.service))];
-  const asked = new Set(initial.map((e) => `${e.service}:${e.container_port}/${e.protocol}`));
+  const asked = new Set(had.map((e) => `${e.service}:${e.container_port}/${e.protocol}`));
   const rows = h('div', { class: 'stack' });
   const field = (label, input, wide) => h('label', { class: ['fui-field', 'fd-expose__field', wide && 'fd-expose__field--wide'] }, h('span', { class: 'fui-field__label' }, label), input);
   const select = (options, value) => h('select', { class: 'fui-field__input' }, options.map((o) => h('option', { value: o.value, selected: o.value === value }, o.label)));
@@ -370,7 +375,7 @@ export function exposureEditor({ pool, stack, initial = [] }) {
   const row = (e = {}) => {
     const svc = select(svcOptions(), e.service || services[0]);
     const cport = h('input', { class: 'fui-field__input mono', type: 'number', min: 1, max: 65535, value: e.container_port || '' });
-    const proto = select([{ value: 'tcp', label: 'tcp' }, { value: 'udp', label: 'udp' }], e.protocol || 'tcp');
+    const proto = select([{ value: 'tcp', label: 'tcp' }, { value: 'udp', label: 'udp' }, { value: 'both', label: t('pages.cluster_deploy.both') }], e.protocol || 'tcp');
     const addr = select([{ value: '', label: t('pages.cluster_deploy.internal_only') }, ...pool.map((p) => ({ value: p.address, label: p.address }))], e.address || '');
     const port = h('input', { class: 'fui-field__input mono', type: 'number', min: 1, max: 65535, value: e.port || '' });
     const paint = () => el.classList.toggle('fd-expose--internal', !addr.value);
@@ -399,20 +404,22 @@ export function exposureEditor({ pool, stack, initial = [] }) {
     offer(found, suggest) {
       services = Object.keys(found);
       sync();
+      const fresh = [];
       for (const [svc, v] of Object.entries(found)) {
         for (const p of v.ports || []) {
           const protocol = p.protocol || 'tcp';
           const key = `${svc}:${p.container_port}/${protocol}`;
           if (asked.has(key)) continue;
           asked.add(key);
-          const outside = p.host_port || p.container_port;
-          rows.append(row({ service: svc, container_port: p.container_port, protocol, port: outside, address: suggest ? freeAddress(pool, stack, outside, protocol, current()) : '' }));
+          fresh.push({ service: svc, container_port: p.container_port, protocol, port: p.host_port || p.container_port });
         }
       }
+      // A port the file asks for on tcp and on udp is one row, both.
+      for (const x of mergeBoth(fresh)) rows.append(row({ ...x, address: suggest ? freeAddress(pool, stack, x.port, x.protocol, current()) : '' }));
     },
     read() {
       const list = current().filter((x) => x.address);
-      return list.some((x) => !x.container_port || !x.port) ? null : list;
+      return list.some((x) => !x.container_port || !x.port) ? null : splitBoth(list);
     },
   };
 }

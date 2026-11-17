@@ -303,7 +303,7 @@ it, and its last command, under a search and filters ("Cluster" 20). An administ
 removes a stack ("Cluster" 4), and deploys or changes one on the deployer, `pages/cluster-deploy.js`
 (`/cluster/stacks/new`, `/cluster/stacks/<name>/edit`, "Cluster" 19): the Compose file in the code editor, with its
 storage under it (volumes added on a storage, relative bind mounts put on one, `compose-volumes.js`, "Cluster" 39;
-the storage picked sets the survival and leaves out the workers that cannot use it, `storage-fit.js`, "Cluster" 40), checked by
+the storage picked sets the survival and leaves out the workers that cannot use it, `storage-fit.js`, "Cluster" 40; an exposure on tcp + udp is one row, written as two rules, `exposures.js`, "Cluster" 42), checked by
 the managers a moment after each edit (`/api/cluster/stack-check`), where it runs, and its exposures on the pool
 (`exposureEditor`, which the stacks page's Exposures dialog uses too), all sent with the deploy. The manager's warnings
 on a file (keys it set aside) are listed under it and toasts after the deploy.

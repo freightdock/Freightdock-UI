@@ -1304,7 +1304,8 @@
       "vol_path": "Mappe på lagringen",
       "vol_path_help": "Der du finner dataene på {where}: /{path}. Lages når stakken starter første gang, ikke før.",
       "vol_path_bad": "Mappen er opptil 8 deler av bokstaver, sifre og . _ -, skilt med /, ingen som starter med punktum, som ntfy/data.",
-      "vol_path_taken": "{path} på {where} møter {clash}, som et annet volum bruker. Velg en annen mappe."
+      "vol_path_taken": "{path} på {where} møter {clash}, som et annet volum bruker. Velg en annen mappe.",
+      "both": "tcp + udp"
     },
     "integrations": {
       "title": "Integrasjoner",

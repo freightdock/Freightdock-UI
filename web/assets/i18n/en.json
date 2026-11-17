@@ -1304,7 +1304,8 @@
       "vol_path": "Folder on the storage",
       "vol_path_help": "Where you find the data on {where}: /{path}. Made when the stack first starts, not before.",
       "vol_path_bad": "The folder is up to 8 parts of letters, digits and . _ -, separated by /, none starting with a dot, such as ntfy/data.",
-      "vol_path_taken": "{path} on {where} meets {clash}, which another volume uses. Pick another folder."
+      "vol_path_taken": "{path} on {where} meets {clash}, which another volume uses. Pick another folder.",
+      "both": "tcp + udp"
     },
     "integrations": {
       "title": "Integrations",

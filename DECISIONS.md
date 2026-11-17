@@ -1618,3 +1618,8 @@ registries, templates, teams) and describe nothing here.
     on the storage until the stack first starts on a worker. Reason: `<stack>/<volume-with-a-random-part>` never
     clashed but was hard to find on the storage; a folder named by the person is easy to find, and the clash check
     keeps it as safe.
+42. An exposure on tcp and udp at once (2026-11-17, owner's wish): the exposures editor offers tcp, udp and tcp + udp,
+    and the last is written as the two rules the managers keep, one per protocol; a tcp and a udp rule alike in all
+    else are shown as one row again (`exposures.js`, tested by `qa/exposures.test.mjs`), there and on the dashboard.
+    Reason: DNS, WireGuard and the like want both, and two rows to keep alike by hand is where one is forgotten; the
+    managers' rules stay one per protocol, so nothing changes for them or for a stack made before.
