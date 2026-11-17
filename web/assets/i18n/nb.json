@@ -1271,7 +1271,30 @@
       "mode_no_storage": "Klyngen har ingen lagring ennå: legg den til på Klynge-siden.",
       "names_help": "Containernavn, hvert sitt eget i klyngen og et navn for den inne i stacken også. Tomt: filens container_name, ellers stack-tjeneste-replika.",
       "container_name": "Containernavn for {service}",
-      "selector_placeholder": "zone=a, disk!=hdd"
+      "selector_placeholder": "zone=a, disk!=hdd",
+      "vol_title": "Lagring for stakken",
+      "vol_help": "Legg til et navngitt volum i filen, lagret der du velger, og monter det i en tjeneste. Navnet er stakkens med en tilfeldig del, så det aldri kolliderer med et annet volum, og du kan legge til så mange du vil.",
+      "vol_where": "Lagres på",
+      "vol_local": "nodens egen disk (lokalt)",
+      "vol_service": "Montert i",
+      "vol_no_service": "ingen tjeneste (bare deklarer)",
+      "vol_target": "På stien",
+      "vol_add": "Legg til volum",
+      "vol_target_needed": "Si hvor i containeren det skal: en absolutt sti, som /data.",
+      "vol_added": "{name} lagt til, lagret på {where}.",
+      "vol_added_mounted": "{name} lagt til, lagret på {where}, montert i {service} på {target}.",
+      "vol_relative": {
+        "one": "{count} relativ sti ({paths}) betyr ingenting på en worker",
+        "other": "{count} relative stier ({paths}) betyr ingenting på en worker"
+      },
+      "vol_convert": "Legg dem på {where}",
+      "vol_converted": "Nå volumer på {where}: {list}. Det som allerede ligger i de mappene, blir ikke kopiert.",
+      "vol_err": {
+        "services_flow": "Filens tjenester er skrevet på én linje ({service} blant dem); legg til volumet for hånd.",
+        "no_service": "Filen har ingen tjeneste {service}.",
+        "volumes_not_list": "Volumene til {service} er ikke en liste; legg til volumet for hånd.",
+        "volumes_flow": "Filens volumer er skrevet på én linje; deklarer {name} for hånd."
+      }
     },
     "integrations": {
       "title": "Integrasjoner",

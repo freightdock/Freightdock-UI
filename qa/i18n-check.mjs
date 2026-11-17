@@ -153,6 +153,8 @@ const ON_PURPOSE = [
   // A compose file to start from: Compose's own words.
   { file: 'pages/swarm-stacks.js', text: /^services: web: image: nginx/ },
   { file: 'pages/cluster-deploy.js', text: /^services: web: image: nginx/ },
+  // The Compose lines the deployer writes for a volume on the cluster's storage.
+  { file: 'compose-volumes.js', text: /x-freightdock: \{storage:|^, access: many$/ },
   // Docker's create body's own keys.
   { file: 'pages/container-edit.js', text: /^(Init|Tty|Privileged|Image|Cmd|Entrypoint|User|Hostname|Env|Labels|Binds|Memory)$/ },
   // Errors for whoever builds with a component, not for the person using the page.

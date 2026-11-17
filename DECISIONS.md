@@ -1594,3 +1594,13 @@ registries, templates, teams) and describe nothing here.
     on, else the pool's port, and plain TCP or UDP when neither is one; an HTTP or HTTPS one links to its address.
     Reason: the managers keep only the transport (tcp, udp), and a Compose file never says what runs over it; the
     port is what a person reads it from anyway, and a guess shown as the port's name is never wrong about the port.
+39. The deployer gives a stack storage (2026-11-17, owner's wish): under the Compose file, a volume is added on a
+    storage of the cluster (or the node's own disk) and mounted in a service at a path, as often as one likes, and the
+    file's relative bind mounts (`./data:/data`) are put on the storage chosen in one go, the same path one volume
+    (`access: many` when several services share it). A new volume is `<stack>-<what>-<random>`, the stack's name or a
+    random one before it has one, and never one the file declares. The file is edited as text
+    (`compose-volumes.js`, tested by `qa/compose-volumes.test.mjs`), so its comments and layout stay; a part written
+    on one line in flow style is left for the person to edit. Reason: a volume's directory is `<stack>/<volume>` on the
+    storage, so the stack's name alone would meet what an earlier stack of that name left there; the random part
+    never does. A relative path means nothing on a worker and was only refused before; what was in that folder is not
+    copied, and the deployer says so.

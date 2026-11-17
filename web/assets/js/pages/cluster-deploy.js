@@ -6,12 +6,15 @@
 // person deploying keeps, moves or makes internal only. Nothing else leaves the cluster ("Cluster" 17). Beside the
 // file, the stack's options ("Cluster" 22): a description, an env file for its variables, a node label selector, how
 // it survives its node (as the file says, stateless, pinned, or on shared storage) and its containers' own names.
+// Under the file, its storage ("Cluster" 39): a volume added on the storage chosen, named for the stack and never one
+// the file has, and the file's relative bind mounts put on that storage in one go.
 
 import { h, mount } from '../dom.js';
 import { get, post } from '../api.js';
 import { isAdmin } from '../state.js';
 import { navigate } from '../router.js';
 import { codeEditor } from '../editor.js';
+import { volumeName, serviceNames, declaredVolumes, addVolume, relativeBinds, convertBinds } from '../compose-volumes.js';
 import { pageHeader } from '../../finui/components/page-header/page-header.js';
 import { card } from '../../finui/components/card/card.js';
 import { status } from '../../finui/components/badge/badge.js';
@@ -78,6 +81,7 @@ function deployer({ existing, stack, nodes, pool, storage, signal }) {
   const envField = h('div', { class: 'fui-field' }, h('label', { class: 'fui-field__label', htmlFor: 'cs-env' }, t('pages.cluster_deploy.env')), env,
     h('p', { class: 'fui-field__help' }, t('pages.cluster_deploy.env_help')));
   const found = h('div', { class: 'stack', 'aria-live': 'polite' });
+  const volumes = volumeTool({ file, storage, stackName: () => name.input.value.trim(), changed: () => later(0) });
 
   // 2. Where it runs.
   const workers = h('div', { class: 'fd-deploy__nodes' });
@@ -122,7 +126,7 @@ function deployer({ existing, stack, nodes, pool, storage, signal }) {
   const coldBox = existing ? null : checkbox({ label: t('pages.cluster_deploy.stopped'), checked: false, onChange: (on) => { cold = on; } });
   const go = button({ variant: 'primary', type: 'submit' }, existing ? t('pages.cluster_deploy.redeploy') : t('pages.cluster_stacks.deploy'));
   const form = h('form', { class: 'stack', novalidate: true },
-    card({ title: t('pages.cluster_deploy.file'), body: h('div', { class: 'stack' }, name.el, aboutField, file.el, envField, found) }),
+    card({ title: t('pages.cluster_deploy.file'), body: h('div', { class: 'stack' }, name.el, aboutField, file.el, volumes.el, envField, found) }),
     card({ title: t('pages.cluster_deploy.where'), sub: t('pages.cluster_deploy.where_sub'), actions: where, body: h('div', { class: 'stack' }, workers, selector.el, seen, placed) }),
     card({ title: t('pages.cluster_deploy.mode'), sub: t('pages.cluster_deploy.mode_sub'), actions: survivePick, body: survival }),
     card({ title: t('pages.cluster_stacks.reach'), sub: t('pages.cluster_deploy.reach_sub'), body: reach.el }),
@@ -154,6 +158,7 @@ function deployer({ existing, stack, nodes, pool, storage, signal }) {
       const { exposures, ...asked } = b;
       last = await post('/api/cluster/stack-check', asked, { signal: ctl.signal });
       file.setError('');
+      volumes.refresh();
       mount(found, servicesFound(last, b.name, names, () => later(0)));
       mount(placed, placement(last, nodes, mode === 'chosen' && !chosen.size));
       reach.offer(last.services || {}, !existing);
@@ -161,6 +166,7 @@ function deployer({ existing, stack, nodes, pool, storage, signal }) {
       if (ctl.signal.aborted) return;
       last = null;
       file.setError(e.message);
+      volumes.refresh();
       mount(found);
       mount(placed);
     }
@@ -184,6 +190,74 @@ function deployer({ existing, stack, nodes, pool, storage, signal }) {
     } catch (x) { go.disabled = false; err.textContent = x.message; }
   });
   return form;
+}
+
+/** Storage for the stack, under its file: where the data is kept (a storage of the cluster, or the node's own disk),
+ *  the service and the path in it, and Add volume, as often as one likes; each new volume's name is the stack's with
+ *  a random part, never one the file has. When the file mounts relative paths (./data, which mean nothing on a worker),
+ *  a button puts them all on the storage chosen. */
+function volumeTool({ file, storage, stackName, changed }) {
+  const LOCAL = '';
+  const where = h('select', { class: 'fui-field__input', id: 'cs-vol-where' },
+    storage.map((x) => h('option', { value: x.name }, x.driver ? `${x.name} (${x.driver})` : x.name)),
+    h('option', { value: LOCAL }, t('pages.cluster_deploy.vol_local')));
+  const svc = h('select', { class: 'fui-field__input', id: 'cs-vol-service' });
+  const target = h('input', { class: 'fui-field__input mono', id: 'cs-vol-target', autocomplete: 'off', spellcheck: false, placeholder: '/data' });
+  const said = h('p', { class: 'sub', 'aria-live': 'polite' });
+  const binds = h('div');
+  const field = (id, label, input) => h('div', { class: 'fui-field' }, h('label', { class: 'fui-field__label', htmlFor: id }, label), input);
+  const storageWord = () => (where.value === LOCAL ? t('pages.cluster_deploy.vol_local') : where.value);
+
+  function refresh() {
+    let list = [];
+    try { list = serviceNames(file.value); } catch { list = []; }
+    const keep = svc.value;
+    mount(svc, h('option', { value: '' }, t('pages.cluster_deploy.vol_no_service')), list.map((n) => h('option', { value: n }, n)));
+    // The one chosen stays; with none chosen and one service, that one.
+    svc.value = list.includes(keep) ? keep : list.length === 1 ? list[0] : '';
+    let found = [];
+    try { found = relativeBinds(file.value); } catch { found = []; }
+    mount(binds, found.length ? h('div', { class: 'row wrap' },
+      status({ tone: 'warning', line: true }, t('pages.cluster_deploy.vol_relative', { count: found.length, paths: [...new Set(found.map((b) => b.source))].join(', ') })),
+      button({ size: 'sm', onClick: convert }, t('pages.cluster_deploy.vol_convert', { where: storageWord() }))) : null);
+  }
+
+  function add() {
+    said.textContent = '';
+    const to = target.value.trim();
+    if (svc.value && !to.startsWith('/')) { said.textContent = t('pages.cluster_deploy.vol_target_needed'); target.focus(); return; }
+    const vol = volumeName(stackName(), declaredVolumes(file.value));
+    try {
+      file.value = addVolume(file.value, { name: vol, storage: where.value || null, service: svc.value || null, target: to });
+    } catch (e) { said.textContent = e.key ? t(`pages.cluster_deploy.vol_err.${e.key}`, e.vars) : e.message; return; }
+    said.textContent = svc.value ? t('pages.cluster_deploy.vol_added_mounted', { name: vol, where: storageWord(), service: svc.value, target: to })
+      : t('pages.cluster_deploy.vol_added', { name: vol, where: storageWord() });
+    target.value = '';
+    refresh();
+    changed();
+  }
+
+  function convert() {
+    said.textContent = '';
+    let r;
+    try { r = convertBinds(file.value, { storage: where.value || null, stack: stackName() }); } catch (e) { said.textContent = e.key ? t(`pages.cluster_deploy.vol_err.${e.key}`, e.vars) : e.message; return; }
+    if (!r.changed.length) return;
+    file.value = r.text;
+    said.textContent = t('pages.cluster_deploy.vol_converted', { list: r.changed.map((c) => `${c.source} \u2192 ${c.name}`).join(', '), where: storageWord() });
+    refresh();
+    changed();
+  }
+
+  const go = button({ size: 'sm', onClick: add }, t('pages.cluster_deploy.vol_add'));
+  // Enter here adds the volume; it would deploy the stack otherwise.
+  target.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
+  refresh();
+  const el = h('div', { class: 'stack fd-deploy__volumes' },
+    h('div', { class: 'fui-field__label' }, t('pages.cluster_deploy.vol_title')),
+    h('p', { class: 'sub' }, t('pages.cluster_deploy.vol_help')),
+    h('div', { class: 'row wrap row--bottom' }, field('cs-vol-where', t('pages.cluster_deploy.vol_where'), where), field('cs-vol-service', t('pages.cluster_deploy.vol_service'), svc), field('cs-vol-target', t('pages.cluster_deploy.vol_target'), target), go),
+    binds, said);
+  return { el, refresh };
 }
 
 /** The services the managers found in the file, each with its containers' own name to type (`names`, by service),

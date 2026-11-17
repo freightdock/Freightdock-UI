@@ -41,7 +41,7 @@ cargo clippy --all-targets                   # keep it clean
 FREIGHTDOCK_DATA_DIR=./data FREIGHTDOCK_BIND=127.0.0.1:7443 FREIGHTDOCK_CLUSTER_API=http://127.0.0.1:7451 cargo run
                                              # serve (HTTPS, self-signed cert made in ./data/tls), beside a manager
 FREIGHTDOCK_TLS=off FREIGHTDOCK_BIND=127.0.0.1:7080 cargo run           # plain HTTP, behind a proxy
-qa/js-check.sh                               # node --check on every module and the i18n check, in a node container
+qa/js-check.sh                               # node --check on every module, the i18n check and qa/*.test.mjs, in a node container
 qa/e2e.sh                                    # the end-to-end suite on a throwaway one-node cluster (Docker, Node, ../dist)
 qa/screenshots.sh                            # docs/screenshots/, light and dark, from a throwaway cluster (and Chromium)
 docker build -t freightdock .                # the image

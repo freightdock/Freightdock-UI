@@ -1,5 +1,5 @@
 #!/bin/sh
-# node --check on every module of the app's own UI, the UI's words held to their catalogues (qa/i18n-check.mjs, "UI" 16),
+# node --check on every module of the app's own UI, its tests (qa/*.test.mjs, node --test), the UI's words held to their catalogues (qa/i18n-check.mjs, "UI" 16),
 # and FinUI's preset overlay (web/assets/finui/p) made again from the
 # copied FinUI to see it is what FinUI makes: the only JS checks there are. By default in a node container, so no Node
 # is needed on the machine; `qa/js-check.sh --here` runs them with the node on the PATH instead (CI, where a job's
@@ -15,6 +15,7 @@ bad=0
 for f in $(find web/assets/js -name "*.js"); do node --check "$f" || bad=1; done
 [ $bad -eq 0 ] && echo "every module parses"
 node qa/i18n-check.mjs web || bad=1
+node --test qa/*.test.mjs || bad=1
 if node qa/finui-presets.mjs web/assets/finui "$made" && diff -r "$made/p" web/assets/finui/p >/dev/null; then
   echo "the preset overlay is what FinUI makes"
 else

@@ -223,7 +223,8 @@ values themselves, before the files, as the managers do when they run the UI ("C
 Freightdocks over one fake manager; `cluster::tests` a fake manager over HTTP and HTTPS. `tests/log_time.rs` starts the
 real binary in a zone and reads its first log line. `web::tests` hold the two catalogues to each other.
 `qa/js-check.sh` parses every module, runs `qa/i18n-check.mjs` (every key a module asks for has English, every English
-text is asked for, no words left outside `t()`, the languages agree), and makes FinUI's preset overlay again from the
+text is asked for, no words left outside `t()`, the languages agree), runs the UI's own tests (`qa/*.test.mjs` with
+`node --test`: the deployer's Compose edits), and makes FinUI's preset overlay again from the
 copied `preset.js` to see `web/assets/finui/p` is what FinUI makes.
 
 `qa/e2e.sh` is the end-to-end suite ("Cluster" 32): `qa/cluster.sh up` makes a throwaway one-node cluster (a manager

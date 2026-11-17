@@ -1271,7 +1271,30 @@
       "mode_no_storage": "The cluster has no storage yet: add it on the Cluster page.",
       "names_help": "Container names, each its own in the cluster and a name for it inside the stack too. Left empty: the file's container_name, else stack-service-replica.",
       "container_name": "Container name of {service}",
-      "selector_placeholder": "zone=a, disk!=hdd"
+      "selector_placeholder": "zone=a, disk!=hdd",
+      "vol_title": "Storage for the stack",
+      "vol_help": "Add a named volume to the file, kept where you choose, and mount it in a service. Its name is the stack's with a random part, so it never meets another volume, and you can add as many as you like.",
+      "vol_where": "Kept on",
+      "vol_local": "the node's own disk (local)",
+      "vol_service": "Mounted in",
+      "vol_no_service": "no service (declare only)",
+      "vol_target": "At the path",
+      "vol_add": "Add volume",
+      "vol_target_needed": "Say where in the container it goes: an absolute path, such as /data.",
+      "vol_added": "{name} added, kept on {where}.",
+      "vol_added_mounted": "{name} added, kept on {where}, mounted in {service} at {target}.",
+      "vol_relative": {
+        "one": "{count} relative path ({paths}) means nothing on a worker",
+        "other": "{count} relative paths ({paths}) mean nothing on a worker"
+      },
+      "vol_convert": "Put them on {where}",
+      "vol_converted": "Now volumes on {where}: {list}. Anything already in those folders is not copied.",
+      "vol_err": {
+        "services_flow": "The file's services are written on one line ({service} among them); add the volume by hand.",
+        "no_service": "The file has no service {service}.",
+        "volumes_not_list": "The volumes of {service} are not a list; add the volume by hand.",
+        "volumes_flow": "The file's volumes are written on one line; declare {name} by hand."
+      }
     },
     "integrations": {
       "title": "Integrations",
