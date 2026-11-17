@@ -1589,3 +1589,8 @@ registries, templates, teams) and describe nothing here.
     record (`cluster.storage.password` names the storage only). Reason: a NAS account usually reaches more than the
     share; it belongs where the CephFS keys are, in the managers' replicated state, handed to a worker only in the
     mount call.
+38. The dashboard's Services card (2026-11-17, owner's wish) lists every stack's exposures on the pool with the
+    protocol each speaks (HTTP, HTTPS, SSH, RDP and the like), known from the well-known port the container listens
+    on, else the pool's port, and plain TCP or UDP when neither is one; an HTTP or HTTPS one links to its address.
+    Reason: the managers keep only the transport (tcp, udp), and a Compose file never says what runs over it; the
+    port is what a person reads it from anyway, and a guess shown as the port's name is never wrong about the port.

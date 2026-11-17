@@ -213,7 +213,8 @@ kept while a refresh is on its way, and `redraw()` to draw the last answer again
 FinUI data tables, refreshed on a timer only while the tab is seen (`every`); their filter box lives outside what is
 redrawn.
 
-The landing page is the dashboard (`/dashboard`, `pages/dashboard.js`, "Cluster" 13; `/` and the old `/home` go there),
+The landing page is the dashboard (`/dashboard`, `pages/dashboard.js`, "Cluster" 13; `/` and the old `/home` go there;
+its Services card lists the stacks' exposures with the protocol each speaks, "Cluster" 38),
 and beside it the cluster (`/cluster`): its managers, nodes with their labels
 and state, the floating addresses with their holders, recoveries, events and the commands sent, and for an
 administrator the join tokens, a node's commands and adding or removing a floating address ("Cluster" 15).

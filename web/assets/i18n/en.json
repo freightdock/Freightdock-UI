@@ -1167,7 +1167,14 @@
       "memory_of": "{used} of {all}",
       "nodes": "Nodes",
       "workloads_n": "{n} of {of} workloads running",
-      "containers_n": "{n} containers running"
+      "containers_n": "{n} containers running",
+      "services": "Services",
+      "no_services": "No stack is exposed on the pool yet. A stack is reached from outside the cluster through its exposures (the deployer, or a stack's Exposures button).",
+      "stack": "Stack",
+      "service": "Service",
+      "protocol": "Protocol",
+      "reached_at": "Reached at",
+      "container_port": "Container port"
     },
     "cluster_manager": {
       "title": "Manager",

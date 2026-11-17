@@ -1,10 +1,11 @@
 // The dashboard ("Cluster" 13): the cluster at a glance, asked again every few seconds. On top the managers (how many
 // are online), the quorum (and which node leads) and the workers (how many are healthy); under them the CPU and memory
-// used over every node; under those a row per node with its resources and its workloads.
+// used over every node; under those what the stacks offer on the pool (each exposure with the protocol it speaks, a
+// link for the web ones); last a row per node with its resources and its workloads.
 
 import { h, s, mount, bytes, num } from '../dom.js';
 import { get } from '../api.js';
-import { loadInto } from '../view.js';
+import { loadInto, table } from '../view.js';
 import { pageHeader } from '../../finui/components/page-header/page-header.js';
 import { card } from '../../finui/components/card/card.js';
 import { status } from '../../finui/components/badge/badge.js';
@@ -63,7 +64,7 @@ export function dashboardPage({ el, signal }) {
       if (c.name) mount(head, pageHeader(c.name, t('pages.dashboard.sub')));
       const raft = cl.raft || [];
       const nodes = n || [];
-      return h('div', { class: 'stack' }, topRow(cl, raft, nodes), usageRow(nodes), nodeRows(nodes, st || [], raft));
+      return h('div', { class: 'stack' }, topRow(cl, raft, nodes), usageRow(nodes), servicesCard(st || []), nodeRows(nodes, st || [], raft));
     },
   });
   const timer = setInterval(() => { if (!document.hidden) reload(); }, EVERY_MS);
@@ -102,6 +103,51 @@ function usageRow(nodes) {
 
 function bar(share, text) {
   return h('div', { class: 'fd-dash-bar' }, meter({ value: share, block: true, label: text }), h('span', { class: 'sub nowrap' }, text));
+}
+
+/** The protocol a port speaks, by the well-known ports: the container's port first (what the application listens
+ *  on), then the pool's. Null when neither is one, and the exposure shows only tcp or udp. */
+const WELL_KNOWN = {
+  tcp: { 80: 'http', 8080: 'http', 8000: 'http', 3000: 'http', 5000: 'http', 9000: 'http', 443: 'https', 8443: 'https', 22: 'ssh', 3389: 'rdp',
+    5900: 'vnc', 21: 'ftp', 25: 'smtp', 587: 'smtp', 465: 'smtps', 143: 'imap', 993: 'imaps', 110: 'pop3', 995: 'pop3s', 53: 'dns',
+    389: 'ldap', 636: 'ldaps', 1883: 'mqtt', 8883: 'mqtts', 5432: 'postgres', 3306: 'mysql', 6379: 'redis', 27017: 'mongodb', 445: 'smb', 2049: 'nfs' },
+  udp: { 53: 'dns', 51820: 'wireguard', 1194: 'openvpn', 3478: 'stun', 123: 'ntp', 161: 'snmp', 514: 'syslog', 69: 'tftp' },
+};
+export function appProtocol(e) {
+  const known = WELL_KNOWN[e.protocol] || {};
+  return known[e.container_port] || known[e.port] || null;
+}
+
+/** The address to open an exposure at, for the web ones: http or https, the default port left out. */
+function webLink(e, proto) {
+  if (proto !== 'http' && proto !== 'https') return null;
+  const host = e.address.includes(':') ? `[${e.address}]` : e.address;
+  const port = (proto === 'http' && e.port === 80) || (proto === 'https' && e.port === 443) ? '' : `:${e.port}`;
+  return `${proto}://${host}${port}/`;
+}
+
+/** Every stack's exposures on the pool: stack and service, the protocol, and where it is reached. */
+function servicesCard(stacks) {
+  const rows = stacks.flatMap((st) => (st.exposures || []).map((e) => ({ ...e, stack: st.name, stopped: !!st.stopped })))
+    .sort((a, b) => a.stack.localeCompare(b.stack) || a.service.localeCompare(b.service) || a.port - b.port);
+  if (!rows.length) return card({ title: t('pages.dashboard.services'), body: h('p', { class: 'sub' }, t('pages.dashboard.no_services')) });
+  return card({ title: t('pages.dashboard.services'), body: table({
+    rows, filter: false, dense: true, label: t('pages.dashboard.services'),
+    columns: [
+      { label: t('pages.dashboard.stack'), cell: (r) => h('a', { href: '/cluster/stacks' }, r.stack), sort: (r) => r.stack },
+      { label: t('pages.dashboard.service'), cell: (r) => h('span', { class: 'mono' }, r.service), sort: (r) => r.service },
+      { label: t('pages.dashboard.protocol'), cell: (r) => {
+        const p = appProtocol(r);
+        return h('span', { class: 'row' }, status({ tone: r.stopped ? 'warning' : 'info', icon: 'globe' }, p ? p.toUpperCase() : r.protocol.toUpperCase()),
+          p ? h('span', { class: 'sub' }, r.protocol) : null);
+      }, sort: (r) => appProtocol(r) || r.protocol },
+      { label: t('pages.dashboard.reached_at'), cell: (r) => {
+        const text = `${r.address}:${r.port}`, link = r.stopped ? null : webLink(r, appProtocol(r));
+        return link ? h('a', { href: link, target: '_blank', rel: 'noopener noreferrer', class: 'mono' }, text) : h('span', { class: 'mono' }, text);
+      }, sort: (r) => `${r.address}:${String(r.port).padStart(5, '0')}` },
+      { label: t('pages.dashboard.container_port'), cell: (r) => h('span', { class: 'mono sub' }, `${r.container_port}/${r.protocol}`) },
+    ],
+  }) });
 }
 
 function nodeRows(nodes, stacks, raft) {

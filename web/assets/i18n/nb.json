@@ -1167,7 +1167,14 @@
       "memory_of": "{used} av {all}",
       "nodes": "Noder",
       "workloads_n": "{n} av {of} arbeidslaster kjører",
-      "containers_n": "{n} containere kjører"
+      "containers_n": "{n} containere kjører",
+      "services": "Tjenester",
+      "no_services": "Ingen stakk er eksponert på poolen ennå. En stakk nås utenfra klyngen gjennom eksponeringene sine (utrulleren, eller stakkens Eksponeringer-knapp).",
+      "stack": "Stakk",
+      "service": "Tjeneste",
+      "protocol": "Protokoll",
+      "reached_at": "Nås på",
+      "container_port": "Containerport"
     },
     "cluster_manager": {
       "title": "Manager",
