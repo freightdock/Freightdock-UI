@@ -163,6 +163,7 @@ read-only token only reads.
 | `GET /api/cluster/traffic` | session | each node's latest flows, their ends named by the managers ("Cluster" 16) |
 | `POST /api/cluster/floating`, `DELETE /api/cluster/floating/{address}` | admin | `{address}`, one or a range: added (`{added}`, how many were new); removed (an IPv4 address in the path only) |
 | `GET /api/cluster/storage` | session | the cluster's shared storage, the volumes on each and who holds them ("Cluster" 21), and each node's health of it (`health`, "Cluster" 28) |
+| `GET /api/cluster/usage` | session | the Storage page's numbers ("Cluster" 43): each worker's disk and each shared storage, by stack |
 | `POST /api/cluster/storage`, `DELETE /api/cluster/storage/{name}` | admin | `{name, driver: nfs\|smb\|path\|cephfs, source, options}` (cephfs also `secret`, `fence_client`, `fence_secret`, `image`; smb `password`; never on record): added; removed (a storage name in the path only; refused while a stack uses it) |
 | `PUT /api/cluster/storage/{name}/keys` | admin | a CephFS's keys anew ("Cluster" 34): an empty key keeps the one set, an empty `fence_client` takes eviction away |
 | `PUT /api/cluster/storage/{name}/password` | admin | an SMB share's password anew ("Cluster" 37), empty for a guest share; never kept here or on record |
@@ -224,7 +225,7 @@ Freightdocks over one fake manager; `cluster::tests` a fake manager over HTTP an
 real binary in a zone and reads its first log line. `web::tests` hold the two catalogues to each other.
 `qa/js-check.sh` parses every module, runs `qa/i18n-check.mjs` (every key a module asks for has English, every English
 text is asked for, no words left outside `t()`, the languages agree), runs the UI's own tests (`qa/*.test.mjs` with
-`node --test`: the deployer's Compose edits, which workers can keep a stack's data, and exposures on tcp + udp), and makes FinUI's preset overlay again from the
+`node --test`: the deployer's Compose edits, which workers can keep a stack's data, exposures on tcp + udp, and the Storage page's sums), and makes FinUI's preset overlay again from the
 copied `preset.js` to see `web/assets/finui/p` is what FinUI makes.
 
 `qa/e2e.sh` is the end-to-end suite ("Cluster" 32): `qa/cluster.sh up` makes a throwaway one-node cluster (a manager

@@ -21,6 +21,7 @@ function pages() {
     { href: '/dashboard', label: t('pages.dashboard.title'), icon: 'gauge', group: cluster, primary: true, exact: true },
     { href: '/cluster', label: t('nav.the_cluster'), icon: 'compass', group: cluster, primary: true, exact: true },
     clusterConnected() ? { href: '/cluster/stacks', label: t('nav.cluster_stacks'), icon: 'grid', group: cluster, primary: true } : null,
+    clusterConnected() ? { href: '/storage', label: t('pages.storage.title'), icon: 'database', group: cluster, primary: true } : null,
     clusterConnected() ? { href: '/cluster/network', label: t('nav.cluster_network'), icon: 'lan', group: cluster, primary: true } : null,
     clusterConnected() && isAdmin() ? { href: '/integrations', label: t('nav.integrations'), icon: 'plug', group: cluster, primary: true } : null,
     clusterConnected() && isAdmin() ? { href: '/cluster/upgrades', label: t('nav.upgrades'), icon: 'upload', group: cluster } : null,

@@ -236,6 +236,7 @@ pub fn router() -> Router<App> {
         .route("/api/cluster/traffic", get(traffic))
         .route("/api/cluster/floating/{address}", axum::routing::delete(remove_floating))
         .route("/api/cluster/storage", get(storage).post(add_storage))
+        .route("/api/cluster/usage", get(usage))
         .route("/api/cluster/storage/{name}", axum::routing::delete(remove_storage))
         .route("/api/cluster/storage/{name}/keys", axum::routing::put(set_storage_keys))
         .route("/api/cluster/storage/{name}/password", axum::routing::put(set_storage_password))
@@ -537,6 +538,11 @@ async fn traffic(State(app): State<App>, _a: Authed) -> ApiResult<Json<Value>> {
 }
 
 /// The cluster's shared storage (G11), each with the volumes on it and who holds them.
+/// The Storage page's numbers ("Cluster" 43): each worker's disk and each shared storage, by stack.
+async fn usage(State(app): State<App>, _a: Authed) -> ApiResult<Json<Value>> {
+    Ok(Json(cluster(&app)?.call(reqwest::Method::GET, "/v1/usage", None).await?.1))
+}
+
 async fn storage(State(app): State<App>, _a: Authed) -> ApiResult<Json<Value>> {
     Ok(Json(cluster(&app)?.call(reqwest::Method::GET, "/v1/storage", None).await?.1))
 }
@@ -1136,6 +1142,7 @@ pub(crate) mod tests {
                     "GET /v1/nodes/6f1c7c2e-0000-4000-8000-000000000001/shell?container=web&check=1" => (StatusCode::NO_CONTENT, String::new()),
                     "GET /v1/nodes/6f1c7c2e-0000-4000-8000-000000000001/shell?container=&check=1" => (StatusCode::FORBIDDEN, json!({ "error": "the host's shell is turned off on this node (FREIGHTDOCK_WORKER_HOST_SHELL)" }).to_string()),
                     "POST /v1/nodes/6f1c7c2e-0000-4000-8000-000000000001/docker" => (StatusCode::OK, json!({ "got": got }).to_string()),
+                    "GET /v1/usage" => (StatusCode::OK, json!({ "nodes": [{ "id": "n1", "name": "w1", "total_bytes": 100, "used_bytes": 40, "stacks": [{ "stack": "web", "bytes": 10 }] }], "storage": [] }).to_string()),
                     "GET /v1/registries" => (StatusCode::OK, json!([{ "host": "ghcr.io", "username": "bot", "at": 1 }]).to_string()),
                     "PUT /v1/registries/ghcr.io" => (StatusCode::OK, json!({ "got": got }).to_string()),
                     "DELETE /v1/registries/ghcr.io" => (StatusCode::NO_CONTENT, String::new()),
@@ -1293,6 +1300,16 @@ pub(crate) mod tests {
         let log: Vec<(String, String)> = app.db.call(|c| Ok(c.prepare("SELECT action, target FROM audit WHERE action LIKE 'cluster.floating.%' ORDER BY id")?.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<Result<_, _>>()?)).await.unwrap();
         assert_eq!(log, vec![("cluster.floating.add".to_string(), "192.0.2.10".to_string()), ("cluster.floating.remove".to_string(), "192.0.2.10".to_string())]);
         assert!(!asked.lock().unwrap().iter().any(|l| l.contains("nodes") && l.starts_with("DELETE")));
+    }
+
+    #[tokio::test]
+    async fn the_storage_page_s_numbers_are_the_managers() {
+        let (app, asked, _d) = connected("t0k3n").await;
+        let (cookie, _) = signed_in(&app).await;
+        let (s, _, b) = call(&app, get("/api/cluster/usage", &cookie)).await;
+        assert_eq!((s, b["nodes"][0]["stacks"][0]["bytes"].clone()), (StatusCode::OK, json!(10)));
+        assert!(asked.lock().unwrap().iter().any(|l| l.starts_with("GET /v1/usage")));
+        assert_eq!(call(&app, Request::get("/api/cluster/usage").body(Body::empty()).unwrap()).await.0, StatusCode::UNAUTHORIZED);
     }
 
     #[tokio::test]

@@ -1812,6 +1812,51 @@
       "tag_help": "A published release's tag, such as v1.1.0",
       "fetching": "Fetching and checking...",
       "fetched": "Release {version} fetched and checked"
+    },
+    "storage": {
+      "title": "Storage",
+      "sub": "What the cluster's disks hold, by stack. Press a worker or a storage to see its stacks.",
+      "workers": "Workers",
+      "workers_sub": "Each worker's own disk.",
+      "shared": "Shared storage",
+      "shared_sub": "Ceph, NFS, SMB and shared directories the cluster keeps volumes on.",
+      "total": "Total",
+      "free": "Available",
+      "used": "Used",
+      "used_share": "Used share",
+      "unknown_n": {
+        "one": "{count} has not said its size yet, and is left out of the totals.",
+        "other": "{count} have not said their size yet, and are left out of the totals."
+      },
+      "none_node": "No workers",
+      "none_storage": "No shared storage. Add one on the Cluster page.",
+      "no_size": "size not known",
+      "used_of": "{used} of {total} ({pct})",
+      "stacks_n": {
+        "one": "{count} stack",
+        "other": "{count} stacks"
+      },
+      "not_measured": "Not measured yet. Each worker measures every 5 minutes (an older worker does not).",
+      "measured": "Measured {when}.",
+      "measured_by": "Size probed {when} by {by}.",
+      "stacks": "Stacks",
+      "stack": "Stack",
+      "share_of_total": "Share of total",
+      "not_measured_short": "not measured",
+      "images": "Images (any stack's)",
+      "loose_volumes": "Volumes no stack uses",
+      "build_cache": "Build cache",
+      "other": "The rest (system, logs, not Docker's)",
+      "split": "Containers / volumes",
+      "split_text": "{containers} / {volumes}",
+      "no_stacks_here": "No stack keeps anything on this worker.",
+      "folders": "Folders",
+      "folder_measured": "Measured {when} by {by}",
+      "folder_not_measured": "No worker has measured this folder yet",
+      "not_stacks": "Not a stack's",
+      "no_stacks_on": "No stack keeps volumes here.",
+      "why_not_measured": "A folder is measured by the worker running its stack, every 5 minutes; a stopped stack's folders are not measured, and a number marked ≥ is at least that much.",
+      "tiny": "< 0.1%"
     }
   },
   "components": {

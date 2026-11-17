@@ -30,6 +30,7 @@ import { clusterManagerPage } from './pages/cluster-manager.js';
 import { integrationsPage } from './pages/integrations.js';
 import { upgradesPage } from './pages/upgrades.js';
 import { dashboardPage } from './pages/dashboard.js';
+import { storagePage } from './pages/storage.js';
 import { t } from './i18n.js';
 
 motion();
@@ -40,6 +41,7 @@ route('/login', loginPage, { bare: true, title: t('routes.login') });
 route('/dashboard', dashboardPage, { title: t('pages.dashboard.title') });
 route('/cluster', theClusterPage, { title: t('nav.the_cluster') });
 route('/cluster/stacks', clusterStacksPage, { title: t('nav.cluster_stacks') });
+route('/storage', storagePage, { title: t('pages.storage.title') });
 route('/cluster/stacks/new', clusterDeployPage, { title: t('pages.cluster_deploy.title') });
 route('/cluster/stacks/:name/edit', clusterDeployPage, { title: (p) => t('pages.cluster_stacks.edit_title', { name: p.name }) });
 route('/cluster/network', clusterNetworkPage, { title: t('nav.cluster_network') });

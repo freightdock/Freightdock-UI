@@ -213,6 +213,9 @@ kept while a refresh is on its way, and `redraw()` to draw the last answer again
 FinUI data tables, refreshed on a timer only while the tab is seen (`every`); their filter box lives outside what is
 redrawn.
 
+The Storage page (`/storage`, `pages/storage.js`, "Cluster" 43) shows the workers' disks and the shared storages by
+stack, from `GET /api/cluster/usage` (the managers' `/v1/usage`, what the workers last measured), its sums in
+`usage-sums.js`.
 The landing page is the dashboard (`/dashboard`, `pages/dashboard.js`, "Cluster" 13; `/` and the old `/home` go there;
 its Services card lists the stacks' exposures with the protocol each speaks, "Cluster" 38),
 and beside it the cluster (`/cluster`): its managers, nodes with their labels

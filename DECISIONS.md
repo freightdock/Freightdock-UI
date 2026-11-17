@@ -1623,3 +1623,12 @@ registries, templates, teams) and describe nothing here.
     else are shown as one row again (`exposures.js`, tested by `qa/exposures.test.mjs`), there and on the dashboard.
     Reason: DNS, WireGuard and the like want both, and two rows to keep alike by hand is where one is forgotten; the
     managers' rules stay one per protocol, so nothing changes for them or for a stack made before.
+43. The Storage page (`/storage`, 2026-11-17, owner's wish): the workers' disks and the shared storages, each list
+    under its totals (size, available, used, share used), each row pressed to open the stacks on it with what each
+    takes and its share of the total; a worker's also says what is no stack's (images, volumes no stack mounts, build
+    cache, the rest of the system), a storage's which folder each stack keeps. The workers measure every 5 minutes
+    in the background (Docker's own numbers by the stack label; each shared folder their containers bind walked as
+    `du` counts it, stopped at 2 million files or 2 minutes and then shown as "at least"), and the page says how old
+    a number is; one nobody measured is said so, never shown as nothing, and is left out of a sum. Reason: a size is
+    only as good as its last measure, and walking big folders on every heartbeat would load the storage for a page
+    looked at now and then.

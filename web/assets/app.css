@@ -139,6 +139,27 @@
 .fd-dash-node__name, .fd-dash-node__work { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
 .fd-dash-node__res { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 12px; align-items: center; }
 .fd-dash-bar { display: grid; grid-template-columns: minmax(0, 1fr) 11em; gap: 10px; align-items: center; }
+/* The Storage page ("Cluster" 43): totals as tiles, then a row per disk or storage that opens its stacks. */
+.fd-store__sums { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.fd-store__sum { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 1px solid var(--border-soft); border-radius: var(--radius-sm); }
+.fd-store__num { font-size: 1.35em; color: var(--text); }
+.fd-store__list { display: flex; flex-direction: column; }
+.fd-store__item { border-top: 1px solid var(--border-soft); }
+.fd-store__item:first-child { border-top: 0; }
+.fd-store__row { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(0, 3fr) 7em; gap: 18px; align-items: center; width: 100%; padding: 12px 6px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; border-radius: var(--radius-sm); }
+.fd-store__row:hover { background: var(--hover); }
+.fd-store__row[aria-expanded="true"] { background: var(--bg-sunken); }
+.fd-store__name { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.fd-store__count { text-align: right; }
+.fd-store__detail { padding: 4px 6px 16px; }
+.fd-store__share { grid-template-columns: minmax(60px, 1fr) 4.5em; }
+.fd-store__folders { display: flex; flex-direction: column; gap: 2px; }
+@media (max-width: 760px) {
+  .fd-store__sums { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fd-store__row { grid-template-columns: 1fr; gap: 8px; }
+  .fd-store__count { text-align: left; }
+  .fd-store__row .fd-dash-bar { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+}
 @media (max-width: 760px) { .fd-dash-node { grid-template-columns: 1fr; } .fd-dash-bar { grid-template-columns: minmax(0, 1fr) 9em; } }
 .fd-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; margin: 0; }
 .fd-facts dt { color: var(--text-muted); }

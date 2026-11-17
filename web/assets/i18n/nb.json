@@ -1812,6 +1812,51 @@
       "tag_help": "En publisert utgivelses tag, for eksempel v1.1.0",
       "fetching": "Henter og sjekker...",
       "fetched": "Utgivelse {version} hentet og sjekket"
+    },
+    "storage": {
+      "title": "Lagring",
+      "sub": "Hva klyngens disker holder, per stakk. Trykk på en worker eller en lagring for å se stakkene.",
+      "workers": "Workere",
+      "workers_sub": "Hver workers egen disk.",
+      "shared": "Delt lagring",
+      "shared_sub": "Ceph, NFS, SMB og delte mapper klyngen holder volumer på.",
+      "total": "Totalt",
+      "free": "Ledig",
+      "used": "Brukt",
+      "used_share": "Andel brukt",
+      "unknown_n": {
+        "one": "{count} har ikke sagt størrelsen sin ennå, og er utelatt fra summene.",
+        "other": "{count} har ikke sagt størrelsen sin ennå, og er utelatt fra summene."
+      },
+      "none_node": "Ingen workere",
+      "none_storage": "Ingen delt lagring. Legg til en på Klynge-siden.",
+      "no_size": "størrelse ukjent",
+      "used_of": "{used} av {total} ({pct})",
+      "stacks_n": {
+        "one": "{count} stakk",
+        "other": "{count} stakker"
+      },
+      "not_measured": "Ikke målt ennå. Hver worker måler hvert 5. minutt (en eldre worker gjør det ikke).",
+      "measured": "Målt {when}.",
+      "measured_by": "Størrelse sjekket {when} av {by}.",
+      "stacks": "Stakker",
+      "stack": "Stakk",
+      "share_of_total": "Andel av totalen",
+      "not_measured_short": "ikke målt",
+      "images": "Images (alle stakkers)",
+      "loose_volumes": "Volumer ingen stakk bruker",
+      "build_cache": "Byggebuffer",
+      "other": "Resten (system, logger, ikke Dockers)",
+      "split": "Containere / volumer",
+      "split_text": "{containers} / {volumes}",
+      "no_stacks_here": "Ingen stakk har noe på denne workeren.",
+      "folders": "Mapper",
+      "folder_measured": "Målt {when} av {by}",
+      "folder_not_measured": "Ingen worker har målt denne mappen ennå",
+      "not_stacks": "Ikke en stakks",
+      "no_stacks_on": "Ingen stakk har volumer her.",
+      "why_not_measured": "En mappe måles av workeren som kjører stakken, hvert 5. minutt; en stoppet stakks mapper måles ikke, og et tall merket ≥ er minst så mye.",
+      "tiny": "< 0.1 %"
     }
   },
   "components": {
