@@ -1273,7 +1273,7 @@
       "container_name": "Container name of {service}",
       "selector_placeholder": "zone=a, disk!=hdd",
       "vol_title": "Storage for the stack",
-      "vol_help": "Add a named volume to the file, kept where you choose, and mount it in a service. Its name is the stack's with a random part, so it never meets another volume, and you can add as many as you like.",
+      "vol_help": "Add a named volume to the file, kept where you choose, and mount it in a service. On a storage of the cluster you pick the folder it is kept in, so you can find it. You can add as many as you like.",
       "vol_where": "Kept on",
       "vol_local": "the node's own disk (local)",
       "vol_service": "Mounted in",
@@ -1300,7 +1300,11 @@
         "other": "Left out, as they cannot keep this stack's data: {list}"
       },
       "unfit_driver": "no {driver} client for {storage}",
-      "vol_picked": "When its worker fails is now Shared storage on {where}."
+      "vol_picked": "When its worker fails is now Shared storage on {where}.",
+      "vol_path": "Folder on the storage",
+      "vol_path_help": "Where you find the data on {where}: /{path}. Made when the stack first starts, not before.",
+      "vol_path_bad": "The folder is up to 8 parts of letters, digits and . _ -, separated by /, none starting with a dot, such as ntfy/data.",
+      "vol_path_taken": "{path} on {where} meets {clash}, which another volume uses. Pick another folder."
     },
     "integrations": {
       "title": "Integrations",

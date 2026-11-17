@@ -1273,7 +1273,7 @@
       "container_name": "Containernavn for {service}",
       "selector_placeholder": "zone=a, disk!=hdd",
       "vol_title": "Lagring for stakken",
-      "vol_help": "Legg til et navngitt volum i filen, lagret der du velger, og monter det i en tjeneste. Navnet er stakkens med en tilfeldig del, så det aldri kolliderer med et annet volum, og du kan legge til så mange du vil.",
+      "vol_help": "Legg til et navngitt volum i filen, lagret der du velger, og monter det i en tjeneste. På en lagring i klyngen velger du mappen det ligger i, så du finner det igjen. Du kan legge til så mange du vil.",
       "vol_where": "Lagres på",
       "vol_local": "nodens egen disk (lokalt)",
       "vol_service": "Montert i",
@@ -1300,7 +1300,11 @@
         "other": "Utelatt, siden de ikke kan holde stakkens data: {list}"
       },
       "unfit_driver": "ingen {driver}-klient for {storage}",
-      "vol_picked": "Når workeren feiler er nå Delt lagring på {where}."
+      "vol_picked": "Når workeren feiler er nå Delt lagring på {where}.",
+      "vol_path": "Mappe på lagringen",
+      "vol_path_help": "Der du finner dataene på {where}: /{path}. Lages når stakken starter første gang, ikke før.",
+      "vol_path_bad": "Mappen er opptil 8 deler av bokstaver, sifre og . _ -, skilt med /, ingen som starter med punktum, som ntfy/data.",
+      "vol_path_taken": "{path} på {where} møter {clash}, som et annet volum bruker. Velg en annen mappe."
     },
     "integrations": {
       "title": "Integrasjoner",

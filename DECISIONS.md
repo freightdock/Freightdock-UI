@@ -1611,3 +1611,10 @@ registries, templates, teams) and describe nothing here.
     held to that, one too old to say to how the storage does there, and one with neither is kept, as the managers keep
     it. A path storage rules out nobody. Reason: a stack on CephFS chosen for an unprivileged LXC failed on the node
     with no word of why; choosing the storage is the decision, and the rest follows from it.
+41. A volume on storage is kept in a folder the person picks (2026-11-17, owner's wish): the deployer asks for it,
+    suggesting `<stack>/data` (with -2, -3 when taken), and writes it as `x-freightdock: {storage, path}`; relative
+    paths put on storage get `<stack>/<what they held>`. A folder taken on that storage, or one inside or around a
+    taken one, is refused here before the file changes, and by the managers whatever the file says. Nothing is made
+    on the storage until the stack first starts on a worker. Reason: `<stack>/<volume-with-a-random-part>` never
+    clashed but was hard to find on the storage; a folder named by the person is easy to find, and the clash check
+    keeps it as safe.

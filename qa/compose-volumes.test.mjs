@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { volumeName, serviceNames, declaredVolumes, addVolume, relativeBinds, convertBinds } from '../web/assets/js/compose-volumes.js';
+import { volumeName, folderFor, declaredFolders, serviceNames, declaredVolumes, addVolume, relativeBinds, convertBinds } from '../web/assets/js/compose-volumes.js';
 
 const seq = (...xs) => () => xs.shift();
 
@@ -14,6 +14,18 @@ test('a volume name is the stack and a random part, never one the file has', () 
   assert.equal(volumeName('Not A Name!', [], seq('x', 'zz')), 'stack-x-data-zz');
   assert.equal(volumeName('ntfy', [], seq('k3f9q'), 'config'), 'ntfy-config-k3f9q');
   assert.match(volumeName('ntfy', []), /^ntfy-data-[a-z0-9]{5}$/, 'random by default');
+});
+
+test('a folder on the storage is the stack and what it holds, never one taken or inside one', () => {
+  assert.equal(folderFor('ntfy', 'data', []), 'ntfy/data');
+  assert.equal(folderFor('ntfy', 'data', ['ntfy/data']), 'ntfy/data-2');
+  assert.equal(folderFor('ntfy', 'data', ['ntfy/data', 'ntfy/data-2/x']), 'ntfy/data-3', 'one inside it is taken too');
+  assert.equal(folderFor('ntfy', 'data', ['ntfy']), 'ntfy-2/data', 'inside one taken: the stack part moves');
+  assert.equal(folderFor('', 'data', [], seq('q1w2e')), 'stack-q1w2e/data');
+});
+
+test('the folders the file names are read', () => {
+  assert.deepEqual(declaredFolders('volumes:\n  a:\n    x-freightdock: {storage: s, path: ntfy/data}\n  b:\n    x-freightdock: {path: "x/y", storage: s}\n  c: {}\n'), ['ntfy/data', 'x/y']);
 });
 
 const NTFY = `services:
@@ -55,6 +67,11 @@ test('a long-form volume list keeps its items whole', () => {
     'services:\n  app:\n    image: x\n    volumes:\n      - type: bind\n        source: /srv\n        target: /srv\n      - v:/v\n    restart: always\nvolumes:\n  v:\n    x-freightdock: {storage: s}\n');
 });
 
+test('a volume can name its folder on the storage', () => {
+  assert.equal(addVolume('services:\n  a:\n    image: x\n', { name: 'v', storage: 'ceph', path: 'ntfy/data', service: 'a', target: '/d' }),
+    'services:\n  a:\n    image: x\n    volumes:\n      - v:/d\nvolumes:\n  v:\n    x-freightdock: {storage: ceph, path: ntfy/data}\n');
+});
+
 test('with no service named, only the declaration is added', () => {
   assert.equal(addVolume('services:\n  a:\n    image: x', { name: 'v', storage: 's' }), 'services:\n  a:\n    image: x\nvolumes:\n  v:\n    x-freightdock: {storage: s}\n');
 });
@@ -88,25 +105,30 @@ test('relative bind mounts become volumes on the storage, named for what they he
     volumes: [ntfy-site-ccccc:/usr/share/nginx/html, /srv/certs:/certs]
 volumes:
   ntfy-data-aaaaa:
-    x-freightdock: {storage: ceph}
+    x-freightdock: {storage: ceph, path: ntfy/data}
   ntfy-config-bbbbb:
-    x-freightdock: {storage: ceph}
+    x-freightdock: {storage: ceph, path: ntfy/config}
   ntfy-site-ccccc:
-    x-freightdock: {storage: ceph}
+    x-freightdock: {storage: ceph, path: ntfy/site}
 `);
-  assert.deepEqual(r.changed.map((c) => `${c.source} > ${c.name}`), ['./ > ntfy-data-aaaaa', './config > ntfy-config-bbbbb', './site > ntfy-site-ccccc']);
+  assert.deepEqual(r.changed.map((c) => `${c.source} > ${c.path}`), ['./ > ntfy/data', './config > ntfy/config', './site > ntfy/site']);
 });
 
 test('one path shared by two services is one volume, many may use it', () => {
   const f = 'services:\n  a:\n    image: x\n    volumes: [./shared:/s]\n  b:\n    image: y\n    volumes:\n      - ./shared/:/t\n';
   const r = convertBinds(f, { storage: 'nas', stack: 'app', rand: seq('q1q1q') });
-  assert.equal(r.text, 'services:\n  a:\n    image: x\n    volumes: [app-shared-q1q1q:/s]\n  b:\n    image: y\n    volumes:\n      - app-shared-q1q1q:/t\nvolumes:\n  app-shared-q1q1q:\n    x-freightdock: {storage: nas, access: many}\n');
+  assert.equal(r.text, 'services:\n  a:\n    image: x\n    volumes: [app-shared-q1q1q:/s]\n  b:\n    image: y\n    volumes:\n      - app-shared-q1q1q:/t\nvolumes:\n  app-shared-q1q1q:\n    x-freightdock: {storage: nas, path: app/shared, access: many}\n');
 });
 
 test('a long-form bind becomes a volume', () => {
   const f = 'services:\n  a:\n    image: x\n    volumes:\n      - type: bind\n        source: ./db\n        target: /db\n';
   const r = convertBinds(f, { storage: 's', stack: 'a', rand: seq('zzzzz') });
-  assert.equal(r.text, 'services:\n  a:\n    image: x\n    volumes:\n      - type: volume\n        source: a-db-zzzzz\n        target: /db\nvolumes:\n  a-db-zzzzz:\n    x-freightdock: {storage: s}\n');
+  assert.equal(r.text, 'services:\n  a:\n    image: x\n    volumes:\n      - type: volume\n        source: a-db-zzzzz\n        target: /db\nvolumes:\n  a-db-zzzzz:\n    x-freightdock: {storage: s, path: a/db}\n');
+});
+
+test('folders taken on the storage already are not used again', () => {
+  const r = convertBinds('services:\n  a:\n    image: x\n    volumes: [./data:/d]\n', { storage: 's', stack: 'a', rand: seq('zzzzz'), taken: ['a/data'] });
+  assert.deepEqual(r.changed.map((c) => c.path), ['a/data-2']);
 });
 
 test('nothing relative, nothing changed', () => {

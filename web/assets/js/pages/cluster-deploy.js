@@ -17,7 +17,7 @@ import { isAdmin } from '../state.js';
 import { navigate } from '../router.js';
 import { codeEditor } from '../editor.js';
 import { unfit } from '../storage-fit.js';
-import { volumeName, serviceNames, declaredVolumes, addVolume, relativeBinds, convertBinds } from '../compose-volumes.js';
+import { volumeName, folderFor, declaredFolders, serviceNames, declaredVolumes, addVolume, relativeBinds, convertBinds } from '../compose-volumes.js';
 import { pageHeader } from '../../finui/components/page-header/page-header.js';
 import { card } from '../../finui/components/card/card.js';
 import { status } from '../../finui/components/badge/badge.js';
@@ -75,7 +75,8 @@ function deployer({ existing, stack, nodes, pool, storage, signal }) {
   name.input.value = existing || '';
   if (existing) name.input.readOnly = true;
   const file = codeEditor({ id: 'cs-compose', label: t('pages.cluster_stacks.compose'), value: stack ? stack.compose || '' : EXAMPLE, rows: 20, language: 'yaml', help: t('pages.cluster_deploy.compose_help'), onChange: () => later() });
-  name.input.addEventListener('input', () => later());
+  // The folder suggested follows the stack's name (volumes is made just below, before anyone can type).
+  name.input.addEventListener('input', () => { later(); volumes.refresh(); });
   const about = h('textarea', { class: 'fui-field__input fui-field__input--area', id: 'cs-about', rows: 2, maxLength: 500 }, had.description || '');
   const aboutField = h('div', { class: 'fui-field' }, h('label', { class: 'fui-field__label', htmlFor: 'cs-about' }, t('pages.cluster_deploy.description')), about,
     h('p', { class: 'fui-field__help' }, t('pages.cluster_deploy.description_help')));
@@ -224,6 +225,27 @@ function volumeTool({ file, storage, stackName, changed, picked }) {
     h('option', { value: LOCAL }, t('pages.cluster_deploy.vol_local')));
   const svc = h('select', { class: 'fui-field__input', id: 'cs-vol-service' });
   const target = h('input', { class: 'fui-field__input mono', id: 'cs-vol-target', autocomplete: 'off', spellcheck: false, placeholder: '/data' });
+  // The folder on the storage: suggested as <stack>/data, free there and in the file, until the person types one.
+  const folder = h('input', { class: 'fui-field__input mono', id: 'cs-vol-path', autocomplete: 'off', spellcheck: false });
+  const folderHelp = h('p', { class: 'fui-field__help' });
+  const folderField = h('div', { class: 'fui-field' }, h('label', { class: 'fui-field__label', htmlFor: 'cs-vol-path' }, t('pages.cluster_deploy.vol_path')), folder, folderHelp);
+  let typed = false;
+  const FOLDER = /^(?!.*(^|\/)\.)[A-Za-z0-9._-]{1,64}(\/[A-Za-z0-9._-]{1,64}){0,7}$/;
+  // The folders the storage chosen has already, of every stack, and the ones this file names.
+  const taken = () => {
+    const st = storage.find((x) => x.name === where.value);
+    const on = st ? (st.volumes || []).filter((v) => v.stack !== stackName()).map((v) => v.dir || `${v.stack}/${v.volume}`) : [];
+    let mine = [];
+    try { mine = declaredFolders(file.value); } catch { mine = []; }
+    return [...on, ...mine];
+  };
+  const showFolder = () => {
+    folderField.hidden = where.value === LOCAL;
+    if (!typed) folder.value = folderFor(stackName(), 'data', taken());
+    folderHelp.textContent = t('pages.cluster_deploy.vol_path_help', { where: where.value, path: folder.value.trim() || '...' });
+  };
+  folder.addEventListener('input', () => { typed = folder.value.trim() !== ''; showFolder(); });
+  where.addEventListener('change', () => { showFolder(); refresh(); });
   const said = h('p', { class: 'sub', 'aria-live': 'polite' });
   const binds = h('div');
   const field = (id, label, input) => h('div', { class: 'fui-field' }, h('label', { class: 'fui-field__label', htmlFor: id }, label), input);
@@ -236,6 +258,7 @@ function volumeTool({ file, storage, stackName, changed, picked }) {
     mount(svc, h('option', { value: '' }, t('pages.cluster_deploy.vol_no_service')), list.map((n) => h('option', { value: n }, n)));
     // The one chosen stays; with none chosen and one service, that one.
     svc.value = list.includes(keep) ? keep : list.length === 1 ? list[0] : '';
+    showFolder();
     let found = [];
     try { found = relativeBinds(file.value); } catch { found = []; }
     mount(binds, found.length ? h('div', { class: 'row wrap' },
@@ -247,14 +270,22 @@ function volumeTool({ file, storage, stackName, changed, picked }) {
     said.textContent = '';
     const to = target.value.trim();
     if (svc.value && !to.startsWith('/')) { said.textContent = t('pages.cluster_deploy.vol_target_needed'); target.focus(); return; }
+    const path = folder.value.trim();
+    if (where.value !== LOCAL) {
+      if (!FOLDER.test(path)) { said.textContent = t('pages.cluster_deploy.vol_path_bad'); folder.focus(); return; }
+      const clash = taken().find((x) => x === path || x.startsWith(`${path}/`) || path.startsWith(`${x}/`));
+      if (clash) { said.textContent = t('pages.cluster_deploy.vol_path_taken', { path, clash, where: where.value }); folder.focus(); return; }
+    }
     const vol = volumeName(stackName(), declaredVolumes(file.value));
     try {
-      file.value = addVolume(file.value, { name: vol, storage: where.value || null, service: svc.value || null, target: to });
+      file.value = addVolume(file.value, { name: vol, storage: where.value || null, path, service: svc.value || null, target: to });
     } catch (e) { said.textContent = e.key ? t(`pages.cluster_deploy.vol_err.${e.key}`, e.vars) : e.message; return; }
-    said.textContent = svc.value ? t('pages.cluster_deploy.vol_added_mounted', { name: vol, where: storageWord(), service: svc.value, target: to })
-      : t('pages.cluster_deploy.vol_added', { name: vol, where: storageWord() });
+    const kept = where.value === LOCAL ? storageWord() : `${where.value}:/${path}`;
+    said.textContent = svc.value ? t('pages.cluster_deploy.vol_added_mounted', { name: vol, where: kept, service: svc.value, target: to })
+      : t('pages.cluster_deploy.vol_added', { name: vol, where: kept });
     if (where.value !== LOCAL) said.textContent += ` ${t('pages.cluster_deploy.vol_picked', { where: where.value })}`;
     target.value = '';
+    typed = false;
     if (where.value !== LOCAL) picked(where.value);
     refresh();
     changed();
@@ -263,11 +294,11 @@ function volumeTool({ file, storage, stackName, changed, picked }) {
   function convert() {
     said.textContent = '';
     let r;
-    try { r = convertBinds(file.value, { storage: where.value || null, stack: stackName() }); } catch (e) { said.textContent = e.key ? t(`pages.cluster_deploy.vol_err.${e.key}`, e.vars) : e.message; return; }
+    try { r = convertBinds(file.value, { storage: where.value || null, stack: stackName(), taken: taken() }); } catch (e) { said.textContent = e.key ? t(`pages.cluster_deploy.vol_err.${e.key}`, e.vars) : e.message; return; }
     if (!r.changed.length) return;
     file.value = r.text;
     if (where.value !== LOCAL) picked(where.value);
-    said.textContent = t('pages.cluster_deploy.vol_converted', { list: r.changed.map((c) => `${c.source} \u2192 ${c.name}`).join(', '), where: storageWord() });
+    said.textContent = t('pages.cluster_deploy.vol_converted', { list: r.changed.map((c) => `${c.source} \u2192 ${c.path ? `${where.value}:/${c.path}` : c.name}`).join(', '), where: storageWord() });
     if (where.value !== LOCAL) said.textContent += ` ${t('pages.cluster_deploy.vol_picked', { where: where.value })}`;
     refresh();
     changed();
@@ -275,12 +306,12 @@ function volumeTool({ file, storage, stackName, changed, picked }) {
 
   const go = button({ size: 'sm', onClick: add }, t('pages.cluster_deploy.vol_add'));
   // Enter here adds the volume; it would deploy the stack otherwise.
-  target.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
+  for (const i of [target, folder]) i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
   refresh();
   const el = h('div', { class: 'stack fd-deploy__volumes' },
     h('div', { class: 'fui-field__label' }, t('pages.cluster_deploy.vol_title')),
     h('p', { class: 'sub' }, t('pages.cluster_deploy.vol_help')),
-    h('div', { class: 'row wrap row--bottom' }, field('cs-vol-where', t('pages.cluster_deploy.vol_where'), where), field('cs-vol-service', t('pages.cluster_deploy.vol_service'), svc), field('cs-vol-target', t('pages.cluster_deploy.vol_target'), target), go),
+    h('div', { class: 'row wrap row--bottom' }, field('cs-vol-where', t('pages.cluster_deploy.vol_where'), where), folderField, field('cs-vol-service', t('pages.cluster_deploy.vol_service'), svc), field('cs-vol-target', t('pages.cluster_deploy.vol_target'), target), go),
     binds, said);
   return { el, refresh };
 }

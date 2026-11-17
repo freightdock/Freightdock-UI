@@ -36,6 +36,23 @@ export function volumeName(stack, taken = [], rand = random, what = 'data') {
   return nameFrom(baseOf(stack, rand), what, taken, rand);
 }
 
+/** Whether folder `a` is `b`, or one is inside the other. */
+const meets = (a, b) => a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
+
+function folderFrom(base, what, taken) {
+  let top = base;
+  for (let n = 2; taken.some((x) => x === top || top.startsWith(`${x}/`)); n += 1) top = `${base}-${n}`;
+  let p = `${top}/${what}`;
+  for (let n = 2; taken.some((x) => meets(p, x)); n += 1) p = `${top}/${what}-${n}`;
+  return p;
+}
+
+/** A volume's folder on the storage, easy to find: `<stack>/<what>` (a random stack part before the stack has a name),
+ *  with -2, -3... when it is `taken` already or one taken is inside it or it inside one. */
+export function folderFor(stack, what, taken = [], rand = random) {
+  return folderFrom(baseOf(stack, rand), what, taken);
+}
+
 const indentOf = (l) => l.match(/^ */)[0].length;
 const isBlank = (l) => /^\s*(#.*)?$/.test(l);
 const unquote = (s) => (/^(["']).*\1$/.test(s) ? s.slice(1, -1) : s);
@@ -83,6 +100,14 @@ export function declaredVolumes(text) {
   const lines = text.split('\n');
   const b = topBlock(lines, 'volumes');
   return b && !b.rest ? children(lines, b.at, b.end).map((c) => c.key) : [];
+}
+
+/** The folders on storage the file's volumes name (`x-freightdock: {path: ...}`). */
+export function declaredFolders(text) {
+  const lines = text.split('\n');
+  const b = topBlock(lines, 'volumes');
+  if (!b) return [];
+  return lines.slice(b.at + 1, b.end).map((l) => l.match(/x-freightdock:.*\bpath:\s*("[^"]*"|'[^']*'|[^,}\s]+)/)).filter(Boolean).map((m) => unquote(m[1]));
 }
 
 /** The services the file has, by name. */
@@ -144,8 +169,9 @@ function mount(lines, name, entry) {
   lines.splice(after, 0, `${' '.repeat(it.indent ?? vol.indent + 2)}- ${entry}`);
 }
 
-/** Declares the volume `name` at the top level: on `storage` (`many` when several may use it), or local with none. */
-function declare(lines, name, storage, many) {
+/** Declares the volume `name` at the top level: on `storage` in its folder `path` (`many` when several may use it), or
+ *  local with no storage. */
+function declare(lines, name, storage, many, path) {
   const b = topBlock(lines, 'volumes');
   let at, ind = 2;
   if (!b) {
@@ -161,17 +187,17 @@ function declare(lines, name, storage, many) {
     at = have.length ? have[have.length - 1].end : b.at + 1;
   }
   const pad = ' '.repeat(ind);
-  const decl = storage ? [`${pad}${name}:`, `${pad}  x-freightdock: {storage: ${storage}${many ? ', access: many' : ''}}`] : [`${pad}${name}: {}`];
+  const decl = storage ? [`${pad}${name}:`, `${pad}  x-freightdock: {storage: ${storage}${path ? `, path: ${path}` : ''}${many ? ', access: many' : ''}}`] : [`${pad}${name}: {}`];
   lines.splice(at, 0, ...decl);
   if (lines[lines.length - 1] !== '') lines.push('');
 }
 
-/** The file with the volume `name` declared (on `storage`, or local when it is null) and, when `service` is given,
- *  mounted there at `target`. */
-export function addVolume(text, { name, storage, service: svc = null, target = null, many = false }) {
+/** The file with the volume `name` declared (on `storage` in the folder `path`, or local when storage is null) and,
+ *  when `service` is given, mounted there at `target`. */
+export function addVolume(text, { name, storage, path = null, service: svc = null, target = null, many = false }) {
   const lines = text.split('\n');
   if (svc) mount(lines, svc, `${name}:${target}`);
-  declare(lines, name, storage, many);
+  declare(lines, name, storage, many, storage ? path : null);
   return lines.join('\n');
 }
 
@@ -222,9 +248,10 @@ function whatOf(src) {
   return last.toLowerCase().replace(/[^a-z0-9_.-]+/g, '-').replace(/^[-.]+|[-.]+$/g, '').slice(0, 24) || 'data';
 }
 
-/** The file with each relative bind mount made a named volume on `storage` (null: a local one), the same path one
- *  volume, used by many when several services share it; and what changed, each `{ source, name, services }`. */
-export function convertBinds(text, { storage, stack, rand = random }) {
+/** The file with each relative bind mount made a named volume on `storage` (null: a local one) in the folder
+ *  `<stack>/<what it held>` there (none of `taken`, the folders the storage has already), the same path one volume,
+ *  used by many when several services share it; and what changed, each `{ source, name, path, services }`. */
+export function convertBinds(text, { storage, stack, rand = random, taken = [] }) {
   const binds = relativeBinds(text);
   if (!binds.length) return { text, changed: [] };
   const lines = text.split('\n');
@@ -233,7 +260,11 @@ export function convertBinds(text, { storage, stack, rand = random }) {
   const by = new Map();
   for (const b of binds) {
     const key = folder(b.source);
-    if (!by.has(key)) by.set(key, { source: b.source, name: nameFrom(base, whatOf(b.source), [...declared, ...[...by.values()].map((x) => x.name)], rand), services: new Set() });
+    if (!by.has(key)) {
+      const what = whatOf(b.source);
+      const used = [...taken, ...declaredFolders(text), ...[...by.values()].map((x) => x.path).filter(Boolean)];
+      by.set(key, { source: b.source, name: nameFrom(base, what, [...declared, ...[...by.values()].map((x) => x.name)], rand), path: storage ? folderFrom(base, what, used) : null, services: new Set() });
+    }
     by.get(key).services.add(b.service);
     b.name = by.get(key).name;
   }
@@ -261,6 +292,6 @@ export function convertBinds(text, { storage, stack, rand = random }) {
     lines[at] = `${head}[${list.join(', ')}]`;
   }
   let out = lines.join('\n');
-  for (const v of by.values()) out = addVolume(out, { name: v.name, storage, many: v.services.size > 1 });
-  return { text: out, changed: [...by.values()].map((v) => ({ source: v.source, name: v.name, services: [...v.services] })) };
+  for (const v of by.values()) out = addVolume(out, { name: v.name, storage, path: v.path, many: v.services.size > 1 });
+  return { text: out, changed: [...by.values()].map((v) => ({ source: v.source, name: v.name, path: v.path, services: [...v.services] })) };
 }
