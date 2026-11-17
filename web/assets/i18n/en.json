@@ -1294,7 +1294,13 @@
         "no_service": "The file has no service {service}.",
         "volumes_not_list": "The volumes of {service} are not a list; add the volume by hand.",
         "volumes_flow": "The file's volumes are written on one line; declare {name} by hand."
-      }
+      },
+      "unfit": {
+        "one": "Left out, as it cannot keep this stack's data: {list}",
+        "other": "Left out, as they cannot keep this stack's data: {list}"
+      },
+      "unfit_driver": "no {driver} client for {storage}",
+      "vol_picked": "When its worker fails is now Shared storage on {where}."
     },
     "integrations": {
       "title": "Integrations",

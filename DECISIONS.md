@@ -1604,3 +1604,10 @@ registries, templates, teams) and describe nothing here.
     storage, so the stack's name alone would meet what an earlier stack of that name left there; the random part
     never does. A relative path means nothing on a worker and was only refused before; what was in that folder is not
     copied, and the deployer says so.
+40. Picking storage sets up the rest (2026-11-17, owner's wish): a volume added on a storage of the cluster (or
+    relative paths put on one) makes the stack's "When its worker fails" Shared storage on it, and the deployer's
+    workers to choose leave out those that cannot keep the stack's data, saying why (`storage-fit.js`, tested by
+    `qa/storage-fit.test.mjs`): a worker that says which storage it can mount (none in an unprivileged container) is
+    held to that, one too old to say to how the storage does there, and one with neither is kept, as the managers keep
+    it. A path storage rules out nobody. Reason: a stack on CephFS chosen for an unprivileged LXC failed on the node
+    with no word of why; choosing the storage is the decision, and the rest follows from it.

@@ -1294,7 +1294,13 @@
         "no_service": "Filen har ingen tjeneste {service}.",
         "volumes_not_list": "Volumene til {service} er ikke en liste; legg til volumet for hånd.",
         "volumes_flow": "Filens volumer er skrevet på én linje; deklarer {name} for hånd."
-      }
+      },
+      "unfit": {
+        "one": "Utelatt, siden den ikke kan holde stakkens data: {list}",
+        "other": "Utelatt, siden de ikke kan holde stakkens data: {list}"
+      },
+      "unfit_driver": "ingen {driver}-klient for {storage}",
+      "vol_picked": "Når workeren feiler er nå Delt lagring på {where}."
     },
     "integrations": {
       "title": "Integrasjoner",

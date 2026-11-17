@@ -7,13 +7,16 @@
 // file, the stack's options ("Cluster" 22): a description, an env file for its variables, a node label selector, how
 // it survives its node (as the file says, stateless, pinned, or on shared storage) and its containers' own names.
 // Under the file, its storage ("Cluster" 39): a volume added on the storage chosen, named for the stack and never one
-// the file has, and the file's relative bind mounts put on that storage in one go.
+// the file has, and the file's relative bind mounts put on that storage in one go. A volume put on a storage of the
+// cluster makes the stack's survival "Shared storage" on it, and the workers that cannot keep data there are hidden
+// from the ones to choose, with why ("Cluster" 40).
 
 import { h, mount } from '../dom.js';
 import { get, post } from '../api.js';
 import { isAdmin } from '../state.js';
 import { navigate } from '../router.js';
 import { codeEditor } from '../editor.js';
+import { unfit } from '../storage-fit.js';
 import { volumeName, serviceNames, declaredVolumes, addVolume, relativeBinds, convertBinds } from '../compose-volumes.js';
 import { pageHeader } from '../../finui/components/page-header/page-header.js';
 import { card } from '../../finui/components/card/card.js';
@@ -81,23 +84,39 @@ function deployer({ existing, stack, nodes, pool, storage, signal }) {
   const envField = h('div', { class: 'fui-field' }, h('label', { class: 'fui-field__label', htmlFor: 'cs-env' }, t('pages.cluster_deploy.env')), env,
     h('p', { class: 'fui-field__help' }, t('pages.cluster_deploy.env_help')));
   const found = h('div', { class: 'stack', 'aria-live': 'polite' });
-  const volumes = volumeTool({ file, storage, stackName: () => name.input.value.trim(), changed: () => later(0) });
+  const volumes = volumeTool({ file, storage, stackName: () => name.input.value.trim(), changed: () => later(0), picked: (st) => {
+    survive = 'shared';
+    survivePick.setValue('shared');
+    onStorage.value = st;
+    drawSurvival();
+    drawWorkers();
+  } });
 
   // 2. Where it runs.
   const workers = h('div', { class: 'fd-deploy__nodes' });
   const placed = h('div', { 'aria-live': 'polite' });
-  const drawWorkers = () => mount(workers, mode === 'any' ? h('p', { class: 'sub' }, t('pages.cluster_deploy.any_help')) : h('div', { class: 'stack' },
+  // The storages the stack keeps data on: its file's volumes, as the managers read them, and its survival's.
+  const used = () => [...new Set([...Object.values((last && last.volumes) || {}).map((v) => v.storage), ...(survive === 'shared' && onStorage.value ? [onStorage.value] : [])])];
+  const drawWorkers = () => {
+    const bad = unfit(nodes, storage, used());
+    for (const id of bad.keys()) chosen.delete(id);
+    const fit = nodes.filter((n) => !bad.has(n.id));
+    const why = bad.size ? status({ tone: 'info', line: true }, t('pages.cluster_deploy.unfit', { count: bad.size, list: nodes.filter((n) => bad.has(n.id)).map((n) => {
+      const r = bad.get(n.id);
+      return `${nodeName(n)} (${r.text || t('pages.cluster_deploy.unfit_driver', { storage: r.storage, driver: r.driver })})`;
+    }).join(', ') })) : null;
+    mount(workers, mode === 'any' ? h('div', { class: 'stack' }, h('p', { class: 'sub' }, t('pages.cluster_deploy.any_help')), why) : h('div', { class: 'stack' },
     h('p', { class: 'sub' }, t('pages.cluster_deploy.chosen_help')),
-    nodes.length ? h('div', { class: 'fd-deploy__node-list' }, nodes.map((n) => {
+    fit.length ? h('div', { class: 'fd-deploy__node-list' }, fit.map((n) => {
       const health = (n.liveness && n.liveness.health) || 'unknown';
       return h('div', { class: 'row fd-deploy__node' },
         checkbox({ label: nodeName(n), checked: chosen.has(n.id), onChange: (on) => { if (on) chosen.add(n.id); else chosen.delete(n.id); later(0); } }),
         status({ tone: HEALTH_TONES[health] || 'info', line: true }, tOr(`pages.cluster.health_word.${health}`, health)));
-    })) : h('p', { class: 'sub' }, t('pages.cluster.no_nodes'))));
+    })) : h('p', { class: 'sub' }, t('pages.cluster.no_nodes')), why));
+  };
   const where = segmented({ label: t('pages.cluster_deploy.where'), value: mode, size: 'sm',
     options: [{ value: 'any', label: t('pages.cluster_deploy.any') }, { value: 'chosen', label: t('pages.cluster_deploy.chosen') }],
     onChange: (v) => { mode = v; drawWorkers(); later(0); } });
-  drawWorkers();
   const selector = formField({ id: 'cs-selector', label: t('pages.cluster_deploy.selector'), autocomplete: 'off', placeholder: t('pages.cluster_deploy.selector_placeholder'), help: t('pages.cluster_deploy.selector_help') });
   selector.input.value = (had.selector || []).map(labelText).join(', ');
   selector.input.addEventListener('input', () => later());
@@ -107,14 +126,15 @@ function deployer({ existing, stack, nodes, pool, storage, signal }) {
   // How it survives its node.
   const storageNames = storage.map((x) => x.name);
   const onStorage = h('select', { class: 'fui-field__input', id: 'cs-storage' }, storageNames.map((n) => h('option', { value: n, selected: had.mode && had.mode.storage === n }, n)));
-  onStorage.addEventListener('change', () => later(0));
+  onStorage.addEventListener('change', () => { drawWorkers(); later(0); });
+  drawWorkers();
   const survival = h('div', { class: 'stack' });
   const drawSurvival = () => mount(survival, h('p', { class: 'sub' }, t(`pages.cluster_deploy.mode_help.${survive}`)),
     survive === 'shared' ? (storageNames.length ? h('div', { class: 'fui-field' }, h('label', { class: 'fui-field__label', htmlFor: 'cs-storage' }, t('pages.cluster_deploy.mode_storage')), onStorage)
       : status({ tone: 'warning', line: true }, t('pages.cluster_deploy.mode_no_storage'))) : null);
   const survivePick = segmented({ label: t('pages.cluster_deploy.mode'), value: survive, size: 'sm',
     options: ['file', 'stateless', 'pinned', 'shared'].map((v) => ({ value: v, label: t(`pages.cluster_deploy.mode_word.${v}`) })),
-    onChange: (v) => { survive = v; drawSurvival(); later(0); } });
+    onChange: (v) => { survive = v; drawSurvival(); drawWorkers(); later(0); } });
   drawSurvival();
 
   // 3. How it is reached from outside.
@@ -159,6 +179,7 @@ function deployer({ existing, stack, nodes, pool, storage, signal }) {
       last = await post('/api/cluster/stack-check', asked, { signal: ctl.signal });
       file.setError('');
       volumes.refresh();
+      drawWorkers();
       mount(found, servicesFound(last, b.name, names, () => later(0)));
       mount(placed, placement(last, nodes, mode === 'chosen' && !chosen.size));
       reach.offer(last.services || {}, !existing);
@@ -196,7 +217,7 @@ function deployer({ existing, stack, nodes, pool, storage, signal }) {
  *  the service and the path in it, and Add volume, as often as one likes; each new volume's name is the stack's with
  *  a random part, never one the file has. When the file mounts relative paths (./data, which mean nothing on a worker),
  *  a button puts them all on the storage chosen. */
-function volumeTool({ file, storage, stackName, changed }) {
+function volumeTool({ file, storage, stackName, changed, picked }) {
   const LOCAL = '';
   const where = h('select', { class: 'fui-field__input', id: 'cs-vol-where' },
     storage.map((x) => h('option', { value: x.name }, x.driver ? `${x.name} (${x.driver})` : x.name)),
@@ -232,7 +253,9 @@ function volumeTool({ file, storage, stackName, changed }) {
     } catch (e) { said.textContent = e.key ? t(`pages.cluster_deploy.vol_err.${e.key}`, e.vars) : e.message; return; }
     said.textContent = svc.value ? t('pages.cluster_deploy.vol_added_mounted', { name: vol, where: storageWord(), service: svc.value, target: to })
       : t('pages.cluster_deploy.vol_added', { name: vol, where: storageWord() });
+    if (where.value !== LOCAL) said.textContent += ` ${t('pages.cluster_deploy.vol_picked', { where: where.value })}`;
     target.value = '';
+    if (where.value !== LOCAL) picked(where.value);
     refresh();
     changed();
   }
@@ -243,7 +266,9 @@ function volumeTool({ file, storage, stackName, changed }) {
     try { r = convertBinds(file.value, { storage: where.value || null, stack: stackName() }); } catch (e) { said.textContent = e.key ? t(`pages.cluster_deploy.vol_err.${e.key}`, e.vars) : e.message; return; }
     if (!r.changed.length) return;
     file.value = r.text;
+    if (where.value !== LOCAL) picked(where.value);
     said.textContent = t('pages.cluster_deploy.vol_converted', { list: r.changed.map((c) => `${c.source} \u2192 ${c.name}`).join(', '), where: storageWord() });
+    if (where.value !== LOCAL) said.textContent += ` ${t('pages.cluster_deploy.vol_picked', { where: where.value })}`;
     refresh();
     changed();
   }
