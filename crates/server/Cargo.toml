@@ -30,7 +30,7 @@ r2d2_sqlite = { version = "0.31", features = ["bundled"] }
 # The same rusqlite r2d2_sqlite brings, with SQLite's online backup API.
 rusqlite = { version = "0.37", features = ["backup"] }
 rand = "0.9"
-rcgen = { version = "0.13", features = ["x509-parser"] }
+rcgen = { version = "0.14", features = ["x509-parser"] }
 rust-embed = { version = "8", features = ["interpolate-folder-path"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 serde = { version = "1", features = ["derive"] }
